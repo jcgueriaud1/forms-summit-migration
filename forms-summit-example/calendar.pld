@@ -1,0 +1,202 @@
+
+
+package date_lov is
+   last_lov_date         number(2);
+   current_lov_date      date;
+   date_lov_return_item  varchar2(80);
+
+   lov_title             varchar2(80);
+   lov_auto_confirm      boolean;
+   lov_auto_skip         boolean;
+
+   weekend_highlight     boolean;
+   weekend_day1          number;
+   weekend_day2          number;
+   
+   procedure display_cal(display_date in date);
+   procedure date_click;
+   procedure get_date (display_date  in date,
+                       return_item   in varchar2,
+                       v_x_pos       in number   := 0,
+                       v_y_pos       in number   := 0,
+                       v_title       in varchar2 := 'Date List of Values',
+                       v_ok          in varchar2 := 'OK',
+                       v_cancel      in varchar2 := 'Cancel',
+                       v_highlight   in boolean  := TRUE,
+                       v_autoconfirm in boolean  := FALSE,
+                       v_autoskip    in boolean  := FALSE);
+end;
+
+package body date_lov is
+
+   procedure set_day_labels
+   is
+   begin
+      -- if November 8, 1996 is the fifth day of the week, then
+      -- display the labels in ISO style with Monday as
+      -- the first day of the week
+      -- else November 8, 1996 is the sixth day of the week, then
+      -- display the labels in American style with Sunday as
+      -- the first day of the week
+
+      if to_char(to_date('11/08/1996','mm/dd/yyyy'),'d') = '5' then
+         weekend_day1 := 6;
+         weekend_day2 := 7;
+         copy(to_char(to_date('11/04/1996','mm/dd/yyyy'),'Dy'),
+              'date_control_block.day_label1');
+         copy(to_char(to_date('11/05/1996','mm/dd/yyyy'),'Dy'),
+              'date_control_block.day_label2');
+         copy(to_char(to_date('11/06/1996','mm/dd/yyyy'),'Dy'),
+              'date_control_block.day_label3');
+         copy(to_char(to_date('11/07/1996','mm/dd/yyyy'),'Dy'),
+              'date_control_block.day_label4');
+         copy(to_char(to_date('11/08/1996','mm/dd/yyyy'),'Dy'),
+              'date_control_block.day_label5');
+         copy(to_char(to_date('11/09/1996','mm/dd/yyyy'),'Dy'),
+              'date_control_block.day_label6');
+         copy(to_char(to_date('11/10/1996','mm/dd/yyyy'),'Dy'),
+              'date_control_block.day_label7');
+      else
+         weekend_day1 := 1;
+         weekend_day2 := 7;
+         copy(to_char(to_date('11/03/1996','mm/dd/yyyy'),'Dy'),
+              'date_control_block.day_label1');
+         copy(to_char(to_date('11/04/1996','mm/dd/yyyy'),'Dy'),
+              'date_control_block.day_label2');
+         copy(to_char(to_date('11/05/1996','mm/dd/yyyy'),'Dy'),
+              'date_control_block.day_label3');
+         copy(to_char(to_date('11/06/1996','mm/dd/yyyy'),'Dy'),
+              'date_control_block.day_label4');
+         copy(to_char(to_date('11/07/1996','mm/dd/yyyy'),'Dy'),
+              'date_control_block.day_label5');
+         copy(to_char(to_date('11/08/1996','mm/dd/yyyy'),'Dy'),
+              'date_control_block.day_label6');
+         copy(to_char(to_date('11/09/1996','mm/dd/yyyy'),'Dy'),
+              'date_control_block.day_label7');
+      end if;
+   end set_day_labels;
+
+   procedure display_cal(display_date in date)
+   is
+      first_date    date;
+      first_dow     number;
+      last_dom      number;
+      loop_begin    number;
+      loop_end      number;
+      current_date  number;
+      day_label     number := 1;
+   BEGIN
+      current_lov_date := display_date;
+      current_date     := to_number(to_char(display_date,'dd'));
+      first_date       := to_date('01-'||to_char(display_date,'mon-yyyy'),'dd-mon-yyyy');
+      first_dow        := to_number(to_char(first_date,'d'));
+      last_dom         := to_number(to_char(last_day(display_date),'dd'));
+      copy(to_char(display_date,'fmMonth YYYY'),
+           'date_control_block.display_mon_year');
+
+      loop_end := first_dow - 1;
+
+      for i in 1..loop_end loop
+         set_item_property('date_button'||to_char(i), displayed, property_false);
+      end loop;
+
+      loop_end := last_dom + first_dow - 1;
+
+      for i in first_dow..loop_end loop
+         if get_item_property('date_button'||to_char(i), displayed) = 'FALSE' then
+            set_item_property('date_button'||to_char(i), displayed, property_true);
+         end if;
+         copy(to_char(day_label), 'date_button'||to_char(i));
+         if day_label = current_date then
+            set_item_property('date_button'||to_char(i), visual_attribute, 'date_selected_va');
+            last_lov_date := i;
+         elsif to_char(to_date(to_char(day_label)||'-'||
+         to_char(display_date,'mon-yyyy'),'dd-mon-yyyy'),'d')
+         in (weekend_day1,weekend_day2) and weekend_highlight = TRUE then
+            set_item_property('date_button'||to_char(i), visual_attribute, 'date_weekend_va');
+         else
+            set_item_property('date_button'||to_char(i), visual_attribute, 'date_normal_va');
+         end if;
+         day_label := day_label + 1;
+      end loop;
+
+      if last_dom + first_dow < 37 then
+         loop_begin := last_dom + first_dow;
+         loop_end   := 37;
+         for i in loop_begin..loop_end loop
+            set_item_property('date_button'||to_char(i), displayed, property_false);
+         end loop;
+      end if;
+   end display_cal;
+
+   procedure get_date (display_date  in date,
+                       return_item   in varchar2,
+                       v_x_pos       in number   := 0,
+                       v_y_pos       in number   := 0,
+                       v_title       in varchar2 := 'Date List of Values',
+                       v_ok          in varchar2 := 'OK',
+                       v_cancel      in varchar2 := 'Cancel',
+                       v_highlight   in boolean  := TRUE,
+                       v_autoconfirm in boolean  := FALSE,
+                       v_autoskip    in boolean  := FALSE)
+   is
+      date_window  window;
+   begin
+      date_window := find_window('date_lov_window');
+
+      -- set date lov window position
+      set_window_property(date_window, position, v_x_pos, v_y_pos);
+
+      -- set date lov window title
+      set_window_property(date_window, title, v_title);
+
+      -- set OK button label
+      set_item_property('date_control_block.ok_button',label,v_ok);
+
+      -- set Cancel button label
+      set_item_property('date_control_block.cancel_button',label,v_cancel);
+
+      -- set date lov auto confirm flag
+      lov_auto_confirm := v_autoconfirm;
+
+      -- set date lov auto skip flag
+      lov_auto_skip := v_autoskip;
+
+      -- set weekend highlight flag
+      weekend_highlight := v_highlight;
+
+      date_lov_return_item := return_item;
+      set_day_labels;
+      display_cal(display_date);
+      go_block('date_control_block');
+   end get_date;
+
+   procedure date_click
+   is
+   begin
+      if to_char(date_lov.current_lov_date,'d') in (date_lov.weekend_day1, date_lov.weekend_day2) and
+      weekend_highlight = TRUE then
+         set_item_property('date_button'||to_char(date_lov.last_lov_date),
+                           visual_attribute, 'date_weekend_va');
+      else
+         set_item_property('date_button'||to_char(date_lov.last_lov_date),
+                           visual_attribute, 'date_normal_va');
+      end if;
+
+      set_item_property(name_in('system.trigger_item'),
+                        visual_attribute, 'date_selected_va');
+      date_lov.last_lov_date := substr(name_in('system.trigger_item'),
+         instr(name_in('system.trigger_item'),'.')+12);
+
+      date_lov.current_lov_date := to_date(name_in(name_in('system.trigger_item')) || '-' ||
+                                   to_char(date_lov.current_lov_date,'mon-yyyy'),'dd-mon-yyyy');
+
+      if date_lov.lov_auto_confirm = TRUE then
+         copy(to_char(date_lov.current_lov_date), date_lov.date_lov_return_item);
+         go_item(date_lov.date_lov_return_item);
+         if date_lov.lov_auto_skip = TRUE then
+            next_item;
+         end if;
+      end if;
+   end date_click;
+end;

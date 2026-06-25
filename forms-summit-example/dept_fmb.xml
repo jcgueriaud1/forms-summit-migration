@@ -1,0 +1,18 @@
+<?xml version = '1.0' encoding = 'UTF-8'?>
+<Module version="122010400" xmlns="http://xmlns.oracle.com/Forms">
+   <FormModule Name="DEPT" DirtyInfo="true" Title="MODULE1" ConsoleWindow="WINDOW1" MenuModule="DEFAULT&amp;SMARTBAR">
+      <Coordinate CharacterCellWidth="5" RealUnit="Point" DefaultFontScaling="true" CharacterCellHeight="14" CoordinateSystem="Real"/>
+      <Block Name="DEPT" QueryDataSourceName="DEPT" DirtyInfo="true" ScrollbarWidth="9" ScrollbarLength="135">
+         <Item Name="DEPTNO" Prompt="Deptno" PromptAttachmentEdge="Top" TabPageName="" PromptAlign="Center" Width="18" MaximumLength="3" ItemType="Text Item" DataType="Number" XPosition="14" Required="true" YPosition="40" DirtyInfo="true" CanvasName="CANVAS2" ColumnName="DEPTNO" PromptDisplayStyle="First Record" ItemsDisplay="0" Height="14"/>
+         <Item Name="DNAME" Prompt="Dname" PromptAttachmentEdge="Top" TabPageName="" PromptAlign="Center" Width="68" MaximumLength="14" ItemType="Text Item" XPosition="36" YPosition="40" DirtyInfo="true" CanvasName="CANVAS2" ColumnName="DNAME" PromptDisplayStyle="First Record" ItemsDisplay="0" Height="14"/>
+         <Item Name="LOC" Prompt="Loc" PromptAttachmentEdge="Top" TabPageName="" PromptAlign="Center" Width="63" MaximumLength="13" ItemType="Text Item" XPosition="104" YPosition="40" DirtyInfo="true" CanvasName="CANVAS2" ColumnName="LOC" PromptDisplayStyle="First Record" ItemsDisplay="0" Height="14"/>
+         <DataSourceColumn DSCLength="0" DSCMandatory="true" DSCPrecision="2" DSCName="DEPTNO" DSCScale="0" DSCType="NUMBER" DSCNochildren="false" Type="Query"/>
+         <DataSourceColumn DSCLength="14" DSCMandatory="false" DSCPrecision="0" DSCName="DNAME" DSCScale="0" DSCType="VARCHAR2" DSCNochildren="false" Type="Query"/>
+         <DataSourceColumn DSCLength="13" DSCMandatory="false" DSCPrecision="0" DSCName="LOC" DSCScale="0" DSCType="VARCHAR2" DSCNochildren="false" Type="Query"/>
+      </Block>
+      <Canvas Name="CANVAS2" CanvasType="Content" DirtyInfo="true" Width="360" WindowName="WINDOW1" Height="324" ViewportHeight="324" ViewportWidth="360">
+         <Graphics Name="FRAME3" Width="167" EdgeBackColor="white" FillPattern="none" EdgePattern="solid" FrameTitleOffset="9" XPosition="5" FrameTitleSpacing="5" YPosition="15" Bevel="Inset" LayoutStyle="Tabular" DirtyInfo="true" LayoutDataBlockName="DEPT" GraphicsType="Frame" HorizontalMargin="5" ScrollbarWidth="9" VerticalMargin="14" HorizontalObjectOffset="0" Height="53" StartPromptOffset="5"/>
+      </Canvas>
+      <Window Name="WINDOW1" Width="360" Height="324"/>
+   </FormModule>
+</Module>

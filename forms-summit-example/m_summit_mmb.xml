@@ -1,0 +1,37 @@
+<?xml version = '1.0' encoding = 'UTF-8'?>
+<Module version="122010400" xmlns="http://xmlns.oracle.com/Forms">
+   <MenuModule Name="M_SUMMIT" DirtyInfo="true" MainMenu="MAIN_MENU">
+      <Menu Name="MAIN_MENU" DirtyInfo="true">
+         <MenuItem Name="FILE" DirtyInfo="true" Label="File" SubMenuName="FILE_MENU" CommandType="Menu"/>
+         <MenuItem Name="EDIT" DirtyInfo="true" Label="Edit" SubMenuName="EDIT_MENU" CommandType="Menu"/>
+         <MenuItem Name="SORT_BY" DirtyInfo="true" Label="Sort By" SubMenuName="SORT_BY_MENU" CommandType="Menu"/>
+         <MenuItem Name="QUERY" DirtyInfo="true" Label="Query" SubMenuName="QUERY_MENU" CommandType="Menu"/>
+         <MenuItem Name="IMAGE" DirtyInfo="true" Label="Image" SubMenuName="IMAGE_MENU" CommandType="Menu"/>
+      </Menu>
+      <Menu Name="FILE_MENU">
+         <MenuItem Name="SAVE" DirtyInfo="true" IconFilename="save" Label="Save" MenuItemCode="DO_KEY('COMMIT_FORM');"/>
+         <MenuItem Name="CLEAR" DirtyInfo="true" IconFilename="abort" Label="Clear" MenuItemCode="DO_KEY('CLEAR_FORM');"/>
+         <MenuItem Name="ITEM5" MenuItemType="Separator" DirtyInfo="true" Label="" CommandType="Null"/>
+         <MenuItem Name="EXIT" DirtyInfo="true" IconFilename="exit" Label="Exit" MenuItemCode="DO_KEY('EXIT_FORM');"/>
+         <MenuItem Name="ITEM7" MenuItemType="Separator" VisibleInMenu="false" DirtyInfo="true" Label="" CommandType="Null"/>
+      </Menu>
+      <Menu Name="EDIT_MENU">
+         <MenuItem Name="CUT" MenuItemType="Magic" DirtyInfo="true" IconFilename="cut" Label="Cut" MagicItem="Cut" CommandType="Null"/>
+         <MenuItem Name="COPY" MenuItemType="Magic" DirtyInfo="true" IconFilename="copy" Label="Copy" MagicItem="Copy" CommandType="Null"/>
+         <MenuItem Name="PASTE" MenuItemType="Magic" DirtyInfo="true" IconFilename="paste" Label="Paste" MagicItem="Paste" CommandType="Null"/>
+         <MenuItem Name="ITEM12" MenuItemType="Separator" VisibleInMenu="false" DirtyInfo="true" Label="" CommandType="Null"/>
+      </Menu>
+      <Menu Name="SORT_BY_MENU">
+         <MenuItem Name="ORDER_ID" MenuItemType="Radio" MenuItemRadioGroup="Order_by" DirtyInfo="true" Label="Order Id" MenuItemCode="SET_BLOCK_PROPERTY('s_ord', ORDER_BY, 'id');"/>
+         <MenuItem Name="CUSTOMER_ID" MenuItemType="Radio" MenuItemRadioGroup="Order_by" DirtyInfo="true" Label="Customer Id" MenuItemCode="SET_BLOCK_PROPERTY('s_ord', ORDER_BY, 'customer_id');"/>
+         <MenuItem Name="SALES_REP_ID" MenuItemType="Radio" MenuItemRadioGroup="Order_by" DirtyInfo="true" Label="Sales Rep Id" MenuItemCode="SET_BLOCK_PROPERTY('s_ord', ORDER_BY, 'sales_rep_id');"/>
+      </Menu>
+      <Menu Name="QUERY_MENU">
+         <MenuItem Name="ENTER_QUERY" DirtyInfo="true" IconFilename="query" Label="Enter Query" MenuItemCode="DO_KEY('ENTER_QUERY');"/>
+         <MenuItem Name="EXECUTE_QUERY" DirtyInfo="true" IconFilename="execute" Label="eXecute Query" MenuItemCode="DO_KEY('EXECUTE_QUERY');"/>
+      </Menu>
+      <Menu Name="IMAGE_MENU">
+         <MenuItem Name="IMAGE_ACTIVATE" MenuItemType="Check" DirtyInfo="true" Label="Image Activate" MenuItemCode="DECLARE&amp;#10;&#x9;product_image_id      ITEM := FIND_ITEM( 's_item.product_image' );&amp;#10;&#x9;image_description_id  ITEM := FIND_ITEM( 's_item.image_description');&amp;#10;&#x9;image_button_id       ITEM := FIND_ITEM( 'control.image_button' );&amp;#10;&#x9;filename varchar2(500);&amp;#10;BEGIN&amp;#10;&#x9;IF    GET_ITEM_PROPERTY(product_image_id,displayed) = 'TRUE'&amp;#10;&#x9;THEN  &amp;#10;&#x9;&#x9;SET_ITEM_PROPERTY( product_image_id, DISPLAYED, PROPERTY_FALSE );&amp;#10;&#x9;&#x9;SET_ITEM_PROPERTY( image_description_id, DISPLAYED, PROPERTY_FALSE );&amp;#10;&#x9;&#x9;SET_ITEM_PROPERTY( image_button_id, LABEL, 'Image On' );&amp;#10;&#x9;&#x9;SET_MENU_ITEM_PROPERTY( 'image_menu.image_activate', CHECKED, PROPERTY_FALSE );&amp;#10;&#x9;  IF  GET_ITEM_PROPERTY('S_ITEM.product_image',VISIBLE)='TRUE' THEN&amp;#10;&#x9;    filename := GET_PRODUCT_IMAGE(NAME_IN('S_ITEM.product_id')); &amp;#10;&#x9;    IF filename = 'No file' THEN  &amp;#10;&#x9;       null;&amp;#10;&#x9;    ELSE  &amp;#10;&#x9;      READ_IMAGE_FILE(filename,'tiff','S_ITEM.product_image');&amp;#10;&#x9;    END IF;&amp;#10;&#x9;  END IF;&amp;#10;&#x9;ELSE  &amp;#10;&#x9;&#x9;SET_ITEM_PROPERTY(product_image_id, DISPLAYED, PROPERTY_TRUE );&amp;#10;&#x9;&#x9;SET_ITEM_PROPERTY(image_description_id, DISPLAYED,PROPERTY_TRUE );&amp;#10;&#x9;&#x9;SET_ITEM_PROPERTY(image_button_id, LABEL, 'Image Off' );&amp;#10;&#x9;&#x9;SET_MENU_ITEM_PROPERTY('image_menu.image_activate', CHECKED, PROPERTY_TRUE );&amp;#10;&#x9;END IF;&amp;#10;END; &amp;#10;"/>
+      </Menu>
+   </MenuModule>
+</Module>

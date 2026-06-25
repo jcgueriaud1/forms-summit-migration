@@ -1,0 +1,233 @@
+
+
+PACKAGE d2k_Delimited_String IS
+  /*-----------------------------------------------------------------------------*\
+   * d2k_Delimited_String: A series of handy functions for Parsing and handling 
+   *           Delimited strings, e.g. comma seperated values
+   *	       in the format <field1><delimiter><field2><delimiter> etc.
+   *	       The delimiter will default to a comma if not specified
+   * Functions are:
+   * 		COUNTER	 -> Returns the number of "fields" in the string
+   *		PUT   	 -> Adds (or replaces) a Number, string or date 
+   *			    to the string at the specified position
+   *			    (dates are stored with full precision)
+   *		GETSTRING-> Returns the String value of the nth field
+   *		GETNUMBER-> Returns the number value of the nth field
+   *		GETDATE  -> Returns the Date value of the nth field
+   *		LOCATE   -> Returns the Field number of a particular 
+   *			    String
+   * All the functions are overloaded where required
+  \*-----------------------------------------------------------------------------*/
+
+	function  Counter(	Source_string 	in varchar2,
+			 	UnTerminated	in Boolean  default FALSE,
+			 	Delimiter 	in varchar2 default ',') return number;
+	Procedure PutString(	Source_string 	in out varchar2,
+			 	String_to_add 	in varchar2,
+			 	Field_position 	in number,
+			 	UnTerminated	in Boolean  default FALSE,
+			 	Delimiter 	in varchar2 default ',');
+	Procedure PutNumber(	Source_string 	in out varchar2,
+			 	number_to_add 	in number,
+			 	Field_position 	in number,
+			 	UnTerminated	in Boolean  default FALSE,
+			 	Delimiter 	in varchar2 default ',');
+	Procedure PutDate(	Source_string 	in out varchar2,
+			 	Date_to_add 	in date,
+			 	Field_position 	in number,
+			 	UnTerminated	in Boolean  default FALSE,
+			 	Delimiter 	in varchar2 default ',');
+	function  GetString(	Source_string	in varchar2,
+			 	Field_position 	in number,
+			 	UnTerminated	in Boolean  default FALSE,
+			 	Delimiter 	in varchar2 default ',') return varchar2;
+	function  GetNumber(	Source_string	in varchar2,
+			 	Field_position in number,
+			 	UnTerminated	in Boolean  default FALSE,
+			 	Delimiter 	in varchar2 default ',') return number;
+	function  GetDate(	Source_string	in varchar2,
+			 	Field_position in number,
+			 	UnTerminated	in Boolean  default FALSE,
+			 	Delimiter 	in varchar2 default ',') return date;
+	function  Locate(	Source_string	in varchar2,
+			 	Search_String	in varchar2,
+			 	UnTerminated	in Boolean  default FALSE,
+			 	Delimiter	in varchar2 default ',') return number;
+	function  Locate(	Source_string	in varchar2,
+			 	Search_date	in date,
+			 	UnTerminated	in Boolean  default FALSE,
+			 	Delimiter	in varchar2 default ',') return number;
+	function  Locate(	Source_string	in varchar2,
+			 	Search_number	in number,
+			 	UnTerminated	in Boolean  default FALSE,
+			 	Delimiter	in varchar2 default ',') return number;
+END d2k_Delimited_String;
+
+
+PACKAGE BODY d2k_Delimited_String IS
+  	function  Counter(Source_string 	in varchar2,
+			 UnTerminated	in Boolean default FALSE,
+			 Delimiter 	in varchar2 default ',') return number is
+		iModifier	pls_integer := 0;
+		iOldSize	pls_integer := length(Source_string);
+	begin
+		if Unterminated then iModifier := 1; end if;
+		return (iOldSize - length(replace(Source_string,Delimiter))) + iModifier; 
+	end Counter;
+
+	Procedure PutString	(Source_string 	in out varchar2,
+			 String_to_add 	in varchar2,
+			 Field_position in number,
+			 UnTerminated	in Boolean  default FALSE,
+			 Delimiter 	in varchar2 default ',') is
+		iStrLen		pls_integer := length(Source_String);
+		iStrFragLen	pls_integer := Length(String_to_add);
+		iPtrStart	pls_integer := 0;
+		iPtrEnd		pls_integer := 0;
+ 		vcSepBuffer	varchar2(2000);
+		iCounter	pls_integer;
+	begin
+	-- 1. is the string Zero Length?
+		if iStrLen = 0 then
+			if Field_Position > 1 then 
+				for iCounter in 2..Field_Position loop
+					vcSepBuffer := vcSepBuffer||Delimiter;
+				end loop;
+		end if;
+		Source_string := vcSepBuffer||String_to_add;
+		if Not UnTerminated then 
+			Source_string := Source_String||Delimiter;
+			iStrLen	      := length(Source_string);
+		end if;
+		else			
+	-- 2. Cope with unterminated strings 
+			if UnTerminated then 
+				Source_string := Source_string||Delimiter;
+			end if;
+
+	-- 3. Locate the nth-1 separator
+			if Field_Position > 1 then 
+				LOOP
+					iPtrStart := (instr(Source_string||vcSepBuffer,Delimiter,1,Field_Position-1)-1) + length(Delimiter);
+					EXIT when iPtrStart > 0;
+					vcSepBuffer	:= vcSepBuffer||Delimiter;
+				END LOOP;
+				if vcSepBuffer is not null then 	
+					iPtrEnd := iStrLen;
+				else 
+					iPtrEnd := instr(Source_string,Delimiter,1,Field_Position);
+					if iPtrEnd = 0 then 
+						iPtrEnd := iStrLen;
+					end if;
+				end if;
+			else 	iPtrStart := 0;
+				iPtrEnd := instr(Source_string,Delimiter,1,Field_Position);
+				if iPtrEnd = 0 then 
+					iPtrEnd := iStrLen;
+				end if;
+			end if;
+			-- 3. Rebuild the string
+			Source_string := substr(Source_string,1,iPtrStart)||vcSepBuffer||
+					 String_to_add||Delimiter||substr(Source_string,iPtrEnd+length(Delimiter));
+	-- 4. Sort out termination
+			if UnTerminated then 
+				Source_string := substr(Source_String,1,(length(Source_string)-length(Delimiter)));
+			end if;
+		end if;
+	end PutString;
+
+	Procedure PutNumber	(Source_string 	in out varchar2,
+			 number_to_add 	in number,
+			 Field_position in number,
+			 UnTerminated	in Boolean  default FALSE,
+			 Delimiter 	in varchar2 default ',') is
+	
+	begin
+	-- 1. Just do datatype conversions and call the varchar2 varsion of put..
+		d2k_Delimited_String.PutString(Source_string, to_char(number_to_add), Field_position, UnTerminated, Delimiter);
+	end PutNumber;
+
+	Procedure PutDate	(Source_string 	in out varchar2,
+			 Date_to_add 	in date,
+			 Field_position in number,
+			 UnTerminated	in Boolean  default FALSE,
+			 Delimiter 	in varchar2 default ',') is
+		
+	begin
+	-- 1. Just do datatype conversions and call the varchar2 varsion of put..
+		d2k_Delimited_String.PutString(Source_string, to_char(date_to_add,'DD-MON-YYYY HH24:MI:SS'), Field_position, UnTerminated, Delimiter);
+	end PutDate;
+
+
+	function  GetString (Source_string	in varchar2,
+			 Field_position in number,
+			 UnTerminated	in Boolean  default FALSE,
+			 Delimiter 	in varchar2 default ',') return varchar2 is
+		iPtrEnd		pls_integer 	:= 0;
+		iPtrStart	pls_integer 	:= 0;
+		vcSourceStrCopy varchar2(2000) 	:= Source_string;
+	begin
+		if UnTerminated then 
+			vcSourceStrCopy := vcSourceStrCopy||Delimiter;
+		end if;
+
+		if Field_Position > 1 then 
+			iPtrStart := instr(vcSourceStrCopy,Delimiter,1,Field_Position-1)+ length(Delimiter);
+		else iPtrStart := 1;
+		end if ; 
+		iPtrEnd	 := instr(vcSourceStrCopy,Delimiter,1,Field_Position);
+		return substr(vcSourceStrCopy,iPtrStart,(iPtrEnd-iPtrStart));
+	end GetString; /* String Version */
+
+	
+	function  GetNumber(Source_string	in varchar2,
+			 Field_position in number,
+			 UnTerminated	in Boolean  default FALSE,
+			 Delimiter 	in varchar2 default ',') return number is
+		iRc	pls_integer;
+	begin 
+		Return to_number(GetString(Source_string, Field_Position, UnTerminated, Delimiter));
+	end GetNumber; /* Number Version */
+
+	function  GetDate(Source_string	in varchar2,
+			 Field_position in number,
+			 UnTerminated	in Boolean  default FALSE,
+			 Delimiter 	in varchar2 default ',') return date is
+	begin 
+		return to_date(GetString(Source_string, Field_Position, UnTerminated, Delimiter),'DD-MON-YYYY HH24:MI:SS');
+	end GetDate; /* Date Version */
+
+	function  Locate(Source_string	in varchar2,
+			 Search_String	in varchar2,
+			 UnTerminated	in Boolean  default FALSE,
+			 Delimiter	in varchar2 default ',') return number is 
+		iHit	  pls_integer := 0;
+		iCounter  pls_integer;
+		vcCompare varchar2(2000);
+	begin 
+		for iCounter in 1..Counter(Source_String, UnTerminated, Delimiter) LOOP
+			if GetString(Source_String,iCounter, UnTerminated, Delimiter) = Search_String then 
+				iHit := iCounter;
+				Exit;
+			end if;
+		end loop;
+		Return iHit;
+	end Locate;
+
+	function  Locate(Source_string	in varchar2,
+			 Search_date	in date,
+			 UnTerminated	in Boolean  default FALSE,
+			 Delimiter	in varchar2 default ',') return number is
+	begin
+		return Locate( Source_string, to_char(Search_date,'DD-MON-YYYY HH24:MI:SS'), UnTerminated, Delimiter);
+	end Locate; /* Date Version */
+
+	function  Locate(Source_string	in varchar2,
+			 Search_number	in number,
+			 UnTerminated	in Boolean  default FALSE,
+			 Delimiter	in varchar2 default ',') return number is
+	begin
+		return Locate( Source_string, to_char(Search_number), UnTerminated, Delimiter);
+	end Locate; /* Number Version */
+
+END d2k_Delimited_String; /* Body */

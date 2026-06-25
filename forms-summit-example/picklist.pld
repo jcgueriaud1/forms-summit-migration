@@ -1,0 +1,597 @@
+
+
+package Pick_List
+is
+
+   --  Package     Pick_List
+   --  Version     0.1 Alpha
+   --  Written by  Mark Doran
+
+   list_in             constant  varchar2(25) := 'PICKLIST_IN';        -- constant for the name of the in picklist
+   list_out            constant  varchar2(25) := 'PICKLIST_OUT';       -- constant for the name of the out picklist
+   picklist_selected   constant  varchar2(25) := 'PICKLIST_SELECTED';  -- constant for moving selected elements
+   picklist_all        constant  varchar2(25) := 'PICKLIST_ALL';       -- constant for moving all elements
+
+   picklist_not_exist       exception;                                 -- exception if picklist does not exist
+   picklist_already_exist   exception;                                 -- exception if picklist already exists
+   invalid_picklist_name    exception;                                 -- exception for invalid picklist name
+   invalid_picklist_option  exception;                                 -- exception for invalid picklist option
+
+      --  Set_Picklist_Selection
+      --
+      --  Description:
+      --     Marks the specified element as selected.  If keystate is Shift, then
+      --     a range is marked as selected.  If keystate is Control, then the
+      --     individual element is added to the list of selected elements.
+      --
+      --  Arguments:
+      --     picklist        the name of the picklist.  Use the constants
+      --                     PICK_LIST.LIST_IN or PICK_LIST.LIST_OUT to
+      --                     specify which picklist you wish to manipulate.
+      --     picklist_index  the index of the element to select.  The first
+      --                     element number is 1.
+      --     keystate        the key modifier, in the form of
+      --                     :system.mouse_button_shift_state.
+
+   procedure Set_Picklist_Selection(picklist varchar2, picklist_index number, keystate varchar2);
+
+      --  Get_Picklist_Selection_Count
+      --
+      --  Description:
+      --     Returns the number of items in the specified picklist
+      --     that are currently marked as selected.
+      --
+      --  Arguments:
+      --     picklist        the name of the picklist.  Use the constants
+      --                     PICK_LIST.LIST_IN or PICK_LIST.LIST_OUT to
+      --                     specify which picklist you wish to manipulate.
+      --
+      --  Returns:
+      --     number          the number of selected elements
+
+   function  Get_Picklist_Selection_Count(picklist varchar2) return number;
+
+      --  Get_Picklist_Selection
+      --
+      --  Description:
+      --     Returns the sequential number of the specified selected element.
+      --     The currently selected rows are number starting with 1.
+      --
+      --  Arguments:
+      --     picklist        the name of the picklist.  Use the constants
+      --                     PICK_LIST.LIST_IN or PICK_LIST.LIST_OUT to
+      --                     specify which picklist you wish to manipulate.
+      --     picklist_index  the index of the element to select.  The first
+      --                     element number is 1.
+      --
+      --  Returns:
+      --     number          the number of the element that is selected
+
+   function  Get_Picklist_Selection(picklist varchar2, selection_number number) return number;
+
+      --  Get_Picklist_Element_Count
+      --
+      --  Description:
+      --     Returns the number of items in the specified picklist.
+      --
+      --  Arguments:
+      --     picklist        the name of the picklist.  Use the constants
+      --                     PICK_LIST.LIST_IN or PICK_LIST.LIST_OUT to
+      --                     specify which picklist you wish to manipulate.
+      --
+      --  Returns:
+      --     number          the number of elements
+
+   function  Get_Picklist_Element_Count(picklist varchar2) return number;
+
+      --  Get_Picklist_Element_Label
+      --
+      --  Description:
+      --     returns the label of the specified element.
+      --
+      --  Arguments:
+      --     picklist        the name of the picklist.  Use the constants
+      --                     PICK_LIST.LIST_IN or PICK_LIST.LIST_OUT to
+      --                     specify which picklist you wish to manipulate.
+      --     picklist_index  the index of the element to select.  The first
+      --                     element number is 1.
+      --
+      --  Returns:
+      --     varchar2        the label of the specified element
+
+   function  Get_Picklist_Element_Label(picklist varchar2, picklist_index number) return varchar2;
+
+      --  Get_Picklist_Element_Value
+      --
+      --  Description:
+      --     returns the value of the specified element.
+      --
+      --  Arguments:
+      --     picklist        the name of the picklist.  Use the constants
+      --                     PICK_LIST.LIST_IN or PICK_LIST.LIST_OUT to
+      --                     specify which picklist you wish to manipulate.
+      --     picklist_index  the index of the element to select.  The first
+      --                     element number is 1.
+      --
+      --  Returns:
+      --     varchar2        the value of the specified element
+
+   function  Get_Picklist_Element_Value(picklist varchar2, picklist_index number) return varchar2;
+
+      --  Set_Picklist_Element_Label
+      --
+      --  Description:
+      --     sets the label for the specified element.
+      --
+      --  Arguments:
+      --     picklist        the name of the picklist.  Use the constants
+      --                     PICK_LIST.LIST_IN or PICK_LIST.LIST_OUT to
+      --                     specify which picklist you wish to manipulate.
+      --     picklist_index  the index of the element to set.  The first
+      --                     element number is 1.
+      --     label           the label for this element.
+
+   procedure Set_Picklist_Element_Label(picklist varchar2, picklist_index number, label varchar2);
+
+      --  Set_Picklist_Element_Value
+      --
+      --  Description:
+      --     sets the value for the specified element.
+      --
+      --  Arguments:
+      --     picklist        the name of the picklist.  Use the constants
+      --                     PICK_LIST.LIST_IN or PICK_LIST.LIST_OUT to
+      --                     specify which picklist you wish to manipulate.
+      --     picklist_index  the index of the element to set.  The first
+      --                     element number is 1..
+      --     value           the value for this element.
+
+   procedure Set_Picklist_Element_Value(picklist varchar2, picklist_index number, value varchar2);
+
+      --  Clear_Picklist
+      --
+      --  Description:
+      --     clears the labels and values from the picklist.
+      --
+      --  Arguments:
+      --     none
+
+   procedure Clear_Picklist(picklist varchar2);
+
+      --  Add_Picklist_Element
+      --
+      --  Description:
+      --     adds an element, including its label and value to the
+      --     specified picklist.
+      --
+      --     picklist        the name of the picklist.  Use the constants
+      --                     PICK_LIST.LIST_IN or PICK_LIST.LIST_OUT to
+      --                     specify which picklist you wish to manipulate.
+      --     picklist_index  the index of the element to set.  The first
+      --                     element number is 1.
+      --     label           the label for this element.
+      --     value           the value for this element.
+
+   procedure Add_Picklist_Element(picklist varchar2, picklist_index number, label varchar2, value varchar2);
+
+      --  Delete_Picklist_Element
+      --
+      --  Description:
+      --     deletes the specified element from the picklist
+      --
+      --     picklist        the name of the picklist.  Use the constants
+      --                     PICK_LIST.LIST_IN or PICK_LIST.LIST_OUT to
+      --                     specify which picklist you wish to manipulate.
+      --     picklist_index  the index of the element to delete.  The first
+      --                     element number is 1.
+
+   procedure Delete_Picklist_Element(picklist varchar2, picklist_index number);
+
+      --  Populate_Picklist_With_Query
+      --
+      --  Arguments:
+      --     picklist        the name of the picklist.  Use the constants
+      --                     PICK_LIST.LIST_IN or PICK_LIST.LIST_OUT to
+      --                     specify which picklist you wish to manipulate.
+      --     query           the query used to populate the picklist.  The
+      --                     query must select two and only two columns
+      --                     of character type.  The first column will be
+      --                     the label that will appear in the picklist
+      --                     and the second column will be the value.
+
+   function  Populate_Picklist_With_Query(picklist varchar2, query varchar2) return number;
+
+      --  Create_Picklist
+      --
+      --  Description:
+      --     creates the structures needed for the picklist reusable
+      --     component.
+
+   procedure Create_Picklist;
+
+      --  Delete_Picklist
+      --
+      --  Description:
+      --     destroys the sturctures needed for the picklist resuable
+      --     component.
+
+   procedure Delete_Picklist;
+
+      --  Display_Picklist
+      --
+      --  Description:
+      --     displays the specified picklist
+      --
+      --  Arguments:
+      --     picklist        the name of the picklist.  Use the constants
+      --                     PICK_LIST.LIST_IN or PICK_LIST.LIST_OUT to
+      --                     specify which picklist you wish to manipulate.
+
+   procedure Display_Picklist(picklist varchar2);
+
+      --  Picklist_Element_Move
+      --
+      --  Description:
+      --     moves elements from one list to the other.
+      --
+      --  Arguments:
+      --     from_picklist   the name of the picklist to move elements from.
+      --                     Use the constants PICK_LIST.LIST_IN or 
+      --                     PICK_LIST.LIST_OUT to specify which picklist
+      --                     you wish to manipulate.
+      --     to_picklist     the name of the picklist to move elements to.
+      --                     Use the constants PICK_LIST.LIST_IN or 
+      --                     PICK_LIST.LIST_OUT to specify which picklist
+      --                     you wish to manipulate.
+      --     picklist_option option that specified whether you wish to move
+      --                     only the selected elements or all elements.
+      --                     Use the constants PICK_LIST.PICKLIST_SELECTED
+      --                     or PICK_LIST.PICKLIST_ALL to specify which
+      --                     elements to move.
+
+   procedure Picklist_Element_Move(from_picklist varchar2, to_picklist varchar2, picklist_option varchar2);
+end Pick_List;
+
+
+package body Pick_List
+is
+
+   --  Package     Pick_List
+   --  Version     0.1 Alpha
+   --  Written by  Mark Doran
+
+   last_in_click   number   := 0;
+   last_out_click  number   := 0;
+
+
+   function Get_Last_Keyclick(picklist varchar2)
+   return number
+   is
+   begin
+      if picklist = list_in then
+         return(last_in_click);
+      elsif picklist = list_out then
+         return(last_out_click);
+      end if;
+   end Get_Last_Keyclick;
+
+
+   procedure Set_Last_Keyclick(picklist varchar2, keyclick number)
+   is
+   begin
+      if picklist = list_in then
+         last_in_click := keyclick;
+      elsif picklist = list_out then
+         last_out_click := keyclick;
+      end if;
+   end Set_Last_Keyclick;
+
+
+   procedure Check_Picklist_Name (picklist varchar2)
+   is
+   begin
+      if picklist not in (list_in, list_out) then
+         raise invalid_picklist_name;
+      end if;
+   end Check_Picklist_Name;
+
+
+   procedure Check_Picklist_Option(picklist_option varchar2)
+   is
+   begin
+      if picklist_option not in (picklist_selected, picklist_all) then
+         raise invalid_picklist_option;
+      end if;
+   end Check_Picklist_Option;   
+
+
+   procedure Set_Picklist_Selection(picklist varchar2, picklist_index number, keystate varchar2)
+   is
+      selected number;
+      range_max number;
+      range_min number;
+   begin
+      check_picklist_name(picklist);
+         --If no keys down, clear everything else, set this one
+      if keystate IS NULL then
+         reset_group_selection(picklist);
+         set_group_selection(picklist, picklist_index);
+            --Save the click for next time in case the next one is Shift+
+         set_last_keyclick(picklist, picklist_index);
+         --If just control key down, toggle this one
+      elsif keystate = 'Ctrl+' then
+            --Find out if this one is already selected
+         selected := 0;
+         for i in 1..get_group_selection_count(picklist) loop
+            if get_group_selection(picklist, i) = picklist_index then
+               selected := 1;
+               exit;
+            end if;
+         end loop;
+         if selected = 1 then
+            unset_group_selection(picklist, picklist_index);
+         else
+            set_group_selection(picklist, picklist_index);
+         end if;
+            --Save the click for next time
+         set_last_keyclick(picklist, picklist_index);
+         --If just Shift key down, select a range
+      elsif keystate = 'Shift+' and get_last_keyclick(picklist) <> 0 then
+         range_max := greatest(get_last_keyclick(picklist), picklist_index);
+         range_min := least(get_last_keyclick(picklist), picklist_index);
+         for i in range_min..range_max loop
+            set_group_selection(picklist, i);
+         end loop; 
+      end if;
+   end Set_Picklist_Selection;
+
+
+   function Get_Picklist_Selection_Count(picklist varchar2)
+   return number
+   IS
+   begin
+      check_picklist_name(picklist);
+      return nvl(Get_Group_Selection_Count(picklist),0);
+   end Get_Picklist_Selection_Count;
+
+
+   function Get_Picklist_Selection(picklist varchar2, selection_number number)
+   return number
+   is
+   begin
+      check_picklist_name(picklist);
+      return Get_Group_Selection(picklist, selection_number);
+   end Get_Picklist_Selection;
+
+
+   function Get_Picklist_Element_Count(picklist varchar2)
+   return number
+   is
+   begin
+      check_picklist_name(picklist);
+      return nvl(get_group_row_count(picklist),0);
+   end Get_Picklist_Element_Count;
+
+
+   function Get_Picklist_Element_Label(picklist varchar2, picklist_index number)
+   return varchar2
+   is
+   begin
+      check_picklist_name(picklist);
+      return get_group_char_cell(picklist||'.label', picklist_index);
+   end Get_Picklist_Element_Label;
+
+
+   function Get_Picklist_Element_Value(picklist varchar2, picklist_index number)
+   return varchar2
+   is
+   begin
+      check_picklist_name(picklist);
+      return get_group_char_cell(picklist||'.value', picklist_index);
+   end Get_Picklist_Element_Value;
+
+
+   procedure Set_Picklist_Element_Label(picklist varchar2, picklist_index number, label varchar2)
+   is
+   begin
+      check_picklist_name(picklist);
+      set_group_char_cell(picklist||'.label', picklist_index, label);
+   end Set_Picklist_Element_Label;
+
+
+   procedure Set_Picklist_Element_Value(picklist varchar2, picklist_index number, value varchar2)
+   is
+   begin
+      check_picklist_name(picklist);
+      set_group_char_cell(picklist||'.value', picklist_index, value);
+   end Set_Picklist_Element_Value;
+
+
+   procedure Clear_Picklist(picklist varchar2)
+   is
+   begin
+      check_picklist_name(picklist);
+      go_block(picklist);
+      clear_block(no_commit);
+      go_block('picklist_control');
+   end Clear_Picklist;
+
+
+   procedure Add_Picklist_Element(picklist varchar2, picklist_index number, label varchar2, value varchar2)
+   is
+   begin
+      check_picklist_name(picklist);
+      add_group_row(picklist, picklist_index);
+      set_group_char_cell(picklist||'.label', picklist_index, label);
+      set_group_char_cell(picklist||'.value', picklist_index, value);
+   end Add_Picklist_Element;
+
+
+   procedure Delete_Picklist_Element(picklist varchar2, picklist_index number)
+   is
+   begin
+      check_picklist_name(picklist);
+      delete_group_row(picklist, picklist_index);
+   end Delete_Picklist_Element;
+
+
+   function Populate_Picklist_With_Query(picklist varchar2, query varchar2)
+   return number
+   is
+   begin
+      check_picklist_name(picklist);
+      return populate_group_with_query(picklist, query);
+   end Populate_Picklist_With_Query;
+
+
+   procedure Create_Picklist
+   is
+      group_id   recordgroup;
+      col_id     groupcolumn;
+   begin
+      if not (id_null(find_group(list_in)) or id_null(find_group(list_out))) then
+         raise picklist_already_exist;
+      else
+         group_id := create_group(list_in);
+         col_id   := add_group_column(group_id, 'label', char_column, 255);
+         col_id   := add_group_column(group_id, 'value', char_column, 255);
+         group_id := create_group(list_out);
+         col_id   := add_group_column(group_id, 'label', char_column, 255);
+         col_id   := add_group_column(group_id, 'value', char_column, 255);
+      end if;
+   end Create_Picklist;
+
+
+   procedure Delete_Picklist
+   is
+      rg_id  recordgroup;
+   begin
+      if not id_null(find_group(list_in)) then
+         delete_group(list_in);
+      else
+         raise picklist_not_exist;
+      end if;
+      if not id_null(find_group(list_out)) then
+         delete_group(list_out);
+      else
+         raise picklist_not_exist;
+      end if;
+   end Delete_Picklist;
+
+
+   procedure Display_Picklist(picklist varchar2)
+   is
+      select_total  number  default 0;
+      select_count  number  default 1;
+      curr_record   number;
+      list_count    number;
+      next_select   number;
+   begin
+      check_picklist_name(picklist);
+      go_block(picklist);
+      curr_record := to_number(name_in('system.cursor_record'));
+      clear_block(no_commit);
+
+      list_count := get_group_row_count(picklist);
+      select_total := get_group_selection_count(picklist);
+      if select_total > 0 then
+         next_select := get_group_selection(picklist, 1);
+      end if;
+
+      for i in 1..list_count loop
+         copy(get_group_char_cell(picklist||'.label', i), picklist||'.display');
+         if i = next_select then
+            display_item(picklist||'.display', 'picklist_element_selected');
+            select_count := select_count + 1;
+            if select_total >= select_count then
+               next_select := get_group_selection(picklist, select_count);
+            else
+               next_select := 0;
+            end if;
+         else
+            display_item(picklist||'.display', 'picklist_element_current');
+         end if;
+         next_record;
+      end loop;
+      go_block(picklist);
+      last_record;
+      set_canvas_property(picklist||'_canvas', height, to_number(name_in('system.cursor_record')) *
+                          to_number(get_item_property(picklist||'.display', height)));
+      go_record(curr_record);
+   end Display_Picklist;
+
+
+   procedure Picklist_Element_Move(from_picklist varchar2, to_picklist varchar2, picklist_option varchar2)
+   is
+      from_rows_selected number;
+      to_rows_selected   number;
+      from_move_count    number;
+      current_row        number;
+      first_from_select  number;
+      last_from_select   number;
+      last_to_select     number;
+      last_from_row      number;
+      temp_label         varchar2(255);
+      temp_value         varchar2(255);
+   begin
+      check_picklist_name(from_picklist);
+      check_picklist_name(to_picklist);
+      check_picklist_option(picklist_option);
+
+      from_rows_selected := nvl(get_group_selection_count(from_picklist),0);
+      if from_rows_selected = 0 then
+         last_from_select := 1;
+      else
+         first_from_select := get_group_selection(from_picklist, 1);
+         for i in 1..from_rows_selected loop
+            last_from_select := get_group_selection(from_picklist, i);
+         end loop;
+      end if;
+
+      to_rows_selected := nvl(get_group_selection_count(to_picklist),0);
+      if to_rows_selected = 0 then
+         last_to_select := 0;
+      else
+         for i in 1..to_rows_selected loop
+            last_to_select := get_group_selection(to_picklist, i);
+         end loop;
+      end if;
+
+      if (picklist_option = picklist_selected and from_rows_selected > 0) then
+         from_move_count := get_group_selection_count(from_picklist);
+         reset_group_selection(to_picklist);
+         for i in 1..from_move_count loop
+            current_row    := get_group_selection(from_picklist, 1);
+            temp_label     := get_group_char_cell(from_picklist||'.label', current_row);
+            temp_value     := get_group_char_cell(from_picklist||'.value', current_row);
+            last_to_select := last_to_select + 1;
+            add_group_row(to_picklist, last_to_select);
+            set_group_char_cell(to_picklist||'.label', last_to_select, temp_label);
+            set_group_char_cell(to_picklist||'.value', last_to_select, temp_value);
+            set_group_selection(to_picklist, last_to_select);
+            delete_group_row(from_picklist, current_row);
+         end loop;
+         last_from_row := get_group_row_count(from_picklist);
+         if last_from_row > 0 then
+            if last_from_row >= last_from_select then
+               set_group_selection(from_picklist, last_from_select);
+            else
+               set_group_selection(from_picklist, last_from_row);
+            end if;
+         end if;
+      elsif (picklist_option = picklist_all and from_rows_selected > 0) then
+         from_move_count   := get_group_row_count(from_picklist);
+         for i in 1..from_move_count loop
+            temp_label     := get_group_char_cell(from_picklist||'.label', i);
+            temp_value     := get_group_char_cell(from_picklist||'.value', i);
+            last_to_select := last_to_select + 1;
+            add_group_row(to_picklist, last_to_select);
+            set_group_char_cell(to_picklist||'.label', last_to_select, temp_label);
+            set_group_char_cell(to_picklist||'.value', last_to_select, temp_value);
+            set_group_selection(to_picklist, last_to_select);
+         end loop;
+         delete_group_row(from_picklist, all_rows);
+      end if;
+   end Picklist_Element_Move;
+      
+end Pick_List;
