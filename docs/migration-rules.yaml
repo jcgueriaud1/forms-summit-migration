@@ -1,0 +1,1859 @@
+# Migration rule defaults — see docs/adr/0009-property-aware-migration-rules.md
+# and the Prep-A1 amendment below for canvas + block sections.
+# Classifier evaluation is top-down, first-match-wins; specific rules
+# precede generic defaults. The item-side rules port ADR 0004's bucketing
+# table, with property-aware refinement per ADR 0009 for Text Item (by
+# DataType / MultiLine / ConcealData / Formula), Display Item (by
+# Formula), and List Item (by ListStyle). Per-target attribute tables
+# apply the Aura ignore list (ADR 0008) consistently across typography
+# (FontSize/FontName/FontStyle/FontWeight/FontSpacing) and colour
+# (BackColor/ForegroundColor). The canvas-side (`canvasClassifiers`)
+# and block-side (`blockClassifiers`) sections drive Canvas → container
+# and Block → Grid/FormLayout decisions for the scaffolder (ADR 0010).
+# Out of scope (still deferred): Window / VisualAttribute / PropertyClass.
+
+schemaVersion: 1
+
+classifiers:
+  # ---- Text Item — property-aware refinement (ADR 0009) -----------------
+  # LovRole is a synthetic key injected by JsonRenderer.renderItemJson based on
+  # the LOV's <LOVColumnMapping ReturnItem="…"> walk — the role can't be read
+  # from the item's own XML because most LOV-bound items don't carry LovName
+  # on themselves (the LOV side decides which item receives values). The rule
+  # precedes DataType / ConcealData / MultiLine refinements so an LOV-bound
+  # NUMBER column still becomes a ComboBox.
+  - id: text-item-lov
+    when: ItemType == "Text Item" and LovRole == "primary"
+    target: ComboBox
+    treatment: Automated
+    aiHint: "Render as an empty ComboBox; populate items from the linked LOV's Record Group query."
+  - id: item-summary
+    when: SummaryFunction is not null
+    target: TextField
+    treatment: AI-coded
+    aiHint: "Aggregate (per SummaryFunction: Sum/Count/Min/Max/Avg) in a pure, unit-testable aggregate method on the parent Domain object; bind the field read-only to its result."
+  - id: text-item-calculated
+    when: ItemType == "Text Item" and Formula is not null
+    target: TextField
+    treatment: AI-coded
+    aiHint: "Compute the Formula in a pure, unit-testable Domain method and bind the field read-only to its result. Use a Binder converter only when the Formula is display-only formatting."
+  - id: text-item-password
+    when: ItemType == "Text Item" and ConcealData == "true"
+    target: PasswordField
+    treatment: Automated
+  - id: text-item-multiline
+    when: ItemType == "Text Item" and MultiLine == "true"
+    target: TextArea
+    treatment: Automated
+  - id: text-item-number
+    when: ItemType == "Text Item" and DataType in ["NUMBER", "INTEGER", "MONEY"]
+    target: NumberField
+    treatment: Automated
+  - id: text-item-date
+    when: ItemType == "Text Item" and DataType in ["DATE", "DATETIME"]
+    target: DatePicker
+    treatment: Automated
+  - id: text-item-default
+    when: ItemType == "Text Item"
+    target: TextField
+    treatment: Automated
+
+  # ---- Display Item — Formula refinement (ADR 0004 row 9 generalised) ---
+  - id: display-item-calculated
+    when: ItemType == "Display Item" and Formula is not null
+    target: TextField
+    treatment: AI-coded
+    aiHint: "Compute the Formula in a pure, unit-testable Domain method; render the field read-only bound to its result. Binder converter only for display-only formatting."
+  - id: display-item-default
+    when: ItemType == "Display Item"
+    target: Span
+    treatment: Automated
+
+  # ---- List Item — ListStyle refinement (ADR 0004 row 3) ----------------
+  - id: list-item-tlist
+    when: ItemType == "List Item" and ListStyle == "Tlist"
+    target: ListBox
+    treatment: Automated
+  - id: list-item-combobox
+    when: ItemType == "List Item" and ListStyle == "Combobox"
+    target: ComboBox
+    treatment: Automated
+  - id: list-item-default
+    when: ItemType == "List Item"
+    target: Select
+    treatment: Automated
+
+  # ---- Single-mapping ItemTypes (ADR 0004) ------------------------------
+  - id: radio-group
+    when: ItemType == "Radio Group"
+    target: RadioButtonGroup
+    treatment: Automated
+  - id: check-box
+    when: ItemType == "Check Box"
+    target: Checkbox
+    treatment: Automated
+  - id: push-button
+    when: ItemType == "Push Button"
+    target: Button
+    treatment: Automated
+  - id: image-item-file-sourced
+    when: ItemType == "Image" and imageSource == "file"
+    target: Image
+    treatment: Refactor
+    aiHint: "Image is populated from the filesystem (READ_IMAGE_FILE) via a function-derived filename, not a DB BLOB — there is no bindable column. Rebuild as a service that resolves the filename (the image-lookup function) and serves the bytes as a StreamResource, converting any non-web-native image format to PNG/JPEG."
+  - id: image-item
+    when: ItemType == "Image"
+    target: Image
+    treatment: Automated
+    aiHint: "DB-BLOB image item → bind the byte[] / BLOB column to a Vaadin Image via a StreamResource."
+  - id: hierarchical-tree
+    when: ItemType == "Hierarchical Tree"
+    target: TreeGrid
+    treatment: Automated
+
+  # ---- Refactor-only ItemTypes (ADR 0004 — no clean Vaadin equivalent) --
+  - id: chart-item
+    when: ItemType == "Chart Item"
+    target: Chart
+    treatment: Refactor
+    aiHint: "Vaadin Charts replaces the Chart Item. The dataset pipe is rebuilt from the backing RecordGroup or query — there is no 1:1 mapping."
+  - id: bean-area
+    when: ItemType == "Bean Area"
+    target: CustomComponent
+    treatment: Refactor
+    aiHint: "Replace the embedded JavaBean with a Vaadin add-on or a custom Web Component. The bean's API has to be rebuilt against Vaadin Flow's Component model."
+  - id: ole-container
+    when: ItemType == "OLE Container"
+    target: Unsupported
+    treatment: Refactor
+    aiHint: "OLE-embedded objects cannot be migrated. Identify what the embedded document provides and reimplement that capability natively."
+  - id: activex-control
+    when: ItemType == "ActiveX Control"
+    target: Unsupported
+    treatment: Refactor
+    aiHint: "ActiveX has no web target. Replace with a native Vaadin component or a custom Web Component."
+  - id: vbx-control
+    when: ItemType == "VBX Control"
+    target: Unsupported
+    treatment: Refactor
+    aiHint: "VBX has no web target. Replace with a native Vaadin component or a custom Web Component."
+  - id: sound-item
+    when: ItemType == "Sound"
+    target: Unsupported
+    treatment: Refactor
+    aiHint: "Vaadin has no native audio component. Use the Element API to embed an HTMLAudioElement, or replace with a server-side notification."
+  - id: user-area
+    when: ItemType == "User Area"
+    target: Unsupported
+    treatment: Refactor
+    aiHint: "User Area was a free-draw region with no modern equivalent. Identify the intent and replace with a layout, a custom Web Component, or a chart."
+
+# ---- Per-target attribute tables --------------------------------------
+# Every view-side target carries the Aura ignore list (ADR 0008): typography
+# (FontSize/FontName/FontStyle/FontWeight/FontSpacing) and colour
+# (BackColor/ForegroundColor/PromptForegroundColor) are owned by the Aura
+# theme and dropped consistently across all view-side targets. Prompt
+# typography variants (PromptFontSize/PromptFontName/PromptFontStyle/
+# PromptFontWeight/PromptFontSpacing) follow the same rule. Geometry
+# (XPosition/YPosition/Width/Height) and the container link
+# (CanvasName/TabPageName/DirtyInfo) are layout concerns owned by the
+# parent container rather than the item itself.
+targets:
+
+  Button:
+    attributes:
+      # Identification — not setters; the classifier picks the target.
+      ItemType: { ignore: "Selector attribute used by classifier predicates" }
+      LovRole: { ignore: "Selector attribute used by classifier predicates" }
+      Name: { ignore: "Becomes the Vaadin component variable name in code, not a setter" }
+      Label: { carry: setText }
+      Tooltip: { carry: setTooltipText }
+      Enabled: { carry: setEnabled }
+      Visible: { carry: setVisible }
+      Iconic: { compose: [Iconic, IconFilename], to: setIcon }
+      AccessKey: { ignore: "Vaadin manages focus; button shortcuts are configured via Shortcuts" }
+      PromptForegroundColor: { ignore: "Aura theme owns colour" }
+      ImplementationClass:
+        escalate: { treatment: Refactor, reason: "Custom JavaBean — redesign required" }
+      # Aura theme owns typography
+      FontSize: { ignore: "Aura theme owns typography" }
+      FontName: { ignore: "Aura theme owns typography" }
+      FontStyle: { ignore: "Aura theme owns typography" }
+      FontWeight: { ignore: "Aura theme owns typography" }
+      FontSpacing: { ignore: "Aura theme owns typography" }
+      # Aura theme owns colour
+      BackColor: { ignore: "Aura theme owns colour" }
+      ForegroundColor: { ignore: "Aura theme owns colour" }
+      # Layout owns geometry / container assignment
+      XPosition: { ignore: "Vaadin Flow layout owns positioning" }
+      YPosition: { ignore: "Vaadin Flow layout owns positioning" }
+      Width: { ignore: "Vaadin Flow layout owns sizing" }
+      Height: { ignore: "Vaadin Flow layout owns sizing" }
+      CanvasName: { ignore: "Vaadin Flow layout replaces the Forms Canvas" }
+      TabPageName: { ignore: "Vaadin Flow Tabs replace the Forms TabPage" }
+      DirtyInfo: { ignore: "Forms-internal serialisation flag" }
+      # Aura theme owns prompt layout / visual styling
+      PromptDisplayStyle: { ignore: "Aura theme owns label placement" }
+      PromptAttachmentOffset: { ignore: "Aura theme owns label placement" }
+      PromptAttachmentEdge: { ignore: "Aura theme owns label placement" }
+      PromptAlign: { ignore: "Aura theme owns label alignment" }
+      PromptAlignOffset: { ignore: "Aura theme owns label alignment" }
+      PromptJustification: { ignore: "Aura theme owns label alignment" }
+      Justification: { ignore: "Aura theme owns text alignment" }
+      Bevel: { ignore: "Aura theme owns borders / bevels" }
+      FillPattern: { ignore: "Aura theme owns fills" }
+      CompressionQuality: { ignore: "Aura theme owns rendering / compression" }
+      ShowVerticalScrollbar: { ignore: "Vaadin component owns scrollbar visibility" }
+      ShowHorizontalScrollbar: { ignore: "Vaadin component owns scrollbar visibility" }
+      VisualAttributeName: { ignore: "Aura theme replaces Forms VisualAttribute" }
+      TooltipVisualAttributeGroup: { ignore: "Aura theme replaces Forms VisualAttribute" }
+      RecordVisualAttributeGroupName: { ignore: "Aura theme replaces Forms VisualAttribute" }
+      DistanceBetweenRecords: { ignore: "Vaadin Grid row layout replaces multi-record canvas geometry" }
+      # Forms-internal / navigation flags with no Vaadin component setter
+      DatabaseItem: { ignore: "Database binding lives on the Binder, not the component" }
+      MouseNavigate: { ignore: "Web focus model — pointer focus is handled by the browser" }
+      KeyboardNavigable: { ignore: "Web focus model — tab order is managed by Vaadin / the DOM" }
+      AutoSkip: { ignore: "Web focus model — auto-skip on max length is not a web idiom" }
+      AutoHint: { ignore: "Vaadin uses helperText / Notification instead of Forms auto-hint" }
+      NextNavigationItemName: { ignore: "Vaadin tab order replaces explicit next-item navigation" }
+      PreviousNavigationItemName: { ignore: "Vaadin tab order replaces explicit previous-item navigation" }
+      DataLengthSemantics: { ignore: "Java strings are length-counted in chars; semantics are uniform" }
+      QueryLength: { ignore: "Web filtering has no separate query-mode length" }
+      EditName: { ignore: "Vaadin TextArea replaces the Forms Editor object" }
+      CopyValueFromItem: { ignore: "Use Binder bindings / value-change listeners to mirror values across fields" }
+      SynchronizedItemName: { ignore: "Use Binder bindings / value-change listeners to mirror values across fields" }
+      SummaryFunction: { ignore: "Vaadin Grid footer / aggregator replaces Forms summary items" }
+      SummaryItemName: { ignore: "Vaadin Grid footer / aggregator replaces Forms summary items" }
+      SummaryBlockName: { ignore: "Vaadin Grid footer / aggregator replaces Forms summary items" }
+      CalculateMode: { ignore: "Binder converter / read-only field replaces Forms CalculateMode" }
+      ItemsDisplay: { ignore: "Vaadin Grid row count is data-driven, not item-declared" }
+      UpdateAllowed: { ignore: "Binder.setReadOnly(...) replaces Forms UpdateAllowed" }
+      InsertAllowed: { ignore: "Binder / service-level access control replaces Forms InsertAllowed" }
+      QueryAllowed: { ignore: "Filterable Grid columns replace Forms QueryAllowed" }
+      KeyboardState: { ignore: "Web focus model — keyboard state is browser-owned" }
+      ParentModule: { ignore: "Object Library inheritance is surfaced separately on the inventory row" }
+      ParentModuleType: { ignore: "Object Library inheritance is surfaced separately on the inventory row" }
+      ParentName: { ignore: "Object Library inheritance is surfaced separately on the inventory row" }
+      ParentFilename: { ignore: "Object Library inheritance is surfaced separately on the inventory row" }
+      ParentType: { ignore: "Object Library inheritance is surfaced separately on the inventory row" }
+
+  TextField:
+    attributes:
+      # Identification — not setters; the classifier picks the target.
+      ItemType: { ignore: "Selector attribute used by classifier predicates" }
+      LovRole: { ignore: "Selector attribute used by classifier predicates" }
+      Name: { ignore: "Becomes the Vaadin component variable name in code, not a setter" }
+      DataType: { ignore: "Selector attribute — TextField is the non-numeric / non-date default" }
+      Prompt: { carry: setLabel }
+      Label: { carry: setLabel }
+      Tooltip: { carry: setTooltipText }
+      MaximumLength: { carry: setMaxLength }
+      Required: { carry: setRequiredIndicatorVisible }
+      Enabled: { carry: setEnabled }
+      Visible: { carry: setVisible }
+      InitializeValue:
+        transform: { to: setValue, via: forms-initial-value }
+      FormatMask:
+        transform: { to: "setI18n", via: "forms-format-mask-to-text-i18n" }
+      LovName:
+        escalate: { treatment: AI-coded, reason: "Forms LOV — bind to a Vaadin ComboBox or a LookupField backed by the linked RecordGroup" }
+      AccessKey: { ignore: "Vaadin manages focus; accelerator keys are configured via Shortcuts" }
+      ColumnName:
+        transform: { to: "Binder.forField(this).bind", via: "forms-column-to-bean-property" }
+      Formula:
+        ai: "Translate the Formula expression to a Binder-driven computed value."
+      ImplementationClass:
+        escalate: { treatment: Refactor, reason: "Custom JavaBean — redesign required" }
+      FontSize: { ignore: "Aura theme owns typography" }
+      FontName: { ignore: "Aura theme owns typography" }
+      FontStyle: { ignore: "Aura theme owns typography" }
+      FontWeight: { ignore: "Aura theme owns typography" }
+      FontSpacing: { ignore: "Aura theme owns typography" }
+      PromptFontSize: { ignore: "Aura theme owns typography" }
+      PromptFontName: { ignore: "Aura theme owns typography" }
+      PromptFontStyle: { ignore: "Aura theme owns typography" }
+      PromptFontWeight: { ignore: "Aura theme owns typography" }
+      PromptFontSpacing: { ignore: "Aura theme owns typography" }
+      BackColor: { ignore: "Aura theme owns colour" }
+      ForegroundColor: { ignore: "Aura theme owns colour" }
+      PromptForegroundColor: { ignore: "Aura theme owns colour" }
+      XPosition: { ignore: "Vaadin Flow layout owns positioning" }
+      YPosition: { ignore: "Vaadin Flow layout owns positioning" }
+      Width: { ignore: "Vaadin Flow layout owns sizing" }
+      Height: { ignore: "Vaadin Flow layout owns sizing" }
+      CanvasName: { ignore: "Vaadin Flow layout replaces the Forms Canvas" }
+      TabPageName: { ignore: "Vaadin Flow Tabs replace the Forms TabPage" }
+      DirtyInfo: { ignore: "Forms-internal serialisation flag" }
+      # Aura theme owns prompt layout / visual styling
+      PromptDisplayStyle: { ignore: "Aura theme owns label placement" }
+      PromptAttachmentOffset: { ignore: "Aura theme owns label placement" }
+      PromptAttachmentEdge: { ignore: "Aura theme owns label placement" }
+      PromptAlign: { ignore: "Aura theme owns label alignment" }
+      PromptAlignOffset: { ignore: "Aura theme owns label alignment" }
+      PromptJustification: { ignore: "Aura theme owns label alignment" }
+      Justification: { ignore: "Aura theme owns text alignment" }
+      Bevel: { ignore: "Aura theme owns borders / bevels" }
+      FillPattern: { ignore: "Aura theme owns fills" }
+      CompressionQuality: { ignore: "Aura theme owns rendering / compression" }
+      ShowVerticalScrollbar: { ignore: "Vaadin component owns scrollbar visibility" }
+      ShowHorizontalScrollbar: { ignore: "Vaadin component owns scrollbar visibility" }
+      VisualAttributeName: { ignore: "Aura theme replaces Forms VisualAttribute" }
+      TooltipVisualAttributeGroup: { ignore: "Aura theme replaces Forms VisualAttribute" }
+      RecordVisualAttributeGroupName: { ignore: "Aura theme replaces Forms VisualAttribute" }
+      DistanceBetweenRecords: { ignore: "Vaadin Grid row layout replaces multi-record canvas geometry" }
+      # Forms-internal / navigation flags with no Vaadin component setter
+      DatabaseItem: { ignore: "Database binding lives on the Binder, not the component" }
+      MouseNavigate: { ignore: "Web focus model — pointer focus is handled by the browser" }
+      KeyboardNavigable: { ignore: "Web focus model — tab order is managed by Vaadin / the DOM" }
+      AutoSkip: { ignore: "Web focus model — auto-skip on max length is not a web idiom" }
+      AutoHint: { ignore: "Vaadin uses helperText / Notification instead of Forms auto-hint" }
+      NextNavigationItemName: { ignore: "Vaadin tab order replaces explicit next-item navigation" }
+      PreviousNavigationItemName: { ignore: "Vaadin tab order replaces explicit previous-item navigation" }
+      DataLengthSemantics: { ignore: "Java strings are length-counted in chars; semantics are uniform" }
+      QueryLength: { ignore: "Web filtering has no separate query-mode length" }
+      EditName: { ignore: "Vaadin TextArea replaces the Forms Editor object" }
+      CopyValueFromItem: { ignore: "Use Binder bindings / value-change listeners to mirror values across fields" }
+      SynchronizedItemName: { ignore: "Use Binder bindings / value-change listeners to mirror values across fields" }
+      SummaryFunction: { ignore: "Vaadin Grid footer / aggregator replaces Forms summary items" }
+      SummaryItemName: { ignore: "Vaadin Grid footer / aggregator replaces Forms summary items" }
+      SummaryBlockName: { ignore: "Vaadin Grid footer / aggregator replaces Forms summary items" }
+      CalculateMode: { ignore: "Binder converter / read-only field replaces Forms CalculateMode" }
+      ItemsDisplay: { ignore: "Vaadin Grid row count is data-driven, not item-declared" }
+      UpdateAllowed: { ignore: "Binder.setReadOnly(...) replaces Forms UpdateAllowed" }
+      InsertAllowed: { ignore: "Binder / service-level access control replaces Forms InsertAllowed" }
+      QueryAllowed: { ignore: "Filterable Grid columns replace Forms QueryAllowed" }
+      KeyboardState: { ignore: "Web focus model — keyboard state is browser-owned" }
+      ParentModule: { ignore: "Object Library inheritance is surfaced separately on the inventory row" }
+      ParentModuleType: { ignore: "Object Library inheritance is surfaced separately on the inventory row" }
+      ParentName: { ignore: "Object Library inheritance is surfaced separately on the inventory row" }
+      ParentFilename: { ignore: "Object Library inheritance is surfaced separately on the inventory row" }
+      ParentType: { ignore: "Object Library inheritance is surfaced separately on the inventory row" }
+
+  NumberField:
+    attributes:
+      # Identification — not setters; the classifier picks the target.
+      ItemType: { ignore: "Selector attribute used by classifier predicates" }
+      LovRole: { ignore: "Selector attribute used by classifier predicates" }
+      Name: { ignore: "Becomes the Vaadin component variable name in code, not a setter" }
+      Prompt: { carry: setLabel }
+      Label: { carry: setLabel }
+      Tooltip: { carry: setTooltipText }
+      MaximumLength: { carry: setMaxLength }
+      Required: { carry: setRequiredIndicatorVisible }
+      LowestAllowedValue:
+        transform: { to: setMin, via: forms-range-bound }
+      HighestAllowedValue:
+        transform: { to: setMax, via: forms-range-bound }
+      Enabled: { carry: setEnabled }
+      Visible: { carry: setVisible }
+      ColumnName:
+        transform: { to: "Binder.forField(this).bind", via: "forms-column-to-bean-property" }
+      DataType:
+        transform: { to: setJavaType, via: forms-datatype-to-java }
+      FormatMask:
+        transform: { to: "setI18n(NumberFieldI18n)", via: "forms-format-mask-to-i18n" }
+      ImplementationClass:
+        escalate: { treatment: Refactor, reason: "Custom JavaBean — redesign required" }
+      FontSize: { ignore: "Aura theme owns typography" }
+      FontName: { ignore: "Aura theme owns typography" }
+      FontStyle: { ignore: "Aura theme owns typography" }
+      FontWeight: { ignore: "Aura theme owns typography" }
+      FontSpacing: { ignore: "Aura theme owns typography" }
+      PromptFontSize: { ignore: "Aura theme owns typography" }
+      PromptFontName: { ignore: "Aura theme owns typography" }
+      PromptFontStyle: { ignore: "Aura theme owns typography" }
+      PromptFontWeight: { ignore: "Aura theme owns typography" }
+      PromptFontSpacing: { ignore: "Aura theme owns typography" }
+      BackColor: { ignore: "Aura theme owns colour" }
+      ForegroundColor: { ignore: "Aura theme owns colour" }
+      PromptForegroundColor: { ignore: "Aura theme owns colour" }
+      XPosition: { ignore: "Vaadin Flow layout owns positioning" }
+      YPosition: { ignore: "Vaadin Flow layout owns positioning" }
+      Width: { ignore: "Vaadin Flow layout owns sizing" }
+      Height: { ignore: "Vaadin Flow layout owns sizing" }
+      CanvasName: { ignore: "Vaadin Flow layout replaces the Forms Canvas" }
+      TabPageName: { ignore: "Vaadin Flow Tabs replace the Forms TabPage" }
+      DirtyInfo: { ignore: "Forms-internal serialisation flag" }
+      # Aura theme owns prompt layout / visual styling
+      PromptDisplayStyle: { ignore: "Aura theme owns label placement" }
+      PromptAttachmentOffset: { ignore: "Aura theme owns label placement" }
+      PromptAttachmentEdge: { ignore: "Aura theme owns label placement" }
+      PromptAlign: { ignore: "Aura theme owns label alignment" }
+      PromptAlignOffset: { ignore: "Aura theme owns label alignment" }
+      PromptJustification: { ignore: "Aura theme owns label alignment" }
+      Justification: { ignore: "Aura theme owns text alignment" }
+      Bevel: { ignore: "Aura theme owns borders / bevels" }
+      FillPattern: { ignore: "Aura theme owns fills" }
+      CompressionQuality: { ignore: "Aura theme owns rendering / compression" }
+      ShowVerticalScrollbar: { ignore: "Vaadin component owns scrollbar visibility" }
+      ShowHorizontalScrollbar: { ignore: "Vaadin component owns scrollbar visibility" }
+      VisualAttributeName: { ignore: "Aura theme replaces Forms VisualAttribute" }
+      TooltipVisualAttributeGroup: { ignore: "Aura theme replaces Forms VisualAttribute" }
+      RecordVisualAttributeGroupName: { ignore: "Aura theme replaces Forms VisualAttribute" }
+      DistanceBetweenRecords: { ignore: "Vaadin Grid row layout replaces multi-record canvas geometry" }
+      # Forms-internal / navigation flags with no Vaadin component setter
+      DatabaseItem: { ignore: "Database binding lives on the Binder, not the component" }
+      MouseNavigate: { ignore: "Web focus model — pointer focus is handled by the browser" }
+      KeyboardNavigable: { ignore: "Web focus model — tab order is managed by Vaadin / the DOM" }
+      AutoSkip: { ignore: "Web focus model — auto-skip on max length is not a web idiom" }
+      AutoHint: { ignore: "Vaadin uses helperText / Notification instead of Forms auto-hint" }
+      NextNavigationItemName: { ignore: "Vaadin tab order replaces explicit next-item navigation" }
+      PreviousNavigationItemName: { ignore: "Vaadin tab order replaces explicit previous-item navigation" }
+      DataLengthSemantics: { ignore: "Java strings are length-counted in chars; semantics are uniform" }
+      QueryLength: { ignore: "Web filtering has no separate query-mode length" }
+      EditName: { ignore: "Vaadin TextArea replaces the Forms Editor object" }
+      CopyValueFromItem: { ignore: "Use Binder bindings / value-change listeners to mirror values across fields" }
+      SynchronizedItemName: { ignore: "Use Binder bindings / value-change listeners to mirror values across fields" }
+      SummaryFunction: { ignore: "Vaadin Grid footer / aggregator replaces Forms summary items" }
+      SummaryItemName: { ignore: "Vaadin Grid footer / aggregator replaces Forms summary items" }
+      SummaryBlockName: { ignore: "Vaadin Grid footer / aggregator replaces Forms summary items" }
+      CalculateMode: { ignore: "Binder converter / read-only field replaces Forms CalculateMode" }
+      ItemsDisplay: { ignore: "Vaadin Grid row count is data-driven, not item-declared" }
+      UpdateAllowed: { ignore: "Binder.setReadOnly(...) replaces Forms UpdateAllowed" }
+      InsertAllowed: { ignore: "Binder / service-level access control replaces Forms InsertAllowed" }
+      QueryAllowed: { ignore: "Filterable Grid columns replace Forms QueryAllowed" }
+      KeyboardState: { ignore: "Web focus model — keyboard state is browser-owned" }
+      ParentModule: { ignore: "Object Library inheritance is surfaced separately on the inventory row" }
+      ParentModuleType: { ignore: "Object Library inheritance is surfaced separately on the inventory row" }
+      ParentName: { ignore: "Object Library inheritance is surfaced separately on the inventory row" }
+      ParentFilename: { ignore: "Object Library inheritance is surfaced separately on the inventory row" }
+      ParentType: { ignore: "Object Library inheritance is surfaced separately on the inventory row" }
+
+  DatePicker:
+    attributes:
+      # Identification — not setters; the classifier picks the target.
+      ItemType: { ignore: "Selector attribute used by classifier predicates" }
+      LovRole: { ignore: "Selector attribute used by classifier predicates" }
+      Name: { ignore: "Becomes the Vaadin component variable name in code, not a setter" }
+      Prompt: { carry: setLabel }
+      Label: { carry: setLabel }
+      Tooltip: { carry: setTooltipText }
+      Required: { carry: setRequiredIndicatorVisible }
+      LowestAllowedValue:
+        transform: { to: setMin, via: forms-range-bound }
+      HighestAllowedValue:
+        transform: { to: setMax, via: forms-range-bound }
+      Enabled: { carry: setEnabled }
+      Visible: { carry: setVisible }
+      ColumnName:
+        transform: { to: "Binder.forField(this).bind", via: "forms-column-to-bean-property" }
+      DataType:
+        transform: { to: setJavaType, via: forms-datatype-to-java }
+      FormatMask:
+        transform: { to: setI18n, via: "forms-format-mask-to-date-i18n" }
+      ImplementationClass:
+        escalate: { treatment: Refactor, reason: "Custom JavaBean — redesign required" }
+      FontSize: { ignore: "Aura theme owns typography" }
+      FontName: { ignore: "Aura theme owns typography" }
+      FontStyle: { ignore: "Aura theme owns typography" }
+      FontWeight: { ignore: "Aura theme owns typography" }
+      FontSpacing: { ignore: "Aura theme owns typography" }
+      PromptFontSize: { ignore: "Aura theme owns typography" }
+      PromptFontName: { ignore: "Aura theme owns typography" }
+      PromptFontStyle: { ignore: "Aura theme owns typography" }
+      PromptFontWeight: { ignore: "Aura theme owns typography" }
+      PromptFontSpacing: { ignore: "Aura theme owns typography" }
+      BackColor: { ignore: "Aura theme owns colour" }
+      ForegroundColor: { ignore: "Aura theme owns colour" }
+      PromptForegroundColor: { ignore: "Aura theme owns colour" }
+      XPosition: { ignore: "Vaadin Flow layout owns positioning" }
+      YPosition: { ignore: "Vaadin Flow layout owns positioning" }
+      Width: { ignore: "Vaadin Flow layout owns sizing" }
+      Height: { ignore: "Vaadin Flow layout owns sizing" }
+      CanvasName: { ignore: "Vaadin Flow layout replaces the Forms Canvas" }
+      TabPageName: { ignore: "Vaadin Flow Tabs replace the Forms TabPage" }
+      DirtyInfo: { ignore: "Forms-internal serialisation flag" }
+      # Aura theme owns prompt layout / visual styling
+      PromptDisplayStyle: { ignore: "Aura theme owns label placement" }
+      PromptAttachmentOffset: { ignore: "Aura theme owns label placement" }
+      PromptAttachmentEdge: { ignore: "Aura theme owns label placement" }
+      PromptAlign: { ignore: "Aura theme owns label alignment" }
+      PromptAlignOffset: { ignore: "Aura theme owns label alignment" }
+      PromptJustification: { ignore: "Aura theme owns label alignment" }
+      Justification: { ignore: "Aura theme owns text alignment" }
+      Bevel: { ignore: "Aura theme owns borders / bevels" }
+      FillPattern: { ignore: "Aura theme owns fills" }
+      CompressionQuality: { ignore: "Aura theme owns rendering / compression" }
+      ShowVerticalScrollbar: { ignore: "Vaadin component owns scrollbar visibility" }
+      ShowHorizontalScrollbar: { ignore: "Vaadin component owns scrollbar visibility" }
+      VisualAttributeName: { ignore: "Aura theme replaces Forms VisualAttribute" }
+      TooltipVisualAttributeGroup: { ignore: "Aura theme replaces Forms VisualAttribute" }
+      RecordVisualAttributeGroupName: { ignore: "Aura theme replaces Forms VisualAttribute" }
+      DistanceBetweenRecords: { ignore: "Vaadin Grid row layout replaces multi-record canvas geometry" }
+      # Forms-internal / navigation flags with no Vaadin component setter
+      DatabaseItem: { ignore: "Database binding lives on the Binder, not the component" }
+      MouseNavigate: { ignore: "Web focus model — pointer focus is handled by the browser" }
+      KeyboardNavigable: { ignore: "Web focus model — tab order is managed by Vaadin / the DOM" }
+      AutoSkip: { ignore: "Web focus model — auto-skip on max length is not a web idiom" }
+      AutoHint: { ignore: "Vaadin uses helperText / Notification instead of Forms auto-hint" }
+      NextNavigationItemName: { ignore: "Vaadin tab order replaces explicit next-item navigation" }
+      PreviousNavigationItemName: { ignore: "Vaadin tab order replaces explicit previous-item navigation" }
+      DataLengthSemantics: { ignore: "Java strings are length-counted in chars; semantics are uniform" }
+      QueryLength: { ignore: "Web filtering has no separate query-mode length" }
+      EditName: { ignore: "Vaadin TextArea replaces the Forms Editor object" }
+      CopyValueFromItem: { ignore: "Use Binder bindings / value-change listeners to mirror values across fields" }
+      SynchronizedItemName: { ignore: "Use Binder bindings / value-change listeners to mirror values across fields" }
+      SummaryFunction: { ignore: "Vaadin Grid footer / aggregator replaces Forms summary items" }
+      SummaryItemName: { ignore: "Vaadin Grid footer / aggregator replaces Forms summary items" }
+      SummaryBlockName: { ignore: "Vaadin Grid footer / aggregator replaces Forms summary items" }
+      CalculateMode: { ignore: "Binder converter / read-only field replaces Forms CalculateMode" }
+      ItemsDisplay: { ignore: "Vaadin Grid row count is data-driven, not item-declared" }
+      UpdateAllowed: { ignore: "Binder.setReadOnly(...) replaces Forms UpdateAllowed" }
+      InsertAllowed: { ignore: "Binder / service-level access control replaces Forms InsertAllowed" }
+      QueryAllowed: { ignore: "Filterable Grid columns replace Forms QueryAllowed" }
+      KeyboardState: { ignore: "Web focus model — keyboard state is browser-owned" }
+      ParentModule: { ignore: "Object Library inheritance is surfaced separately on the inventory row" }
+      ParentModuleType: { ignore: "Object Library inheritance is surfaced separately on the inventory row" }
+      ParentName: { ignore: "Object Library inheritance is surfaced separately on the inventory row" }
+      ParentFilename: { ignore: "Object Library inheritance is surfaced separately on the inventory row" }
+      ParentType: { ignore: "Object Library inheritance is surfaced separately on the inventory row" }
+
+  PasswordField:
+    attributes:
+      # Identification — not setters; the classifier picks the target.
+      ItemType: { ignore: "Selector attribute used by classifier predicates" }
+      LovRole: { ignore: "Selector attribute used by classifier predicates" }
+      Name: { ignore: "Becomes the Vaadin component variable name in code, not a setter" }
+      Prompt: { carry: setLabel }
+      Label: { carry: setLabel }
+      Tooltip: { carry: setTooltipText }
+      MaximumLength: { carry: setMaxLength }
+      Required: { carry: setRequiredIndicatorVisible }
+      Enabled: { carry: setEnabled }
+      Visible: { carry: setVisible }
+      ColumnName:
+        transform: { to: "Binder.forField(this).bind", via: "forms-column-to-bean-property" }
+      ConcealData: { ignore: "PasswordField always conceals input by design" }
+      ImplementationClass:
+        escalate: { treatment: Refactor, reason: "Custom JavaBean — redesign required" }
+      FontSize: { ignore: "Aura theme owns typography" }
+      FontName: { ignore: "Aura theme owns typography" }
+      FontStyle: { ignore: "Aura theme owns typography" }
+      FontWeight: { ignore: "Aura theme owns typography" }
+      FontSpacing: { ignore: "Aura theme owns typography" }
+      PromptFontSize: { ignore: "Aura theme owns typography" }
+      PromptFontName: { ignore: "Aura theme owns typography" }
+      PromptFontStyle: { ignore: "Aura theme owns typography" }
+      PromptFontWeight: { ignore: "Aura theme owns typography" }
+      PromptFontSpacing: { ignore: "Aura theme owns typography" }
+      BackColor: { ignore: "Aura theme owns colour" }
+      ForegroundColor: { ignore: "Aura theme owns colour" }
+      PromptForegroundColor: { ignore: "Aura theme owns colour" }
+      XPosition: { ignore: "Vaadin Flow layout owns positioning" }
+      YPosition: { ignore: "Vaadin Flow layout owns positioning" }
+      Width: { ignore: "Vaadin Flow layout owns sizing" }
+      Height: { ignore: "Vaadin Flow layout owns sizing" }
+      CanvasName: { ignore: "Vaadin Flow layout replaces the Forms Canvas" }
+      TabPageName: { ignore: "Vaadin Flow Tabs replace the Forms TabPage" }
+      DirtyInfo: { ignore: "Forms-internal serialisation flag" }
+      # Aura theme owns prompt layout / visual styling
+      PromptDisplayStyle: { ignore: "Aura theme owns label placement" }
+      PromptAttachmentOffset: { ignore: "Aura theme owns label placement" }
+      PromptAttachmentEdge: { ignore: "Aura theme owns label placement" }
+      PromptAlign: { ignore: "Aura theme owns label alignment" }
+      PromptAlignOffset: { ignore: "Aura theme owns label alignment" }
+      PromptJustification: { ignore: "Aura theme owns label alignment" }
+      Justification: { ignore: "Aura theme owns text alignment" }
+      Bevel: { ignore: "Aura theme owns borders / bevels" }
+      FillPattern: { ignore: "Aura theme owns fills" }
+      CompressionQuality: { ignore: "Aura theme owns rendering / compression" }
+      ShowVerticalScrollbar: { ignore: "Vaadin component owns scrollbar visibility" }
+      ShowHorizontalScrollbar: { ignore: "Vaadin component owns scrollbar visibility" }
+      VisualAttributeName: { ignore: "Aura theme replaces Forms VisualAttribute" }
+      TooltipVisualAttributeGroup: { ignore: "Aura theme replaces Forms VisualAttribute" }
+      RecordVisualAttributeGroupName: { ignore: "Aura theme replaces Forms VisualAttribute" }
+      DistanceBetweenRecords: { ignore: "Vaadin Grid row layout replaces multi-record canvas geometry" }
+      # Forms-internal / navigation flags with no Vaadin component setter
+      DatabaseItem: { ignore: "Database binding lives on the Binder, not the component" }
+      MouseNavigate: { ignore: "Web focus model — pointer focus is handled by the browser" }
+      KeyboardNavigable: { ignore: "Web focus model — tab order is managed by Vaadin / the DOM" }
+      AutoSkip: { ignore: "Web focus model — auto-skip on max length is not a web idiom" }
+      AutoHint: { ignore: "Vaadin uses helperText / Notification instead of Forms auto-hint" }
+      NextNavigationItemName: { ignore: "Vaadin tab order replaces explicit next-item navigation" }
+      PreviousNavigationItemName: { ignore: "Vaadin tab order replaces explicit previous-item navigation" }
+      DataLengthSemantics: { ignore: "Java strings are length-counted in chars; semantics are uniform" }
+      QueryLength: { ignore: "Web filtering has no separate query-mode length" }
+      EditName: { ignore: "Vaadin TextArea replaces the Forms Editor object" }
+      CopyValueFromItem: { ignore: "Use Binder bindings / value-change listeners to mirror values across fields" }
+      SynchronizedItemName: { ignore: "Use Binder bindings / value-change listeners to mirror values across fields" }
+      SummaryFunction: { ignore: "Vaadin Grid footer / aggregator replaces Forms summary items" }
+      SummaryItemName: { ignore: "Vaadin Grid footer / aggregator replaces Forms summary items" }
+      SummaryBlockName: { ignore: "Vaadin Grid footer / aggregator replaces Forms summary items" }
+      CalculateMode: { ignore: "Binder converter / read-only field replaces Forms CalculateMode" }
+      ItemsDisplay: { ignore: "Vaadin Grid row count is data-driven, not item-declared" }
+      UpdateAllowed: { ignore: "Binder.setReadOnly(...) replaces Forms UpdateAllowed" }
+      InsertAllowed: { ignore: "Binder / service-level access control replaces Forms InsertAllowed" }
+      QueryAllowed: { ignore: "Filterable Grid columns replace Forms QueryAllowed" }
+      KeyboardState: { ignore: "Web focus model — keyboard state is browser-owned" }
+      ParentModule: { ignore: "Object Library inheritance is surfaced separately on the inventory row" }
+      ParentModuleType: { ignore: "Object Library inheritance is surfaced separately on the inventory row" }
+      ParentName: { ignore: "Object Library inheritance is surfaced separately on the inventory row" }
+      ParentFilename: { ignore: "Object Library inheritance is surfaced separately on the inventory row" }
+      ParentType: { ignore: "Object Library inheritance is surfaced separately on the inventory row" }
+
+  TextArea:
+    attributes:
+      # Identification — not setters; the classifier picks the target.
+      ItemType: { ignore: "Selector attribute used by classifier predicates" }
+      LovRole: { ignore: "Selector attribute used by classifier predicates" }
+      Name: { ignore: "Becomes the Vaadin component variable name in code, not a setter" }
+      Prompt: { carry: setLabel }
+      Label: { carry: setLabel }
+      Tooltip: { carry: setTooltipText }
+      MaximumLength: { carry: setMaxLength }
+      Required: { carry: setRequiredIndicatorVisible }
+      Enabled: { carry: setEnabled }
+      Visible: { carry: setVisible }
+      ColumnName:
+        transform: { to: "Binder.forField(this).bind", via: "forms-column-to-bean-property" }
+      MultiLine: { ignore: "TextArea is always multi-line by design" }
+      ShowVerticalScrollbar: { ignore: "TextArea scrolling is handled by the browser" }
+      ShowHorizontalScrollbar: { ignore: "TextArea scrolling is handled by the browser" }
+      ImplementationClass:
+        escalate: { treatment: Refactor, reason: "Custom JavaBean — redesign required" }
+      FontSize: { ignore: "Aura theme owns typography" }
+      FontName: { ignore: "Aura theme owns typography" }
+      FontStyle: { ignore: "Aura theme owns typography" }
+      FontWeight: { ignore: "Aura theme owns typography" }
+      FontSpacing: { ignore: "Aura theme owns typography" }
+      PromptFontSize: { ignore: "Aura theme owns typography" }
+      PromptFontName: { ignore: "Aura theme owns typography" }
+      PromptFontStyle: { ignore: "Aura theme owns typography" }
+      PromptFontWeight: { ignore: "Aura theme owns typography" }
+      PromptFontSpacing: { ignore: "Aura theme owns typography" }
+      BackColor: { ignore: "Aura theme owns colour" }
+      ForegroundColor: { ignore: "Aura theme owns colour" }
+      PromptForegroundColor: { ignore: "Aura theme owns colour" }
+      XPosition: { ignore: "Vaadin Flow layout owns positioning" }
+      YPosition: { ignore: "Vaadin Flow layout owns positioning" }
+      Width: { ignore: "Vaadin Flow layout owns sizing" }
+      Height: { ignore: "Vaadin Flow layout owns sizing" }
+      CanvasName: { ignore: "Vaadin Flow layout replaces the Forms Canvas" }
+      TabPageName: { ignore: "Vaadin Flow Tabs replace the Forms TabPage" }
+      DirtyInfo: { ignore: "Forms-internal serialisation flag" }
+      # Aura theme owns prompt layout / visual styling
+      PromptDisplayStyle: { ignore: "Aura theme owns label placement" }
+      PromptAttachmentOffset: { ignore: "Aura theme owns label placement" }
+      PromptAttachmentEdge: { ignore: "Aura theme owns label placement" }
+      PromptAlign: { ignore: "Aura theme owns label alignment" }
+      PromptAlignOffset: { ignore: "Aura theme owns label alignment" }
+      PromptJustification: { ignore: "Aura theme owns label alignment" }
+      Justification: { ignore: "Aura theme owns text alignment" }
+      Bevel: { ignore: "Aura theme owns borders / bevels" }
+      FillPattern: { ignore: "Aura theme owns fills" }
+      CompressionQuality: { ignore: "Aura theme owns rendering / compression" }
+      ShowVerticalScrollbar: { ignore: "Vaadin component owns scrollbar visibility" }
+      ShowHorizontalScrollbar: { ignore: "Vaadin component owns scrollbar visibility" }
+      VisualAttributeName: { ignore: "Aura theme replaces Forms VisualAttribute" }
+      TooltipVisualAttributeGroup: { ignore: "Aura theme replaces Forms VisualAttribute" }
+      RecordVisualAttributeGroupName: { ignore: "Aura theme replaces Forms VisualAttribute" }
+      DistanceBetweenRecords: { ignore: "Vaadin Grid row layout replaces multi-record canvas geometry" }
+      # Forms-internal / navigation flags with no Vaadin component setter
+      DatabaseItem: { ignore: "Database binding lives on the Binder, not the component" }
+      MouseNavigate: { ignore: "Web focus model — pointer focus is handled by the browser" }
+      KeyboardNavigable: { ignore: "Web focus model — tab order is managed by Vaadin / the DOM" }
+      AutoSkip: { ignore: "Web focus model — auto-skip on max length is not a web idiom" }
+      AutoHint: { ignore: "Vaadin uses helperText / Notification instead of Forms auto-hint" }
+      NextNavigationItemName: { ignore: "Vaadin tab order replaces explicit next-item navigation" }
+      PreviousNavigationItemName: { ignore: "Vaadin tab order replaces explicit previous-item navigation" }
+      DataLengthSemantics: { ignore: "Java strings are length-counted in chars; semantics are uniform" }
+      QueryLength: { ignore: "Web filtering has no separate query-mode length" }
+      EditName: { ignore: "Vaadin TextArea replaces the Forms Editor object" }
+      CopyValueFromItem: { ignore: "Use Binder bindings / value-change listeners to mirror values across fields" }
+      SynchronizedItemName: { ignore: "Use Binder bindings / value-change listeners to mirror values across fields" }
+      SummaryFunction: { ignore: "Vaadin Grid footer / aggregator replaces Forms summary items" }
+      SummaryItemName: { ignore: "Vaadin Grid footer / aggregator replaces Forms summary items" }
+      SummaryBlockName: { ignore: "Vaadin Grid footer / aggregator replaces Forms summary items" }
+      CalculateMode: { ignore: "Binder converter / read-only field replaces Forms CalculateMode" }
+      ItemsDisplay: { ignore: "Vaadin Grid row count is data-driven, not item-declared" }
+      UpdateAllowed: { ignore: "Binder.setReadOnly(...) replaces Forms UpdateAllowed" }
+      InsertAllowed: { ignore: "Binder / service-level access control replaces Forms InsertAllowed" }
+      QueryAllowed: { ignore: "Filterable Grid columns replace Forms QueryAllowed" }
+      KeyboardState: { ignore: "Web focus model — keyboard state is browser-owned" }
+      ParentModule: { ignore: "Object Library inheritance is surfaced separately on the inventory row" }
+      ParentModuleType: { ignore: "Object Library inheritance is surfaced separately on the inventory row" }
+      ParentName: { ignore: "Object Library inheritance is surfaced separately on the inventory row" }
+      ParentFilename: { ignore: "Object Library inheritance is surfaced separately on the inventory row" }
+      ParentType: { ignore: "Object Library inheritance is surfaced separately on the inventory row" }
+
+  Span:
+    attributes:
+      # Identification — not setters; the classifier picks the target.
+      ItemType: { ignore: "Selector attribute used by classifier predicates" }
+      LovRole: { ignore: "Selector attribute used by classifier predicates" }
+      Name: { ignore: "Becomes the Vaadin component variable name in code, not a setter" }
+      DataType: { ignore: "Display Item is read-only text; the bound bean property carries the type" }
+      MaximumLength: { ignore: "Span has no input length — Display Item is read-only" }
+      Required: { ignore: "Display Item is read-only; required-state lives on the input that feeds it" }
+      FormatMask:
+        transform: { to: "format-bound-value", via: "forms-format-mask-to-text-i18n" }
+      InitializeValue:
+        transform: { to: setText, via: forms-initial-value }
+      Prompt: { carry: setText }
+      Tooltip: { carry: setTitle }
+      Visible: { carry: setVisible }
+      ColumnName:
+        transform: { to: "Binder.forField(this).bind", via: "forms-column-to-bean-property" }
+      FontSize: { ignore: "Aura theme owns typography" }
+      FontName: { ignore: "Aura theme owns typography" }
+      FontStyle: { ignore: "Aura theme owns typography" }
+      FontWeight: { ignore: "Aura theme owns typography" }
+      FontSpacing: { ignore: "Aura theme owns typography" }
+      PromptFontSize: { ignore: "Aura theme owns typography" }
+      PromptFontName: { ignore: "Aura theme owns typography" }
+      PromptFontStyle: { ignore: "Aura theme owns typography" }
+      PromptFontWeight: { ignore: "Aura theme owns typography" }
+      PromptFontSpacing: { ignore: "Aura theme owns typography" }
+      BackColor: { ignore: "Aura theme owns colour" }
+      ForegroundColor: { ignore: "Aura theme owns colour" }
+      PromptForegroundColor: { ignore: "Aura theme owns colour" }
+      XPosition: { ignore: "Vaadin Flow layout owns positioning" }
+      YPosition: { ignore: "Vaadin Flow layout owns positioning" }
+      Width: { ignore: "Vaadin Flow layout owns sizing" }
+      Height: { ignore: "Vaadin Flow layout owns sizing" }
+      CanvasName: { ignore: "Vaadin Flow layout replaces the Forms Canvas" }
+      TabPageName: { ignore: "Vaadin Flow Tabs replace the Forms TabPage" }
+      DirtyInfo: { ignore: "Forms-internal serialisation flag" }
+      # Aura theme owns prompt layout / visual styling
+      PromptDisplayStyle: { ignore: "Aura theme owns label placement" }
+      PromptAttachmentOffset: { ignore: "Aura theme owns label placement" }
+      PromptAttachmentEdge: { ignore: "Aura theme owns label placement" }
+      PromptAlign: { ignore: "Aura theme owns label alignment" }
+      PromptAlignOffset: { ignore: "Aura theme owns label alignment" }
+      PromptJustification: { ignore: "Aura theme owns label alignment" }
+      Justification: { ignore: "Aura theme owns text alignment" }
+      Bevel: { ignore: "Aura theme owns borders / bevels" }
+      FillPattern: { ignore: "Aura theme owns fills" }
+      CompressionQuality: { ignore: "Aura theme owns rendering / compression" }
+      ShowVerticalScrollbar: { ignore: "Vaadin component owns scrollbar visibility" }
+      ShowHorizontalScrollbar: { ignore: "Vaadin component owns scrollbar visibility" }
+      VisualAttributeName: { ignore: "Aura theme replaces Forms VisualAttribute" }
+      TooltipVisualAttributeGroup: { ignore: "Aura theme replaces Forms VisualAttribute" }
+      RecordVisualAttributeGroupName: { ignore: "Aura theme replaces Forms VisualAttribute" }
+      DistanceBetweenRecords: { ignore: "Vaadin Grid row layout replaces multi-record canvas geometry" }
+      # Forms-internal / navigation flags with no Vaadin component setter
+      DatabaseItem: { ignore: "Database binding lives on the Binder, not the component" }
+      MouseNavigate: { ignore: "Web focus model — pointer focus is handled by the browser" }
+      KeyboardNavigable: { ignore: "Web focus model — tab order is managed by Vaadin / the DOM" }
+      AutoSkip: { ignore: "Web focus model — auto-skip on max length is not a web idiom" }
+      AutoHint: { ignore: "Vaadin uses helperText / Notification instead of Forms auto-hint" }
+      NextNavigationItemName: { ignore: "Vaadin tab order replaces explicit next-item navigation" }
+      PreviousNavigationItemName: { ignore: "Vaadin tab order replaces explicit previous-item navigation" }
+      DataLengthSemantics: { ignore: "Java strings are length-counted in chars; semantics are uniform" }
+      QueryLength: { ignore: "Web filtering has no separate query-mode length" }
+      EditName: { ignore: "Vaadin TextArea replaces the Forms Editor object" }
+      CopyValueFromItem: { ignore: "Use Binder bindings / value-change listeners to mirror values across fields" }
+      SynchronizedItemName: { ignore: "Use Binder bindings / value-change listeners to mirror values across fields" }
+      SummaryFunction: { ignore: "Vaadin Grid footer / aggregator replaces Forms summary items" }
+      SummaryItemName: { ignore: "Vaadin Grid footer / aggregator replaces Forms summary items" }
+      SummaryBlockName: { ignore: "Vaadin Grid footer / aggregator replaces Forms summary items" }
+      CalculateMode: { ignore: "Binder converter / read-only field replaces Forms CalculateMode" }
+      ItemsDisplay: { ignore: "Vaadin Grid row count is data-driven, not item-declared" }
+      UpdateAllowed: { ignore: "Binder.setReadOnly(...) replaces Forms UpdateAllowed" }
+      InsertAllowed: { ignore: "Binder / service-level access control replaces Forms InsertAllowed" }
+      QueryAllowed: { ignore: "Filterable Grid columns replace Forms QueryAllowed" }
+      KeyboardState: { ignore: "Web focus model — keyboard state is browser-owned" }
+      ParentModule: { ignore: "Object Library inheritance is surfaced separately on the inventory row" }
+      ParentModuleType: { ignore: "Object Library inheritance is surfaced separately on the inventory row" }
+      ParentName: { ignore: "Object Library inheritance is surfaced separately on the inventory row" }
+      ParentFilename: { ignore: "Object Library inheritance is surfaced separately on the inventory row" }
+      ParentType: { ignore: "Object Library inheritance is surfaced separately on the inventory row" }
+
+  Select:
+    attributes:
+      # Identification — not setters; the classifier picks the target.
+      ItemType: { ignore: "Selector attribute used by classifier predicates" }
+      LovRole: { ignore: "Selector attribute used by classifier predicates" }
+      Name: { ignore: "Becomes the Vaadin component variable name in code, not a setter" }
+      DataType: { ignore: "Selected value type is carried by the bound bean property" }
+      MaximumLength: { ignore: "Select has no free-text length — choices come from the items list" }
+      InitializeValue:
+        transform: { to: setValue, via: forms-initial-value }
+      Prompt: { carry: setLabel }
+      Label: { carry: setLabel }
+      Tooltip: { carry: setTooltipText }
+      Required: { carry: setRequiredIndicatorVisible }
+      Enabled: { carry: setEnabled }
+      Visible: { carry: setVisible }
+      ColumnName:
+        transform: { to: "Binder.forField(this).bind", via: "forms-column-to-bean-property" }
+      ListElementCount:
+        transform: { to: setItems, via: "forms-list-elements-to-items" }
+      ListStyle: { ignore: "Select is the Poplist analogue by default" }
+      ImplementationClass:
+        escalate: { treatment: Refactor, reason: "Custom JavaBean — redesign required" }
+      FontSize: { ignore: "Aura theme owns typography" }
+      FontName: { ignore: "Aura theme owns typography" }
+      FontStyle: { ignore: "Aura theme owns typography" }
+      FontWeight: { ignore: "Aura theme owns typography" }
+      FontSpacing: { ignore: "Aura theme owns typography" }
+      PromptFontSize: { ignore: "Aura theme owns typography" }
+      PromptFontName: { ignore: "Aura theme owns typography" }
+      PromptFontStyle: { ignore: "Aura theme owns typography" }
+      PromptFontWeight: { ignore: "Aura theme owns typography" }
+      PromptFontSpacing: { ignore: "Aura theme owns typography" }
+      BackColor: { ignore: "Aura theme owns colour" }
+      ForegroundColor: { ignore: "Aura theme owns colour" }
+      PromptForegroundColor: { ignore: "Aura theme owns colour" }
+      XPosition: { ignore: "Vaadin Flow layout owns positioning" }
+      YPosition: { ignore: "Vaadin Flow layout owns positioning" }
+      Width: { ignore: "Vaadin Flow layout owns sizing" }
+      Height: { ignore: "Vaadin Flow layout owns sizing" }
+      CanvasName: { ignore: "Vaadin Flow layout replaces the Forms Canvas" }
+      TabPageName: { ignore: "Vaadin Flow Tabs replace the Forms TabPage" }
+      DirtyInfo: { ignore: "Forms-internal serialisation flag" }
+      # Aura theme owns prompt layout / visual styling
+      PromptDisplayStyle: { ignore: "Aura theme owns label placement" }
+      PromptAttachmentOffset: { ignore: "Aura theme owns label placement" }
+      PromptAttachmentEdge: { ignore: "Aura theme owns label placement" }
+      PromptAlign: { ignore: "Aura theme owns label alignment" }
+      PromptAlignOffset: { ignore: "Aura theme owns label alignment" }
+      PromptJustification: { ignore: "Aura theme owns label alignment" }
+      Justification: { ignore: "Aura theme owns text alignment" }
+      Bevel: { ignore: "Aura theme owns borders / bevels" }
+      FillPattern: { ignore: "Aura theme owns fills" }
+      CompressionQuality: { ignore: "Aura theme owns rendering / compression" }
+      ShowVerticalScrollbar: { ignore: "Vaadin component owns scrollbar visibility" }
+      ShowHorizontalScrollbar: { ignore: "Vaadin component owns scrollbar visibility" }
+      VisualAttributeName: { ignore: "Aura theme replaces Forms VisualAttribute" }
+      TooltipVisualAttributeGroup: { ignore: "Aura theme replaces Forms VisualAttribute" }
+      RecordVisualAttributeGroupName: { ignore: "Aura theme replaces Forms VisualAttribute" }
+      DistanceBetweenRecords: { ignore: "Vaadin Grid row layout replaces multi-record canvas geometry" }
+      # Forms-internal / navigation flags with no Vaadin component setter
+      DatabaseItem: { ignore: "Database binding lives on the Binder, not the component" }
+      MouseNavigate: { ignore: "Web focus model — pointer focus is handled by the browser" }
+      KeyboardNavigable: { ignore: "Web focus model — tab order is managed by Vaadin / the DOM" }
+      AutoSkip: { ignore: "Web focus model — auto-skip on max length is not a web idiom" }
+      AutoHint: { ignore: "Vaadin uses helperText / Notification instead of Forms auto-hint" }
+      NextNavigationItemName: { ignore: "Vaadin tab order replaces explicit next-item navigation" }
+      PreviousNavigationItemName: { ignore: "Vaadin tab order replaces explicit previous-item navigation" }
+      DataLengthSemantics: { ignore: "Java strings are length-counted in chars; semantics are uniform" }
+      QueryLength: { ignore: "Web filtering has no separate query-mode length" }
+      EditName: { ignore: "Vaadin TextArea replaces the Forms Editor object" }
+      CopyValueFromItem: { ignore: "Use Binder bindings / value-change listeners to mirror values across fields" }
+      SynchronizedItemName: { ignore: "Use Binder bindings / value-change listeners to mirror values across fields" }
+      SummaryFunction: { ignore: "Vaadin Grid footer / aggregator replaces Forms summary items" }
+      SummaryItemName: { ignore: "Vaadin Grid footer / aggregator replaces Forms summary items" }
+      SummaryBlockName: { ignore: "Vaadin Grid footer / aggregator replaces Forms summary items" }
+      CalculateMode: { ignore: "Binder converter / read-only field replaces Forms CalculateMode" }
+      ItemsDisplay: { ignore: "Vaadin Grid row count is data-driven, not item-declared" }
+      UpdateAllowed: { ignore: "Binder.setReadOnly(...) replaces Forms UpdateAllowed" }
+      InsertAllowed: { ignore: "Binder / service-level access control replaces Forms InsertAllowed" }
+      QueryAllowed: { ignore: "Filterable Grid columns replace Forms QueryAllowed" }
+      KeyboardState: { ignore: "Web focus model — keyboard state is browser-owned" }
+      ParentModule: { ignore: "Object Library inheritance is surfaced separately on the inventory row" }
+      ParentModuleType: { ignore: "Object Library inheritance is surfaced separately on the inventory row" }
+      ParentName: { ignore: "Object Library inheritance is surfaced separately on the inventory row" }
+      ParentFilename: { ignore: "Object Library inheritance is surfaced separately on the inventory row" }
+      ParentType: { ignore: "Object Library inheritance is surfaced separately on the inventory row" }
+
+  ListBox:
+    attributes:
+      # Identification — not setters; the classifier picks the target.
+      ItemType: { ignore: "Selector attribute used by classifier predicates" }
+      LovRole: { ignore: "Selector attribute used by classifier predicates" }
+      Name: { ignore: "Becomes the Vaadin component variable name in code, not a setter" }
+      Prompt: { carry: setLabel }
+      Label: { carry: setLabel }
+      Tooltip: { carry: setTooltipText }
+      Required: { carry: setRequiredIndicatorVisible }
+      Enabled: { carry: setEnabled }
+      Visible: { carry: setVisible }
+      ColumnName:
+        transform: { to: "Binder.forField(this).bind", via: "forms-column-to-bean-property" }
+      ListElementCount:
+        transform: { to: setItems, via: "forms-list-elements-to-items" }
+      ListStyle: { ignore: "ListBox renders the Tlist variant" }
+      FontSize: { ignore: "Aura theme owns typography" }
+      FontName: { ignore: "Aura theme owns typography" }
+      FontStyle: { ignore: "Aura theme owns typography" }
+      FontWeight: { ignore: "Aura theme owns typography" }
+      FontSpacing: { ignore: "Aura theme owns typography" }
+      PromptFontSize: { ignore: "Aura theme owns typography" }
+      PromptFontName: { ignore: "Aura theme owns typography" }
+      PromptFontStyle: { ignore: "Aura theme owns typography" }
+      PromptFontWeight: { ignore: "Aura theme owns typography" }
+      PromptFontSpacing: { ignore: "Aura theme owns typography" }
+      BackColor: { ignore: "Aura theme owns colour" }
+      ForegroundColor: { ignore: "Aura theme owns colour" }
+      PromptForegroundColor: { ignore: "Aura theme owns colour" }
+      XPosition: { ignore: "Vaadin Flow layout owns positioning" }
+      YPosition: { ignore: "Vaadin Flow layout owns positioning" }
+      Width: { ignore: "Vaadin Flow layout owns sizing" }
+      Height: { ignore: "Vaadin Flow layout owns sizing" }
+      CanvasName: { ignore: "Vaadin Flow layout replaces the Forms Canvas" }
+      TabPageName: { ignore: "Vaadin Flow Tabs replace the Forms TabPage" }
+      DirtyInfo: { ignore: "Forms-internal serialisation flag" }
+      # Aura theme owns prompt layout / visual styling
+      PromptDisplayStyle: { ignore: "Aura theme owns label placement" }
+      PromptAttachmentOffset: { ignore: "Aura theme owns label placement" }
+      PromptAttachmentEdge: { ignore: "Aura theme owns label placement" }
+      PromptAlign: { ignore: "Aura theme owns label alignment" }
+      PromptAlignOffset: { ignore: "Aura theme owns label alignment" }
+      PromptJustification: { ignore: "Aura theme owns label alignment" }
+      Justification: { ignore: "Aura theme owns text alignment" }
+      Bevel: { ignore: "Aura theme owns borders / bevels" }
+      FillPattern: { ignore: "Aura theme owns fills" }
+      CompressionQuality: { ignore: "Aura theme owns rendering / compression" }
+      ShowVerticalScrollbar: { ignore: "Vaadin component owns scrollbar visibility" }
+      ShowHorizontalScrollbar: { ignore: "Vaadin component owns scrollbar visibility" }
+      VisualAttributeName: { ignore: "Aura theme replaces Forms VisualAttribute" }
+      TooltipVisualAttributeGroup: { ignore: "Aura theme replaces Forms VisualAttribute" }
+      RecordVisualAttributeGroupName: { ignore: "Aura theme replaces Forms VisualAttribute" }
+      DistanceBetweenRecords: { ignore: "Vaadin Grid row layout replaces multi-record canvas geometry" }
+      # Forms-internal / navigation flags with no Vaadin component setter
+      DatabaseItem: { ignore: "Database binding lives on the Binder, not the component" }
+      MouseNavigate: { ignore: "Web focus model — pointer focus is handled by the browser" }
+      KeyboardNavigable: { ignore: "Web focus model — tab order is managed by Vaadin / the DOM" }
+      AutoSkip: { ignore: "Web focus model — auto-skip on max length is not a web idiom" }
+      AutoHint: { ignore: "Vaadin uses helperText / Notification instead of Forms auto-hint" }
+      NextNavigationItemName: { ignore: "Vaadin tab order replaces explicit next-item navigation" }
+      PreviousNavigationItemName: { ignore: "Vaadin tab order replaces explicit previous-item navigation" }
+      DataLengthSemantics: { ignore: "Java strings are length-counted in chars; semantics are uniform" }
+      QueryLength: { ignore: "Web filtering has no separate query-mode length" }
+      EditName: { ignore: "Vaadin TextArea replaces the Forms Editor object" }
+      CopyValueFromItem: { ignore: "Use Binder bindings / value-change listeners to mirror values across fields" }
+      SynchronizedItemName: { ignore: "Use Binder bindings / value-change listeners to mirror values across fields" }
+      SummaryFunction: { ignore: "Vaadin Grid footer / aggregator replaces Forms summary items" }
+      SummaryItemName: { ignore: "Vaadin Grid footer / aggregator replaces Forms summary items" }
+      SummaryBlockName: { ignore: "Vaadin Grid footer / aggregator replaces Forms summary items" }
+      CalculateMode: { ignore: "Binder converter / read-only field replaces Forms CalculateMode" }
+      ItemsDisplay: { ignore: "Vaadin Grid row count is data-driven, not item-declared" }
+      UpdateAllowed: { ignore: "Binder.setReadOnly(...) replaces Forms UpdateAllowed" }
+      InsertAllowed: { ignore: "Binder / service-level access control replaces Forms InsertAllowed" }
+      QueryAllowed: { ignore: "Filterable Grid columns replace Forms QueryAllowed" }
+      KeyboardState: { ignore: "Web focus model — keyboard state is browser-owned" }
+      ParentModule: { ignore: "Object Library inheritance is surfaced separately on the inventory row" }
+      ParentModuleType: { ignore: "Object Library inheritance is surfaced separately on the inventory row" }
+      ParentName: { ignore: "Object Library inheritance is surfaced separately on the inventory row" }
+      ParentFilename: { ignore: "Object Library inheritance is surfaced separately on the inventory row" }
+      ParentType: { ignore: "Object Library inheritance is surfaced separately on the inventory row" }
+
+  ComboBox:
+    attributes:
+      # Identification — not setters; the classifier picks the target.
+      ItemType: { ignore: "Selector attribute used by classifier predicates" }
+      LovRole: { ignore: "Selector attribute used by classifier predicates" }
+      Name: { ignore: "Becomes the Vaadin component variable name in code, not a setter" }
+      DataType: { ignore: "Selector attribute used by classifier predicates" }
+      LovName: { ignore: "LOV linkage is surfaced structurally on the inventory row; scaffolder emits a LOV TODO" }
+      Prompt: { carry: setLabel }
+      Label: { carry: setLabel }
+      Tooltip: { carry: setTooltipText }
+      MaximumLength: { ignore: "ComboBox has no free-text length — choices come from the items list" }
+      Required: { carry: setRequiredIndicatorVisible }
+      Enabled: { carry: setEnabled }
+      Visible: { carry: setVisible }
+      ColumnName:
+        transform: { to: "Binder.forField(this).bind", via: "forms-column-to-bean-property" }
+      ListElementCount:
+        transform: { to: setItems, via: "forms-list-elements-to-items" }
+      ListStyle: { ignore: "ComboBox renders the Combobox variant" }
+      FontSize: { ignore: "Aura theme owns typography" }
+      FontName: { ignore: "Aura theme owns typography" }
+      FontStyle: { ignore: "Aura theme owns typography" }
+      FontWeight: { ignore: "Aura theme owns typography" }
+      FontSpacing: { ignore: "Aura theme owns typography" }
+      PromptFontSize: { ignore: "Aura theme owns typography" }
+      PromptFontName: { ignore: "Aura theme owns typography" }
+      PromptFontStyle: { ignore: "Aura theme owns typography" }
+      PromptFontWeight: { ignore: "Aura theme owns typography" }
+      PromptFontSpacing: { ignore: "Aura theme owns typography" }
+      BackColor: { ignore: "Aura theme owns colour" }
+      ForegroundColor: { ignore: "Aura theme owns colour" }
+      PromptForegroundColor: { ignore: "Aura theme owns colour" }
+      XPosition: { ignore: "Vaadin Flow layout owns positioning" }
+      YPosition: { ignore: "Vaadin Flow layout owns positioning" }
+      Width: { ignore: "Vaadin Flow layout owns sizing" }
+      Height: { ignore: "Vaadin Flow layout owns sizing" }
+      CanvasName: { ignore: "Vaadin Flow layout replaces the Forms Canvas" }
+      TabPageName: { ignore: "Vaadin Flow Tabs replace the Forms TabPage" }
+      DirtyInfo: { ignore: "Forms-internal serialisation flag" }
+      # Aura theme owns prompt layout / visual styling
+      PromptDisplayStyle: { ignore: "Aura theme owns label placement" }
+      PromptAttachmentOffset: { ignore: "Aura theme owns label placement" }
+      PromptAttachmentEdge: { ignore: "Aura theme owns label placement" }
+      PromptAlign: { ignore: "Aura theme owns label alignment" }
+      PromptAlignOffset: { ignore: "Aura theme owns label alignment" }
+      PromptJustification: { ignore: "Aura theme owns label alignment" }
+      Justification: { ignore: "Aura theme owns text alignment" }
+      Bevel: { ignore: "Aura theme owns borders / bevels" }
+      FillPattern: { ignore: "Aura theme owns fills" }
+      CompressionQuality: { ignore: "Aura theme owns rendering / compression" }
+      ShowVerticalScrollbar: { ignore: "Vaadin component owns scrollbar visibility" }
+      ShowHorizontalScrollbar: { ignore: "Vaadin component owns scrollbar visibility" }
+      VisualAttributeName: { ignore: "Aura theme replaces Forms VisualAttribute" }
+      TooltipVisualAttributeGroup: { ignore: "Aura theme replaces Forms VisualAttribute" }
+      RecordVisualAttributeGroupName: { ignore: "Aura theme replaces Forms VisualAttribute" }
+      DistanceBetweenRecords: { ignore: "Vaadin Grid row layout replaces multi-record canvas geometry" }
+      # Forms-internal / navigation flags with no Vaadin component setter
+      DatabaseItem: { ignore: "Database binding lives on the Binder, not the component" }
+      MouseNavigate: { ignore: "Web focus model — pointer focus is handled by the browser" }
+      KeyboardNavigable: { ignore: "Web focus model — tab order is managed by Vaadin / the DOM" }
+      AutoSkip: { ignore: "Web focus model — auto-skip on max length is not a web idiom" }
+      AutoHint: { ignore: "Vaadin uses helperText / Notification instead of Forms auto-hint" }
+      NextNavigationItemName: { ignore: "Vaadin tab order replaces explicit next-item navigation" }
+      PreviousNavigationItemName: { ignore: "Vaadin tab order replaces explicit previous-item navigation" }
+      DataLengthSemantics: { ignore: "Java strings are length-counted in chars; semantics are uniform" }
+      QueryLength: { ignore: "Web filtering has no separate query-mode length" }
+      EditName: { ignore: "Vaadin TextArea replaces the Forms Editor object" }
+      CopyValueFromItem: { ignore: "Use Binder bindings / value-change listeners to mirror values across fields" }
+      SynchronizedItemName: { ignore: "Use Binder bindings / value-change listeners to mirror values across fields" }
+      SummaryFunction: { ignore: "Vaadin Grid footer / aggregator replaces Forms summary items" }
+      SummaryItemName: { ignore: "Vaadin Grid footer / aggregator replaces Forms summary items" }
+      SummaryBlockName: { ignore: "Vaadin Grid footer / aggregator replaces Forms summary items" }
+      CalculateMode: { ignore: "Binder converter / read-only field replaces Forms CalculateMode" }
+      ItemsDisplay: { ignore: "Vaadin Grid row count is data-driven, not item-declared" }
+      UpdateAllowed: { ignore: "Binder.setReadOnly(...) replaces Forms UpdateAllowed" }
+      InsertAllowed: { ignore: "Binder / service-level access control replaces Forms InsertAllowed" }
+      QueryAllowed: { ignore: "Filterable Grid columns replace Forms QueryAllowed" }
+      KeyboardState: { ignore: "Web focus model — keyboard state is browser-owned" }
+      ParentModule: { ignore: "Object Library inheritance is surfaced separately on the inventory row" }
+      ParentModuleType: { ignore: "Object Library inheritance is surfaced separately on the inventory row" }
+      ParentName: { ignore: "Object Library inheritance is surfaced separately on the inventory row" }
+      ParentFilename: { ignore: "Object Library inheritance is surfaced separately on the inventory row" }
+      ParentType: { ignore: "Object Library inheritance is surfaced separately on the inventory row" }
+
+  RadioButtonGroup:
+    attributes:
+      # Identification — not setters; the classifier picks the target.
+      ItemType: { ignore: "Selector attribute used by classifier predicates" }
+      LovRole: { ignore: "Selector attribute used by classifier predicates" }
+      Name: { ignore: "Becomes the Vaadin component variable name in code, not a setter" }
+      MaximumLength: { ignore: "RadioButtonGroup has no free-text length — choices come from the items list" }
+      Prompt: { carry: setLabel }
+      Label: { carry: setLabel }
+      Tooltip: { carry: setTooltipText }
+      Required: { carry: setRequiredIndicatorVisible }
+      Enabled: { carry: setEnabled }
+      Visible: { carry: setVisible }
+      ColumnName:
+        transform: { to: "Binder.forField(this).bind", via: "forms-column-to-bean-property" }
+      InitializeValue:
+        transform: { to: setValue, via: forms-initial-value }
+      FontSize: { ignore: "Aura theme owns typography" }
+      FontName: { ignore: "Aura theme owns typography" }
+      FontStyle: { ignore: "Aura theme owns typography" }
+      FontWeight: { ignore: "Aura theme owns typography" }
+      FontSpacing: { ignore: "Aura theme owns typography" }
+      PromptFontSize: { ignore: "Aura theme owns typography" }
+      PromptFontName: { ignore: "Aura theme owns typography" }
+      PromptFontStyle: { ignore: "Aura theme owns typography" }
+      PromptFontWeight: { ignore: "Aura theme owns typography" }
+      PromptFontSpacing: { ignore: "Aura theme owns typography" }
+      BackColor: { ignore: "Aura theme owns colour" }
+      ForegroundColor: { ignore: "Aura theme owns colour" }
+      PromptForegroundColor: { ignore: "Aura theme owns colour" }
+      XPosition: { ignore: "Vaadin Flow layout owns positioning" }
+      YPosition: { ignore: "Vaadin Flow layout owns positioning" }
+      Width: { ignore: "Vaadin Flow layout owns sizing" }
+      Height: { ignore: "Vaadin Flow layout owns sizing" }
+      CanvasName: { ignore: "Vaadin Flow layout replaces the Forms Canvas" }
+      TabPageName: { ignore: "Vaadin Flow Tabs replace the Forms TabPage" }
+      DirtyInfo: { ignore: "Forms-internal serialisation flag" }
+      # Aura theme owns prompt layout / visual styling
+      PromptDisplayStyle: { ignore: "Aura theme owns label placement" }
+      PromptAttachmentOffset: { ignore: "Aura theme owns label placement" }
+      PromptAttachmentEdge: { ignore: "Aura theme owns label placement" }
+      PromptAlign: { ignore: "Aura theme owns label alignment" }
+      PromptAlignOffset: { ignore: "Aura theme owns label alignment" }
+      PromptJustification: { ignore: "Aura theme owns label alignment" }
+      Justification: { ignore: "Aura theme owns text alignment" }
+      Bevel: { ignore: "Aura theme owns borders / bevels" }
+      FillPattern: { ignore: "Aura theme owns fills" }
+      CompressionQuality: { ignore: "Aura theme owns rendering / compression" }
+      ShowVerticalScrollbar: { ignore: "Vaadin component owns scrollbar visibility" }
+      ShowHorizontalScrollbar: { ignore: "Vaadin component owns scrollbar visibility" }
+      VisualAttributeName: { ignore: "Aura theme replaces Forms VisualAttribute" }
+      TooltipVisualAttributeGroup: { ignore: "Aura theme replaces Forms VisualAttribute" }
+      RecordVisualAttributeGroupName: { ignore: "Aura theme replaces Forms VisualAttribute" }
+      DistanceBetweenRecords: { ignore: "Vaadin Grid row layout replaces multi-record canvas geometry" }
+      # Forms-internal / navigation flags with no Vaadin component setter
+      DatabaseItem: { ignore: "Database binding lives on the Binder, not the component" }
+      MouseNavigate: { ignore: "Web focus model — pointer focus is handled by the browser" }
+      KeyboardNavigable: { ignore: "Web focus model — tab order is managed by Vaadin / the DOM" }
+      AutoSkip: { ignore: "Web focus model — auto-skip on max length is not a web idiom" }
+      AutoHint: { ignore: "Vaadin uses helperText / Notification instead of Forms auto-hint" }
+      NextNavigationItemName: { ignore: "Vaadin tab order replaces explicit next-item navigation" }
+      PreviousNavigationItemName: { ignore: "Vaadin tab order replaces explicit previous-item navigation" }
+      DataLengthSemantics: { ignore: "Java strings are length-counted in chars; semantics are uniform" }
+      QueryLength: { ignore: "Web filtering has no separate query-mode length" }
+      EditName: { ignore: "Vaadin TextArea replaces the Forms Editor object" }
+      CopyValueFromItem: { ignore: "Use Binder bindings / value-change listeners to mirror values across fields" }
+      SynchronizedItemName: { ignore: "Use Binder bindings / value-change listeners to mirror values across fields" }
+      SummaryFunction: { ignore: "Vaadin Grid footer / aggregator replaces Forms summary items" }
+      SummaryItemName: { ignore: "Vaadin Grid footer / aggregator replaces Forms summary items" }
+      SummaryBlockName: { ignore: "Vaadin Grid footer / aggregator replaces Forms summary items" }
+      CalculateMode: { ignore: "Binder converter / read-only field replaces Forms CalculateMode" }
+      ItemsDisplay: { ignore: "Vaadin Grid row count is data-driven, not item-declared" }
+      UpdateAllowed: { ignore: "Binder.setReadOnly(...) replaces Forms UpdateAllowed" }
+      InsertAllowed: { ignore: "Binder / service-level access control replaces Forms InsertAllowed" }
+      QueryAllowed: { ignore: "Filterable Grid columns replace Forms QueryAllowed" }
+      KeyboardState: { ignore: "Web focus model — keyboard state is browser-owned" }
+      ParentModule: { ignore: "Object Library inheritance is surfaced separately on the inventory row" }
+      ParentModuleType: { ignore: "Object Library inheritance is surfaced separately on the inventory row" }
+      ParentName: { ignore: "Object Library inheritance is surfaced separately on the inventory row" }
+      ParentFilename: { ignore: "Object Library inheritance is surfaced separately on the inventory row" }
+      ParentType: { ignore: "Object Library inheritance is surfaced separately on the inventory row" }
+
+  Checkbox:
+    attributes:
+      # Identification — not setters; the classifier picks the target.
+      ItemType: { ignore: "Selector attribute used by classifier predicates" }
+      LovRole: { ignore: "Selector attribute used by classifier predicates" }
+      Name: { ignore: "Becomes the Vaadin component variable name in code, not a setter" }
+      MaximumLength: { ignore: "Checkbox is a boolean — no input length" }
+      Prompt: { carry: setLabel }
+      Label: { carry: setLabel }
+      Tooltip: { carry: setTooltipText }
+      Enabled: { carry: setEnabled }
+      Visible: { carry: setVisible }
+      ColumnName:
+        transform: { to: "Binder.forField(this).bind", via: "forms-column-to-bean-property" }
+      CheckedValue:
+        ai: "Forms encodes non-boolean checked values; bind via Binder.withConverter() so the Checkbox boolean maps to and from the Forms value."
+      UncheckedValue:
+        ai: "Forms encodes non-boolean unchecked values; pair with CheckedValue inside the Binder converter."
+      InitializeValue:
+        ai: "Translate the initial Forms value to setValue(true|false) after the converter maps it."
+      CheckBoxOtherValues:
+        ai: "Forms's third-state handling has no native Checkbox equivalent; reject or coerce via the Binder converter."
+      ImplementationClass:
+        escalate: { treatment: Refactor, reason: "Custom JavaBean — redesign required" }
+      FontSize: { ignore: "Aura theme owns typography" }
+      FontName: { ignore: "Aura theme owns typography" }
+      FontStyle: { ignore: "Aura theme owns typography" }
+      FontWeight: { ignore: "Aura theme owns typography" }
+      FontSpacing: { ignore: "Aura theme owns typography" }
+      PromptFontSize: { ignore: "Aura theme owns typography" }
+      PromptFontName: { ignore: "Aura theme owns typography" }
+      PromptFontStyle: { ignore: "Aura theme owns typography" }
+      PromptFontWeight: { ignore: "Aura theme owns typography" }
+      PromptFontSpacing: { ignore: "Aura theme owns typography" }
+      BackColor: { ignore: "Aura theme owns colour" }
+      ForegroundColor: { ignore: "Aura theme owns colour" }
+      PromptForegroundColor: { ignore: "Aura theme owns colour" }
+      XPosition: { ignore: "Vaadin Flow layout owns positioning" }
+      YPosition: { ignore: "Vaadin Flow layout owns positioning" }
+      Width: { ignore: "Vaadin Flow layout owns sizing" }
+      Height: { ignore: "Vaadin Flow layout owns sizing" }
+      CanvasName: { ignore: "Vaadin Flow layout replaces the Forms Canvas" }
+      TabPageName: { ignore: "Vaadin Flow Tabs replace the Forms TabPage" }
+      DirtyInfo: { ignore: "Forms-internal serialisation flag" }
+      # Aura theme owns prompt layout / visual styling
+      PromptDisplayStyle: { ignore: "Aura theme owns label placement" }
+      PromptAttachmentOffset: { ignore: "Aura theme owns label placement" }
+      PromptAttachmentEdge: { ignore: "Aura theme owns label placement" }
+      PromptAlign: { ignore: "Aura theme owns label alignment" }
+      PromptAlignOffset: { ignore: "Aura theme owns label alignment" }
+      PromptJustification: { ignore: "Aura theme owns label alignment" }
+      Justification: { ignore: "Aura theme owns text alignment" }
+      Bevel: { ignore: "Aura theme owns borders / bevels" }
+      FillPattern: { ignore: "Aura theme owns fills" }
+      CompressionQuality: { ignore: "Aura theme owns rendering / compression" }
+      ShowVerticalScrollbar: { ignore: "Vaadin component owns scrollbar visibility" }
+      ShowHorizontalScrollbar: { ignore: "Vaadin component owns scrollbar visibility" }
+      VisualAttributeName: { ignore: "Aura theme replaces Forms VisualAttribute" }
+      TooltipVisualAttributeGroup: { ignore: "Aura theme replaces Forms VisualAttribute" }
+      RecordVisualAttributeGroupName: { ignore: "Aura theme replaces Forms VisualAttribute" }
+      DistanceBetweenRecords: { ignore: "Vaadin Grid row layout replaces multi-record canvas geometry" }
+      # Forms-internal / navigation flags with no Vaadin component setter
+      DatabaseItem: { ignore: "Database binding lives on the Binder, not the component" }
+      MouseNavigate: { ignore: "Web focus model — pointer focus is handled by the browser" }
+      KeyboardNavigable: { ignore: "Web focus model — tab order is managed by Vaadin / the DOM" }
+      AutoSkip: { ignore: "Web focus model — auto-skip on max length is not a web idiom" }
+      AutoHint: { ignore: "Vaadin uses helperText / Notification instead of Forms auto-hint" }
+      NextNavigationItemName: { ignore: "Vaadin tab order replaces explicit next-item navigation" }
+      PreviousNavigationItemName: { ignore: "Vaadin tab order replaces explicit previous-item navigation" }
+      DataLengthSemantics: { ignore: "Java strings are length-counted in chars; semantics are uniform" }
+      QueryLength: { ignore: "Web filtering has no separate query-mode length" }
+      EditName: { ignore: "Vaadin TextArea replaces the Forms Editor object" }
+      CopyValueFromItem: { ignore: "Use Binder bindings / value-change listeners to mirror values across fields" }
+      SynchronizedItemName: { ignore: "Use Binder bindings / value-change listeners to mirror values across fields" }
+      SummaryFunction: { ignore: "Vaadin Grid footer / aggregator replaces Forms summary items" }
+      SummaryItemName: { ignore: "Vaadin Grid footer / aggregator replaces Forms summary items" }
+      SummaryBlockName: { ignore: "Vaadin Grid footer / aggregator replaces Forms summary items" }
+      CalculateMode: { ignore: "Binder converter / read-only field replaces Forms CalculateMode" }
+      ItemsDisplay: { ignore: "Vaadin Grid row count is data-driven, not item-declared" }
+      UpdateAllowed: { ignore: "Binder.setReadOnly(...) replaces Forms UpdateAllowed" }
+      InsertAllowed: { ignore: "Binder / service-level access control replaces Forms InsertAllowed" }
+      QueryAllowed: { ignore: "Filterable Grid columns replace Forms QueryAllowed" }
+      KeyboardState: { ignore: "Web focus model — keyboard state is browser-owned" }
+      ParentModule: { ignore: "Object Library inheritance is surfaced separately on the inventory row" }
+      ParentModuleType: { ignore: "Object Library inheritance is surfaced separately on the inventory row" }
+      ParentName: { ignore: "Object Library inheritance is surfaced separately on the inventory row" }
+      ParentFilename: { ignore: "Object Library inheritance is surfaced separately on the inventory row" }
+      ParentType: { ignore: "Object Library inheritance is surfaced separately on the inventory row" }
+
+  Image:
+    attributes:
+      # Identification — not setters; the classifier picks the target.
+      ItemType: { ignore: "Selector attribute used by classifier predicates" }
+      LovRole: { ignore: "Selector attribute used by classifier predicates" }
+      Name: { ignore: "Becomes the Vaadin component variable name in code, not a setter" }
+      Tooltip: { carry: setTitle }
+      Visible: { carry: setVisible }
+      ColumnName:
+        transform: { to: "Binder.forField(this).bind", via: "forms-column-to-bean-property" }
+      SizingStyle: { transform: { to: getStyle, via: "forms-sizing-style-to-object-fit" } }
+      FontSize: { ignore: "Aura theme owns typography" }
+      FontName: { ignore: "Aura theme owns typography" }
+      BackColor: { ignore: "Aura theme owns colour" }
+      ForegroundColor: { ignore: "Aura theme owns colour" }
+      XPosition: { ignore: "Vaadin Flow layout owns positioning" }
+      YPosition: { ignore: "Vaadin Flow layout owns positioning" }
+      Width: { ignore: "Vaadin Flow layout owns sizing" }
+      Height: { ignore: "Vaadin Flow layout owns sizing" }
+      CanvasName: { ignore: "Vaadin Flow layout replaces the Forms Canvas" }
+      TabPageName: { ignore: "Vaadin Flow Tabs replace the Forms TabPage" }
+      DirtyInfo: { ignore: "Forms-internal serialisation flag" }
+      # Aura theme owns prompt layout / visual styling
+      PromptDisplayStyle: { ignore: "Aura theme owns label placement" }
+      PromptAttachmentOffset: { ignore: "Aura theme owns label placement" }
+      PromptAttachmentEdge: { ignore: "Aura theme owns label placement" }
+      PromptAlign: { ignore: "Aura theme owns label alignment" }
+      PromptAlignOffset: { ignore: "Aura theme owns label alignment" }
+      PromptJustification: { ignore: "Aura theme owns label alignment" }
+      Justification: { ignore: "Aura theme owns text alignment" }
+      Bevel: { ignore: "Aura theme owns borders / bevels" }
+      FillPattern: { ignore: "Aura theme owns fills" }
+      CompressionQuality: { ignore: "Aura theme owns rendering / compression" }
+      ShowVerticalScrollbar: { ignore: "Vaadin component owns scrollbar visibility" }
+      ShowHorizontalScrollbar: { ignore: "Vaadin component owns scrollbar visibility" }
+      VisualAttributeName: { ignore: "Aura theme replaces Forms VisualAttribute" }
+      TooltipVisualAttributeGroup: { ignore: "Aura theme replaces Forms VisualAttribute" }
+      RecordVisualAttributeGroupName: { ignore: "Aura theme replaces Forms VisualAttribute" }
+      DistanceBetweenRecords: { ignore: "Vaadin Grid row layout replaces multi-record canvas geometry" }
+      # Forms-internal / navigation flags with no Vaadin component setter
+      DatabaseItem: { ignore: "Database binding lives on the Binder, not the component" }
+      MouseNavigate: { ignore: "Web focus model — pointer focus is handled by the browser" }
+      KeyboardNavigable: { ignore: "Web focus model — tab order is managed by Vaadin / the DOM" }
+      AutoSkip: { ignore: "Web focus model — auto-skip on max length is not a web idiom" }
+      AutoHint: { ignore: "Vaadin uses helperText / Notification instead of Forms auto-hint" }
+      NextNavigationItemName: { ignore: "Vaadin tab order replaces explicit next-item navigation" }
+      PreviousNavigationItemName: { ignore: "Vaadin tab order replaces explicit previous-item navigation" }
+      DataLengthSemantics: { ignore: "Java strings are length-counted in chars; semantics are uniform" }
+      QueryLength: { ignore: "Web filtering has no separate query-mode length" }
+      EditName: { ignore: "Vaadin TextArea replaces the Forms Editor object" }
+      CopyValueFromItem: { ignore: "Use Binder bindings / value-change listeners to mirror values across fields" }
+      SynchronizedItemName: { ignore: "Use Binder bindings / value-change listeners to mirror values across fields" }
+      SummaryFunction: { ignore: "Vaadin Grid footer / aggregator replaces Forms summary items" }
+      SummaryItemName: { ignore: "Vaadin Grid footer / aggregator replaces Forms summary items" }
+      SummaryBlockName: { ignore: "Vaadin Grid footer / aggregator replaces Forms summary items" }
+      CalculateMode: { ignore: "Binder converter / read-only field replaces Forms CalculateMode" }
+      ItemsDisplay: { ignore: "Vaadin Grid row count is data-driven, not item-declared" }
+      UpdateAllowed: { ignore: "Binder.setReadOnly(...) replaces Forms UpdateAllowed" }
+      InsertAllowed: { ignore: "Binder / service-level access control replaces Forms InsertAllowed" }
+      QueryAllowed: { ignore: "Filterable Grid columns replace Forms QueryAllowed" }
+      KeyboardState: { ignore: "Web focus model — keyboard state is browser-owned" }
+      ParentModule: { ignore: "Object Library inheritance is surfaced separately on the inventory row" }
+      ParentModuleType: { ignore: "Object Library inheritance is surfaced separately on the inventory row" }
+      ParentName: { ignore: "Object Library inheritance is surfaced separately on the inventory row" }
+      ParentFilename: { ignore: "Object Library inheritance is surfaced separately on the inventory row" }
+      ParentType: { ignore: "Object Library inheritance is surfaced separately on the inventory row" }
+
+  TreeGrid:
+    attributes:
+      # Identification — not setters; the classifier picks the target.
+      ItemType: { ignore: "Selector attribute used by classifier predicates" }
+      LovRole: { ignore: "Selector attribute used by classifier predicates" }
+      Name: { ignore: "Becomes the Vaadin component variable name in code, not a setter" }
+      Tooltip: { carry: setTooltipGenerator }
+      Enabled: { carry: setEnabled }
+      Visible: { carry: setVisible }
+      ColumnName:
+        transform: { to: "Binder.forField(this).bind", via: "forms-column-to-bean-property" }
+      FontSize: { ignore: "Aura theme owns typography" }
+      FontName: { ignore: "Aura theme owns typography" }
+      FontStyle: { ignore: "Aura theme owns typography" }
+      FontWeight: { ignore: "Aura theme owns typography" }
+      FontSpacing: { ignore: "Aura theme owns typography" }
+      BackColor: { ignore: "Aura theme owns colour" }
+      ForegroundColor: { ignore: "Aura theme owns colour" }
+      Bevel: { ignore: "Aura theme owns borders / bevels" }
+      XPosition: { ignore: "Vaadin Flow layout owns positioning" }
+      YPosition: { ignore: "Vaadin Flow layout owns positioning" }
+      Width: { ignore: "Vaadin Flow layout owns sizing" }
+      Height: { ignore: "Vaadin Flow layout owns sizing" }
+      CanvasName: { ignore: "Vaadin Flow layout replaces the Forms Canvas" }
+      TabPageName: { ignore: "Vaadin Flow Tabs replace the Forms TabPage" }
+      DirtyInfo: { ignore: "Forms-internal serialisation flag" }
+      # Aura theme owns prompt layout / visual styling
+      PromptDisplayStyle: { ignore: "Aura theme owns label placement" }
+      PromptAttachmentOffset: { ignore: "Aura theme owns label placement" }
+      PromptAttachmentEdge: { ignore: "Aura theme owns label placement" }
+      PromptAlign: { ignore: "Aura theme owns label alignment" }
+      PromptAlignOffset: { ignore: "Aura theme owns label alignment" }
+      PromptJustification: { ignore: "Aura theme owns label alignment" }
+      Justification: { ignore: "Aura theme owns text alignment" }
+      Bevel: { ignore: "Aura theme owns borders / bevels" }
+      FillPattern: { ignore: "Aura theme owns fills" }
+      CompressionQuality: { ignore: "Aura theme owns rendering / compression" }
+      ShowVerticalScrollbar: { ignore: "Vaadin component owns scrollbar visibility" }
+      ShowHorizontalScrollbar: { ignore: "Vaadin component owns scrollbar visibility" }
+      VisualAttributeName: { ignore: "Aura theme replaces Forms VisualAttribute" }
+      TooltipVisualAttributeGroup: { ignore: "Aura theme replaces Forms VisualAttribute" }
+      RecordVisualAttributeGroupName: { ignore: "Aura theme replaces Forms VisualAttribute" }
+      DistanceBetweenRecords: { ignore: "Vaadin Grid row layout replaces multi-record canvas geometry" }
+      # Forms-internal / navigation flags with no Vaadin component setter
+      DatabaseItem: { ignore: "Database binding lives on the Binder, not the component" }
+      MouseNavigate: { ignore: "Web focus model — pointer focus is handled by the browser" }
+      KeyboardNavigable: { ignore: "Web focus model — tab order is managed by Vaadin / the DOM" }
+      AutoSkip: { ignore: "Web focus model — auto-skip on max length is not a web idiom" }
+      AutoHint: { ignore: "Vaadin uses helperText / Notification instead of Forms auto-hint" }
+      NextNavigationItemName: { ignore: "Vaadin tab order replaces explicit next-item navigation" }
+      PreviousNavigationItemName: { ignore: "Vaadin tab order replaces explicit previous-item navigation" }
+      DataLengthSemantics: { ignore: "Java strings are length-counted in chars; semantics are uniform" }
+      QueryLength: { ignore: "Web filtering has no separate query-mode length" }
+      EditName: { ignore: "Vaadin TextArea replaces the Forms Editor object" }
+      CopyValueFromItem: { ignore: "Use Binder bindings / value-change listeners to mirror values across fields" }
+      SynchronizedItemName: { ignore: "Use Binder bindings / value-change listeners to mirror values across fields" }
+      SummaryFunction: { ignore: "Vaadin Grid footer / aggregator replaces Forms summary items" }
+      SummaryItemName: { ignore: "Vaadin Grid footer / aggregator replaces Forms summary items" }
+      SummaryBlockName: { ignore: "Vaadin Grid footer / aggregator replaces Forms summary items" }
+      CalculateMode: { ignore: "Binder converter / read-only field replaces Forms CalculateMode" }
+      ItemsDisplay: { ignore: "Vaadin Grid row count is data-driven, not item-declared" }
+      UpdateAllowed: { ignore: "Binder.setReadOnly(...) replaces Forms UpdateAllowed" }
+      InsertAllowed: { ignore: "Binder / service-level access control replaces Forms InsertAllowed" }
+      QueryAllowed: { ignore: "Filterable Grid columns replace Forms QueryAllowed" }
+      KeyboardState: { ignore: "Web focus model — keyboard state is browser-owned" }
+      ParentModule: { ignore: "Object Library inheritance is surfaced separately on the inventory row" }
+      ParentModuleType: { ignore: "Object Library inheritance is surfaced separately on the inventory row" }
+      ParentName: { ignore: "Object Library inheritance is surfaced separately on the inventory row" }
+      ParentFilename: { ignore: "Object Library inheritance is surfaced separately on the inventory row" }
+      ParentType: { ignore: "Object Library inheritance is surfaced separately on the inventory row" }
+
+# ---- Logic-side rules — triggers and program units (ADR 0009 slice 3) -
+# Top-down, first-match-wins. Each rule picks a Java targetIdiom and an
+# aiHint; treatment stays owned by the ADR 0004 anti-pattern + LOC tier.
+# Predicate operands are `type` (Trigger / Program Unit / Database Procedure /
+# Database Function), `name`, `bodyShape` (analyzer-supplied: select-into /
+# raise-only / mixed), and `paramShape` for DB callables (analyzer-supplied:
+# in-only / has-out / ref-cursor / plsql-only-type). Database callables are
+# schema objects referenced by the form, not FMB nodes — the analyzer inventories
+# them (and their signatures) from the schema / DDL.
+logicClassifiers:
+
+  # ---- WHEN-* triggers — value-change / event-bound idioms --------------
+  - id: trigger-when-button-pressed
+    when: type == "Trigger" and name == "WHEN-BUTTON-PRESSED"
+    targetIdiom: ClickListener
+    aiHint: "Translate the PL/SQL body into a Vaadin Button ClickListener — typically a Java lambda invoking the matching service method."
+  - id: trigger-when-checkbox-changed
+    when: type == "Trigger" and name == "WHEN-CHECKBOX-CHANGED"
+    targetIdiom: ValueChangeListener
+    aiHint: "Translate the body to a Checkbox.addValueChangeListener — branch on event.getValue() for the checked / unchecked paths."
+  - id: trigger-when-radio-changed
+    when: type == "Trigger" and name == "WHEN-RADIO-CHANGED"
+    targetIdiom: ValueChangeListener
+    aiHint: "Translate the body to a RadioButtonGroup.addValueChangeListener — branch on the selected value as the Forms code branches on :RADIO_GROUP."
+  - id: trigger-when-list-changed
+    when: type == "Trigger" and name == "WHEN-LIST-CHANGED"
+    targetIdiom: ValueChangeListener
+    aiHint: "Translate the body to a Select / ListBox / ComboBox addValueChangeListener."
+  - id: trigger-when-validate-item-default
+    when: type == "Trigger" and name == "WHEN-VALIDATE-ITEM" and bodyShape == "select-into"
+    targetIdiom: ValueChangeDefaulter
+    aiHint: "The SELECT…INTO defaults sibling fields from a lookup. Wire a ValueChangeListener on the source field that calls a @Service lookup and writes the returned columns into the bean; the NO_DATA_FOUND → RAISE branch becomes a Domain validation error on the source field. A 'mixed' body fans out to both this and trigger-when-validate-item."
+  - id: trigger-when-validate-item
+    when: type == "Trigger" and name == "WHEN-VALIDATE-ITEM"
+    targetIdiom: BinderValidator
+    aiHint: "Pure validation: translate the body to a Domain invariant on the bean, mirrored to Binder.forField(...).withValidator(value -> ...) for live UX — return ValidationResult.error(...) where the body raises FORM_TRIGGER_FAILURE."
+  - id: trigger-when-validate-record
+    when: type == "Trigger" and name == "WHEN-VALIDATE-RECORD"
+    targetIdiom: BinderBeanValidator
+    aiHint: "Translate the body to a Domain invariant method on the bean — authoritative, enforced at the Service commit — mirrored to a Binder cross-field validator (Binder.withValidator(bean -> ...)) for live UX."
+  - id: trigger-when-new-form-instance
+    when: type == "Trigger" and name == "WHEN-NEW-FORM-INSTANCE"
+    targetIdiom: ViewInit
+    aiHint: "Translate the body to view-init code — typically the View constructor or onAttach(AttachEvent). Initialise Binder, load reference data, set focus."
+  - id: trigger-when-new-record-instance
+    when: type == "Trigger" and name == "WHEN-NEW-RECORD-INSTANCE"
+    targetIdiom: NewItemFactory
+    aiHint: "Translate the body to a new-bean factory invoked when the user adds a row (Grid editor / detail panel). Pre-populate defaults; do not call DB triggers from here."
+  - id: trigger-when-create-record
+    when: type == "Trigger" and name == "WHEN-CREATE-RECORD"
+    targetIdiom: NewItemFactory
+    aiHint: "Translate the body to a new-bean factory used when a new row is created in the underlying data store / Grid."
+  - id: trigger-when-mouse-doubleclick
+    when: type == "Trigger" and name == "WHEN-MOUSE-DOUBLECLICK"
+    targetIdiom: DoubleClickListener
+    aiHint: "Translate the body to addDomListener(\"dblclick\", ...) on the owning component, or to a Grid.addItemDoubleClickListener for a Grid row."
+  - id: trigger-when-mouse-click
+    when: type == "Trigger" and name == "WHEN-MOUSE-CLICK"
+    targetIdiom: ClickListener
+    aiHint: "Translate the body to addClickListener on the owning component."
+  - id: trigger-when-window-closed
+    when: type == "Trigger" and name == "WHEN-WINDOW-CLOSED"
+    targetIdiom: DialogCloseListener
+    aiHint: "Translate the body to Dialog.addOpenedChangeListener (firing on close), or to BeforeLeaveListener for a routed view."
+  - id: trigger-when-tree-node-activated
+    when: type == "Trigger" and name == "WHEN-TREE-NODE-ACTIVATED"
+    targetIdiom: TreeGridItemClickListener
+    aiHint: "Translate the body to TreeGrid.addItemClickListener — the Forms 'activated' event corresponds to a Vaadin row click / Enter key."
+  - id: trigger-when-tree-node-selected
+    when: type == "Trigger" and name == "WHEN-TREE-NODE-SELECTED"
+    targetIdiom: TreeGridSelectionListener
+    aiHint: "Translate the body to TreeGrid.asSingleSelect().addValueChangeListener (or addSelectionListener for multi-select)."
+  - id: trigger-when-form-navigate
+    when: type == "Trigger" and name == "WHEN-FORM-NAVIGATE"
+    targetIdiom: NavigationListener
+    aiHint: "Translate the body to UI.navigate(...) or to a BeforeEnterObserver — Forms's CALL_FORM / OPEN_FORM navigation maps onto the Vaadin Router."
+
+  # ---- PRE/POST-* triggers — lifecycle hooks ----------------------------
+  - id: trigger-when-new-block-instance
+    when: type == "Trigger" and name == "WHEN-NEW-BLOCK-INSTANCE"
+    targetIdiom: FocusEnterListener
+    aiHint: "Translate the body to a focus-enter listener on the block's first field, or to a Tabs.addSelectedChangeListener if blocks map onto tabs."
+  - id: trigger-when-new-item-instance
+    when: type == "Trigger" and name == "WHEN-NEW-ITEM-INSTANCE"
+    targetIdiom: FocusEnterListener
+    aiHint: "Translate the body to addFocusListener on the owning input — Forms 'new item instance' fires when focus enters the item."
+  - id: trigger-when-window-resized
+    when: type == "Trigger" and name == "WHEN-WINDOW-RESIZED"
+    targetIdiom: BrowserResizeListener
+    aiHint: "Translate the body to UI.getCurrent().getPage().addBrowserWindowResizeListener — the Forms Window event is the closest analogue of the browser viewport resize."
+  - id: trigger-pre-form
+    when: type == "Trigger" and name == "PRE-FORM"
+    targetIdiom: ViewInit
+    aiHint: "Translate the body to view-init code — constructor body or onAttach. Forms PRE-FORM runs before WHEN-NEW-FORM-INSTANCE."
+  - id: trigger-post-form
+    when: type == "Trigger" and name == "POST-FORM"
+    targetIdiom: ViewDestroy
+    aiHint: "Translate the body to onDetach(DetachEvent) — Forms POST-FORM is the last hook before the form exits."
+  - id: trigger-pre-text-item
+    when: type == "Trigger" and name == "PRE-TEXT-ITEM"
+    targetIdiom: FocusEnterListener
+    aiHint: "Translate the body to addFocusListener on the owning TextField / NumberField / DatePicker."
+  - id: trigger-post-text-item
+    when: type == "Trigger" and name == "POST-TEXT-ITEM"
+    targetIdiom: FocusLeaveListener
+    aiHint: "Translate the body to addBlurListener on the owning TextField / NumberField / DatePicker — runs when focus leaves the item."
+  - id: trigger-pre-query
+    when: type == "Trigger" and name == "PRE-QUERY"
+    targetIdiom: DataProviderFilterPrep
+    aiHint: "Translate the body to filter-preparation code inside the DataProvider's fetch / count callbacks (or in a Specification builder)."
+  - id: trigger-post-query
+    when: type == "Trigger" and name == "POST-QUERY"
+    targetIdiom: DataProviderMapper
+    aiHint: "Translate the body to a row-mapper that runs after each fetched record — typically a Stream.map() inside the DataProvider's fetch callback."
+  - id: trigger-pre-insert
+    when: type == "Trigger" and name == "PRE-INSERT"
+    targetIdiom: ServiceMethodPrePersist
+    aiHint: "Translate the body to pre-persist logic in the @Service.save(...) method, or to a JPA @PrePersist callback on the bean."
+  - id: trigger-pre-update
+    when: type == "Trigger" and name == "PRE-UPDATE"
+    targetIdiom: ServiceMethodPreUpdate
+    aiHint: "Translate the body to pre-update logic in the @Service.save(...) method, or to a JPA @PreUpdate callback on the bean."
+  - id: trigger-pre-delete
+    when: type == "Trigger" and name == "PRE-DELETE"
+    targetIdiom: ServiceMethodPreDelete
+    aiHint: "Translate the body to pre-delete logic in the @Service.delete(...) method, or to a JPA @PreRemove callback on the bean."
+  - id: trigger-post-insert
+    when: type == "Trigger" and name == "POST-INSERT"
+    targetIdiom: ServiceMethodPostPersist
+    aiHint: "Translate the body to post-persist logic in the @Service.save(...) method, or to a JPA @PostPersist callback."
+  - id: trigger-post-update
+    when: type == "Trigger" and name == "POST-UPDATE"
+    targetIdiom: ServiceMethodPostUpdate
+    aiHint: "Translate the body to post-update logic in the @Service.save(...) method, or to a JPA @PostUpdate callback."
+  - id: trigger-post-delete
+    when: type == "Trigger" and name == "POST-DELETE"
+    targetIdiom: ServiceMethodPostDelete
+    aiHint: "Translate the body to post-delete logic in the @Service.delete(...) method, or to a JPA @PostRemove callback."
+
+  # ---- ON-* triggers — transactional / behavioural overrides ------------
+  - id: trigger-on-insert
+    when: type == "Trigger" and name == "ON-INSERT"
+    targetIdiom: ServiceMethod
+    aiHint: "Translate the PL/SQL body into a Spring @Service method that persists the bean via the repository, replacing the Forms transactional ON-INSERT trigger."
+  - id: trigger-on-update
+    when: type == "Trigger" and name == "ON-UPDATE"
+    targetIdiom: ServiceMethod
+    aiHint: "Translate the PL/SQL body into a Spring @Service method that updates the bean via the repository."
+  - id: trigger-on-delete
+    when: type == "Trigger" and name == "ON-DELETE"
+    targetIdiom: ServiceMethod
+    aiHint: "Translate the PL/SQL body into a Spring @Service method that deletes the bean via the repository."
+  - id: trigger-on-error
+    when: type == "Trigger" and name == "ON-ERROR"
+    targetIdiom: ErrorHandler
+    aiHint: "Translate the body to a Vaadin ErrorHandler bound on the UI / VaadinSession, or to a Notification.show on caught exceptions."
+  - id: trigger-on-clear-details
+    when: type == "Trigger" and name == "ON-CLEAR-DETAILS"
+    targetIdiom: MasterDetailClear
+    aiHint: "Translate the body to detail-clearing code that runs when the master selection changes — typically detailGrid.setItems(List.of()) or binder.readBean(null)."
+  - id: trigger-on-populate-details
+    when: type == "Trigger" and name == "ON-POPULATE-DETAILS"
+    targetIdiom: MasterDetailLoad
+    aiHint: "Translate the body to detail-loading code triggered by the master's value-change listener — fetch by master id and set the detail data provider."
+  - id: trigger-on-check-delete-master
+    when: type == "Trigger" and name == "ON-CHECK-DELETE-MASTER"
+    targetIdiom: CascadeDeleteGuard
+    aiHint: "Pre-delete check that vetoes the master delete when dependent rows exist — return a ValidationResult.error or throw a domain exception. Drive the behaviour from the relation's DeleteRecord (policyClassifiers delete-*); this generated trigger only mirrors it."
+
+  # ---- KEY-* triggers — keyboard / action shortcuts ---------------------
+  - id: trigger-key-commit
+    when: type == "Trigger" and name == "KEY-COMMIT"
+    targetIdiom: Shortcut
+    aiHint: "Translate the keystroke to a save Shortcut on the view (e.g. Shortcuts.addShortcutListener(this, this::save, Key.S, KeyModifier.CONTROL)); the shortcut invokes the whole-graph @Transactional save defined by policyClassifiers transaction-commit-form."
+  - id: trigger-key-exit
+    when: type == "Trigger" and name == "KEY-EXIT"
+    targetIdiom: Shortcut
+    aiHint: "Translate the body to a close / navigate-away Shortcut on the view."
+  - id: trigger-key-clrblk
+    when: type == "Trigger" and name == "KEY-CLRBLK"
+    targetIdiom: Shortcut
+    aiHint: "Translate the body to a block / form clear Shortcut — typically resets the Binder bean and reloads default data."
+  - id: trigger-key-crerec
+    when: type == "Trigger" and name == "KEY-CREREC"
+    targetIdiom: Shortcut
+    aiHint: "Translate the body to a 'create record' Shortcut — invokes the new-item factory from WHEN-CREATE-RECORD / WHEN-NEW-RECORD-INSTANCE."
+  - id: trigger-key-delrec
+    when: type == "Trigger" and name == "KEY-DELREC"
+    targetIdiom: Shortcut
+    aiHint: "Translate the body to a 'delete record' Shortcut — invokes the service delete path."
+  - id: trigger-key-duprec
+    when: type == "Trigger" and name == "KEY-DUPREC"
+    targetIdiom: Shortcut
+    aiHint: "Translate the body to a 'duplicate record' Shortcut — copy the current bean and open the editor on the copy."
+  - id: trigger-key-entqry
+    when: type == "Trigger" and name == "KEY-ENTQRY"
+    targetIdiom: Shortcut
+    aiHint: "Translate the body to an 'enter query mode' Shortcut — typically focuses the filter row of the Grid."
+  - id: trigger-key-exeqry
+    when: type == "Trigger" and name == "KEY-EXEQRY"
+    targetIdiom: Shortcut
+    aiHint: "Translate the body to an 'execute query' Shortcut — refreshes the DataProvider with the current filter state."
+  - id: trigger-key-listval
+    when: type == "Trigger" and name == "KEY-LISTVAL"
+    targetIdiom: Shortcut
+    aiHint: "Translate the body to a 'show list of values' Shortcut — opens the ComboBox dropdown or a LookupField dialog."
+  - id: trigger-key-others
+    when: type == "Trigger" and name == "KEY-OTHERS"
+    targetIdiom: Shortcut
+    aiHint: "KEY-OTHERS suppresses default behaviour for every unbound function key. In Vaadin the default does not exist — review whether the body still applies, then drop or rebuild as explicit Shortcuts."
+  - id: trigger-key-up
+    when: type == "Trigger" and name == "KEY-UP"
+    targetIdiom: Shortcut
+    aiHint: "Translate the body to an up-arrow Shortcut, or rely on the Grid's native arrow-key navigation if the trigger only moved between rows."
+  - id: trigger-key-down
+    when: type == "Trigger" and name == "KEY-DOWN"
+    targetIdiom: Shortcut
+    aiHint: "Translate the body to a down-arrow Shortcut, or rely on the Grid's native arrow-key navigation if the trigger only moved between rows."
+  - id: trigger-key-clrfrm
+    when: type == "Trigger" and name == "KEY-CLRFRM"
+    targetIdiom: Shortcut
+    aiHint: "Translate the body to a 'clear form' Shortcut — resets the Binder bean and clears any related DataProvider filters."
+  - id: trigger-key-edit
+    when: type == "Trigger" and name == "KEY-EDIT"
+    targetIdiom: Shortcut
+    aiHint: "Translate the body to an 'open editor' Shortcut — usually opens a Dialog or focuses a TextArea."
+  - id: trigger-key-help
+    when: type == "Trigger" and name == "KEY-HELP"
+    targetIdiom: Shortcut
+    aiHint: "Translate the body to a 'help' Shortcut — opens an inline help Notification or routes to a help view."
+  - id: trigger-key-menu
+    when: type == "Trigger" and name == "KEY-MENU"
+    targetIdiom: Shortcut
+    aiHint: "Translate the body to a 'show menu' Shortcut — opens the MenuBar / ContextMenu for the current component."
+
+  # ---- Catch-all Trigger rule -------------------------------------------
+  # Covers user-defined / less-common Forms triggers (ACCEPT, QUERY_FIND,
+  # CLOSE_WINDOW, custom timing-point names from Object Libraries). They
+  # always become some flavour of listener — the specific kind has to be
+  # inferred from the body.
+  - id: trigger-default
+    when: type == "Trigger"
+    targetIdiom: Listener
+    aiHint: "Translate the body to the most appropriate Vaadin listener for the owning component — ClickListener, ValueChangeListener, FocusListener, or a custom Shortcut. The body's actions are the deciding signal."
+
+  # ---- Catch-all Program Unit rule --------------------------------------
+  # Forms Program Units are project-named (CHECK_PACKAGE_FAILURE,
+  # REFRESH_TREE_COUNTRY, …) — there is no per-name idiom table. The
+  # catch-all covers ADR 0004's Program Unit row so the recipe never falls
+  # through to classifierId: null on this surface. Treatment is owned by
+  # the anti-pattern + LOC tier; this rule only labels the target idiom.
+  - id: program-unit-default
+    when: type == "Program Unit"
+    targetIdiom: HelperMethod
+    aiHint: "Translate the body to a Java method — typically a private helper on the View if it only touches view state, a Spring @Service method if it touches the database, or a static utility if it is pure."
+
+  # ---- Database stored procedures / functions ---------------------------
+  # Default: leave the PL/SQL in the DB and call it directly from Java. Only
+  # escape to Refactor when the signature is not JDBC-bindable. Corner-case
+  # rules precede the default (first-match-wins).
+  - id: db-call-plsql-only-type
+    when: (type == "Database Procedure" or type == "Database Function") and paramShape == "plsql-only-type"
+    targetIdiom: WrapperNeeded
+    treatment: Refactor
+    aiHint: "Signature uses PL/SQL-only types not addressable over JDBC (BOOLEAN, RECORD / %ROWTYPE, associative arrays / PL/SQL index-by tables). Add a thin SQL-typed wrapper procedure or SQL object types in the DB and call that — do NOT reimplement the body in Java."
+  - id: db-call-ref-cursor
+    when: (type == "Database Procedure" or type == "Database Function") and paramShape == "ref-cursor"
+    targetIdiom: ServiceCallRefCursor
+    aiHint: "OUT SYS_REFCURSOR → invoke via SimpleJdbcCall / CallableStatement registering OracleTypes.CURSOR; map the returned ResultSet to a List of records in the @Service."
+  - id: db-call-out-params
+    when: (type == "Database Procedure" or type == "Database Function") and paramShape == "has-out"
+    targetIdiom: ServiceCallOut
+    aiHint: "Has OUT / IN OUT parameters → JdbcClient cannot bind OUT params; use SimpleJdbcCall or a CallableStatement and register each OUT / IN OUT parameter (by name where possible). For a function, call { ? = call fn(...) } and map the return type."
+  - id: db-call-direct
+    when: type == "Database Procedure" or type == "Database Function"
+    targetIdiom: ServiceCallDirect
+    aiHint: "Default: keep the PL/SQL in the DB and call it directly from the @Service — IN-only scalar params via JdbcClient (or CallableStatement). A deterministic function used inside a query may instead be inlined into that query (dissolve) rather than called separately."
+
+# ---- Canvas-side rules (Prep-A1) --------------------------------------
+# Drive Canvas → Vaadin container decisions for the scaffolder (ADR 0010).
+# Predicates apply to the Canvas's XML attributes (CanvasType, ViewportX1,
+# ViewportY1, …); structure is identical to the item-side rules so the
+# overlay verbs (replaces / disables / add / target-attribute merge)
+# behave the same way under `scope: canvas`.
+canvasClassifiers:
+  - id: canvas-content
+    when: CanvasType == "Content"
+    target: VerticalLayout
+    treatment: Automated
+    aiHint: "Content canvases become the View's top-level VerticalLayout. Geometry is dropped — Vaadin Flow layout owns sizing and positioning."
+  - id: canvas-tab
+    when: CanvasType == "Tab"
+    target: TabSheet
+    treatment: Automated
+    aiHint: "Tab canvases become a TabSheet — one Tab per TabPage child. Tab labels carry over; per-page geometry is dropped."
+  - id: canvas-stacked
+    when: CanvasType == "Stacked"
+    target: Details
+    treatment: Automated
+    aiHint: "Stacked canvases become a Details disclosure — they overlay on the Content canvas in Forms and are expand/collapse in Vaadin."
+  - id: canvas-horizontal-toolbar
+    when: CanvasType == "Horizontal Toolbar"
+    target: HorizontalLayout
+    treatment: Automated
+    aiHint: "Horizontal toolbar canvases become a HorizontalLayout, conventionally docked at the top of the View."
+  - id: canvas-vertical-toolbar
+    when: CanvasType == "Vertical Toolbar"
+    target: HorizontalLayout
+    treatment: Automated
+    aiHint: "Vertical toolbar canvases also become a HorizontalLayout — Vaadin's flow-based layout flattens the Forms vertical-toolbar idiom into a single button row."
+
+canvasTargets:
+  VerticalLayout:
+    attributes:
+      CanvasType: { ignore: "Selector attribute used by classifier predicates" }
+      Name: { ignore: "Becomes the layout variable name in code, not a setter" }
+      Title: { carry: setText }
+      Width: { ignore: "Vaadin Flow layout owns sizing" }
+      Height: { ignore: "Vaadin Flow layout owns sizing" }
+      ViewportX1: { ignore: "Vaadin Flow layout owns viewport / scrolling" }
+      ViewportY1: { ignore: "Vaadin Flow layout owns viewport / scrolling" }
+      ViewportWidth: { ignore: "Vaadin Flow layout owns viewport / scrolling" }
+      ViewportHeight: { ignore: "Vaadin Flow layout owns viewport / scrolling" }
+      BackColor: { ignore: "Aura theme owns colour" }
+      ForegroundColor: { ignore: "Aura theme owns colour" }
+      FillPattern: { ignore: "Aura theme owns fills" }
+      VisualAttributeName: { ignore: "Aura theme replaces Forms VisualAttribute" }
+      ShowVerticalScrollbar: { ignore: "Vaadin component owns scrollbar visibility" }
+      ShowHorizontalScrollbar: { ignore: "Vaadin component owns scrollbar visibility" }
+      WindowName: { ignore: "Vaadin View replaces the Forms Window" }
+  TabSheet:
+    attributes:
+      CanvasType: { ignore: "Selector attribute used by classifier predicates" }
+      Name: { ignore: "Becomes the layout variable name in code, not a setter" }
+      Title: { carry: setText }
+      TabAttachmentEdge: { ignore: "Aura theme owns tab placement" }
+      TabStyle: { ignore: "Aura theme owns tab style" }
+      Width: { ignore: "Vaadin Flow layout owns sizing" }
+      Height: { ignore: "Vaadin Flow layout owns sizing" }
+      BackColor: { ignore: "Aura theme owns colour" }
+      ForegroundColor: { ignore: "Aura theme owns colour" }
+      VisualAttributeName: { ignore: "Aura theme replaces Forms VisualAttribute" }
+      WindowName: { ignore: "Vaadin View replaces the Forms Window" }
+  Details:
+    attributes:
+      CanvasType: { ignore: "Selector attribute used by classifier predicates" }
+      Name: { ignore: "Becomes the layout variable name in code, not a setter" }
+      Title: { carry: setSummaryText }
+      Width: { ignore: "Vaadin Flow layout owns sizing" }
+      Height: { ignore: "Vaadin Flow layout owns sizing" }
+      BackColor: { ignore: "Aura theme owns colour" }
+      ForegroundColor: { ignore: "Aura theme owns colour" }
+      VisualAttributeName: { ignore: "Aura theme replaces Forms VisualAttribute" }
+      ShowVerticalScrollbar: { ignore: "Vaadin component owns scrollbar visibility" }
+      ShowHorizontalScrollbar: { ignore: "Vaadin component owns scrollbar visibility" }
+      WindowName: { ignore: "Vaadin View replaces the Forms Window" }
+  HorizontalLayout:
+    attributes:
+      CanvasType: { ignore: "Selector attribute used by classifier predicates" }
+      Name: { ignore: "Becomes the layout variable name in code, not a setter" }
+      Title: { carry: setText }
+      Width: { ignore: "Vaadin Flow layout owns sizing" }
+      Height: { ignore: "Vaadin Flow layout owns sizing" }
+      BackColor: { ignore: "Aura theme owns colour" }
+      ForegroundColor: { ignore: "Aura theme owns colour" }
+      FillPattern: { ignore: "Aura theme owns fills" }
+      VisualAttributeName: { ignore: "Aura theme replaces Forms VisualAttribute" }
+      WindowName: { ignore: "Vaadin View replaces the Forms Window" }
+
+# ---- Block-side rules (Prep-A1) ---------------------------------------
+# Drive Block → Vaadin container decisions for the scaffolder (ADR 0010).
+# Block shape is driven by relation topology + queryability, analyzer-supplied
+# operands: `relationRole` (master / detail / none), `deferred`, `autoQuery`,
+# `databaseBlock`, `queryable`. "Multi-record" is derived from relation
+# membership, not RecordsDisplayed (absent in real FMB exports).
+blockClassifiers:
+  - id: block-detail-readonly
+    when: relationRole == "detail" and (deferred == "true" or autoQuery == "true")
+    target: Grid
+    treatment: Automated
+    aiHint: "Detail of a deferred / auto-query relation → read-only Grid (or panel) loaded on the parent's selection-change."
+  - id: block-detail
+    when: relationRole == "detail"
+    target: Grid
+    treatment: Automated
+    aiHint: "Detail side of a relation → editable Grid bound to the parent's selection. Items become Grid columns; block-level Required/UpdateAllowed flags carry to editor mode."
+  - id: block-master-queryable
+    when: databaseBlock == "true" and queryable == "true"
+    target: Grid
+    treatment: Automated
+    aiHint: "Independently-queryable base-table master → master browsing Grid + persistent filter bar + lazy DataProvider. Replaces Forms Execute/Enter-Query; arbitrary QBE collapses to a curated filter set."
+  - id: block-control
+    when: databaseBlock == "false"
+    target: LayoutHost
+    treatment: Automated
+    aiHint: "Control / non-DB block is not a data container; hoist its items (buttons, summary displays) into the surrounding layout."
+  - id: block-default
+    when: BlockName is not null
+    target: FormLayout
+    treatment: Automated
+    aiHint: "Fallback → single-record FormLayout. Items become field components placed in declaration order; Required carries to setRequiredIndicatorVisible."
+
+blockTargets:
+  Grid:
+    attributes:
+      BlockName: { ignore: "Selector attribute used by classifier predicates" }
+      RecordsDisplayed: { ignore: "Selector attribute — drove the Grid vs FormLayout choice" }
+      Name: { ignore: "Becomes the Grid variable name in code, not a setter" }
+      Label: { carry: setHeader }
+      QueryDataSourceName: { ignore: "Database binding lives on the DataProvider, not the Grid" }
+      QueryDataSourceColumns: { ignore: "Database binding lives on the DataProvider, not the Grid" }
+      InsertAllowed: { ignore: "Editable Grid + service-level access control replaces Forms InsertAllowed" }
+      UpdateAllowed: { ignore: "Editable Grid + service-level access control replaces Forms UpdateAllowed" }
+      DeleteAllowed: { ignore: "Editable Grid + service-level access control replaces Forms DeleteAllowed" }
+      QueryAllowed: { ignore: "Grid filtering covers Forms QueryAllowed" }
+      ShowVerticalScrollbar: { ignore: "Grid owns its own scrollbar" }
+      ShowHorizontalScrollbar: { ignore: "Grid owns its own scrollbar" }
+      Required: { ignore: "Required-state lives on the row editor's fields, not the Grid" }
+      Tooltip: { carry: setTooltipText }
+      Visible: { carry: setVisible }
+      VisualAttributeName: { ignore: "Aura theme replaces Forms VisualAttribute" }
+      RecordOrientation: { ignore: "Grid orientation is fixed (row-per-record); the Forms record orientation is dropped" }
+      ItemsDisplayed: { ignore: "Grid row count is data-driven via the DataProvider" }
+      DistanceBetweenRecords: { ignore: "Grid row layout replaces Forms inter-record geometry" }
+      ScrollBarLength: { ignore: "Grid owns its own scrollbar geometry" }
+      ScrollBarWidth: { ignore: "Grid owns its own scrollbar geometry" }
+  FormLayout:
+    attributes:
+      BlockName: { ignore: "Selector attribute used by classifier predicates" }
+      RecordsDisplayed: { ignore: "Selector attribute — drove the Grid vs FormLayout choice" }
+      Name: { ignore: "Becomes the layout variable name in code, not a setter" }
+      Label: { carry: setText }
+      QueryDataSourceName: { ignore: "Database binding lives on the Binder, not the layout" }
+      QueryDataSourceColumns: { ignore: "Database binding lives on the Binder, not the layout" }
+      InsertAllowed: { ignore: "Binder / service-level access control replaces Forms InsertAllowed" }
+      UpdateAllowed: { ignore: "Binder.setReadOnly(...) replaces Forms UpdateAllowed" }
+      DeleteAllowed: { ignore: "Service-level access control replaces Forms DeleteAllowed" }
+      QueryAllowed: { ignore: "Filterable fields cover Forms QueryAllowed" }
+      Required: { ignore: "Required-state lives on the bound fields, not the FormLayout" }
+      Tooltip: { carry: setTooltipText }
+      Visible: { carry: setVisible }
+      VisualAttributeName: { ignore: "Aura theme replaces Forms VisualAttribute" }
+      RecordOrientation: { ignore: "Single-record blocks have no inter-record orientation" }
+  LayoutHost:
+    attributes:
+      BlockName: { ignore: "Selector attribute used by classifier predicates" }
+      Name: { ignore: "Control block is not emitted as a container; its items are hoisted into the surrounding layout" }
+      RecordOrientation: { ignore: "Control block holds no records" }
+
+# ---- Policy-side rules — cross-cutting (transaction / concurrency / delete) -
+# Not per-component: predicates apply to Form / Block / Relation properties.
+# The analyzer injects Forms defaults where an attribute is absent (LockingMode
+# absent → pessimistic; same correction as RecordsDisplayed). Operands: `scope`
+# (Form / Block / Relation), `commitStyle`, `databaseBlock`, `LockingMode`,
+# `DeleteRecord`.
+policyClassifiers:
+  - id: transaction-commit-form
+    scope: Form
+    when: commitStyle == "COMMIT_FORM"
+    target: WholeGraphTransaction
+    treatment: AI-coded
+    aiHint: "COMMIT_FORM persists every dirty base-table block as one unit. Map to a single @Transactional Service.save(graph) that flushes the master + detail object graph atomically; the KEY-COMMIT keystroke (trigger-key-commit) only invokes it."
+  - id: concurrency-pessimistic-to-scn
+    scope: Block
+    when: databaseBlock == "true" and LockingMode in ["Automatic", "Immediate", "Delayed"]
+    target: OptimisticRowScn
+    treatment: AI-coded
+    aiHint: "Replace Forms's pessimistic across-think-time row lock with optimistic concurrency: read ORA_ROWSCN on load, re-check in UPDATE … WHERE id = ? AND ORA_ROWSCN = ?; zero rows updated = conflict → roll back and surface it. No FOR UPDATE across think-time, no schema change. Disclose the ROWDEPENDENCIES caveat — without it ORA_ROWSCN is block-level (coarser) and can raise false conflicts."
+  - id: delete-cascade-guard
+    scope: Relation
+    when: DeleteRecord == "Non Isolated"
+    target: CascadeDeleteGuard
+    treatment: AI-coded
+    aiHint: "Veto the master delete when detail rows exist — a Domain guard / Service pre-delete check that throws or returns a validation error. This relation property is the authoritative source for trigger-on-check-delete-master."
+  - id: delete-cascade
+    scope: Relation
+    when: DeleteRecord == "Cascading"
+    target: CascadeDelete
+    treatment: AI-coded
+    aiHint: "Delete detail rows with the master inside the same transaction (Service-level cascade, or ON DELETE CASCADE if the FK already enforces it)."
+  - id: delete-isolated
+    scope: Relation
+    when: DeleteRecord == "Isolated"
+    target: NoCascade
+    treatment: Automated
+    aiHint: "Master delete is independent of details; emit no guard and no cascade."
+
+# ---- Semantic VisualAttribute patterns (Prep-A2, issue #69) ----------
+# VisualAttribute names that match any of these patterns produce a
+# TODO[FORMS-MIGRATION:VISUAL] marker in the scaffolded code: the named VA
+# encoded a semantic state (error, warning, required, etc.) under Forms
+# that the Aura theme expresses through component variants, not free-form
+# colour overrides. Each entry is a Java regex matched case-insensitively
+# anywhere in the VA name (Matcher.find() semantics). Override or extend
+# via the optional overlay (`semanticVisualAttributes: { extend: [...] }`
+# / `{ replace: [...] }`).
+semanticVisualAttributes:
+  - ERROR
+  - INVALID
+  - WARN
+  - ALERT
+  - HIGHLIGHT
+  - REQUIRED
+  - MANDATORY
+  - READONLY
+  - DISABLED
+  - SUCCESS
+  - "\\bOK\\b"
+
+# ---- Empty-label fallback policy (Prep-A2, issue #69) ----------------
+# What the scaffolder does when both Prompt and Label are empty on an
+# Item. `humanize-name` splits SCREAMING_SNAKE_CASE / camelCase into
+# Title Case words and uses that as the label. `warnWhenVisible` adds a
+# TODO[FORMS-MIGRATION:LABEL] marker when the unlabelled item is
+# Visible="true" — a visible field with no author-supplied label is
+# almost always a UX bug worth flagging.
+emptyLabelFallback:
+  source: humanize-name
+  warnWhenVisible: true
+
+# ---- Layout plan (ADR 0011, issue #93) -------------------------------
+# Coordinate-derived row grouping for single-record blocks. The analyzer
+# clusters a (Canvas, Block) intersection's items into rows by Y-centre
+# proximity and emits the result on the recipe envelope's
+# `blockSections[].layoutPlan` field; the scaffolder consumes it as
+# `VerticalLayout(HorizontalLayout(...))`. Multi-record blocks (Grid)
+# are unaffected. `rowAffinity` is the proportional tolerance against
+# `min(Ha, Hb)`; `fallbackTolerance` is the absolute Y-distance used
+# when Height is missing on either operand. `enabled: false` reverts to
+# the pre-ADR-0011 declaration-order placement under the block target.
+layoutPlan:
+  rowAffinity: 0.5
+  fallbackTolerance: 50
+  enabled: true
