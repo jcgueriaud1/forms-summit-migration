@@ -1,0 +1,1633 @@
+{
+  "source": "forms-summit-example/ORDERS_fmb.xml",
+  "grain": "form-object",
+  "decisionFree": true,
+  "form": {
+    "name": "ORDERS",
+    "commitStyle": "COMMIT_FORM"
+  },
+  "blocks": [
+    {
+      "name": "S_ORD",
+      "databaseBlock": true,
+      "queryDataSource": "S_ORD",
+      "relationRole": "master",
+      "queryable": true,
+      "deferred": null,
+      "autoQuery": null,
+      "editable": true,
+      "crud": {
+        "insertAllowed": true,
+        "updateAllowed": true,
+        "deleteAllowed": true,
+        "queryAllowed": true,
+        "injected": true
+      },
+      "recordsDisplayed": null,
+      "derivedMultiRecord": {
+        "value": true,
+        "source": "derived(relation-membership/scrollbar)"
+      },
+      "lockingMode": {
+        "value": "Automatic",
+        "injected": true
+      },
+      "itemCount": 9,
+      "items": [
+        {
+          "name": "CUSTOMER_NAME",
+          "itemType": null,
+          "canvas": "CV_ORDER",
+          "tabPage": null,
+          "geometry": {
+            "x": "177",
+            "y": "51",
+            "width": "116",
+            "height": "14"
+          },
+          "visible": null,
+          "dataType": null,
+          "formula": null,
+          "calculateMode": null,
+          "summaryFunction": null,
+          "summaryItemName": null,
+          "listStyle": null,
+          "concealData": null,
+          "multiLine": null,
+          "prompt": "Customer Name",
+          "columnName": null,
+          "databaseItem": "false",
+          "editability": {
+            "updateAllowed": false,
+            "insertAllowed": false,
+            "queryAllowed": false,
+            "enabled": true
+          },
+          "lovRole": null,
+          "triggers": []
+        },
+        {
+          "name": "ID",
+          "itemType": "Text Item",
+          "canvas": "CV_ORDER",
+          "tabPage": null,
+          "geometry": {
+            "x": "64",
+            "y": "4",
+            "width": "40",
+            "height": "14"
+          },
+          "visible": null,
+          "dataType": "Number",
+          "formula": null,
+          "calculateMode": null,
+          "summaryFunction": null,
+          "summaryItemName": null,
+          "listStyle": null,
+          "concealData": null,
+          "multiLine": null,
+          "prompt": "Order Id ",
+          "columnName": null,
+          "databaseItem": null,
+          "editability": {
+            "updateAllowed": true,
+            "insertAllowed": true,
+            "queryAllowed": true,
+            "enabled": true
+          },
+          "lovRole": null,
+          "triggers": []
+        },
+        {
+          "name": "CUSTOMER_ID",
+          "itemType": "Text Item",
+          "canvas": "CV_ORDER",
+          "tabPage": null,
+          "geometry": {
+            "x": "103",
+            "y": "51",
+            "width": "66",
+            "height": "14"
+          },
+          "visible": null,
+          "dataType": "Number",
+          "formula": null,
+          "calculateMode": null,
+          "summaryFunction": null,
+          "summaryItemName": null,
+          "listStyle": null,
+          "concealData": null,
+          "multiLine": null,
+          "prompt": "Customer Id",
+          "columnName": null,
+          "databaseItem": null,
+          "editability": {
+            "updateAllowed": true,
+            "insertAllowed": true,
+            "queryAllowed": true,
+            "enabled": true
+          },
+          "lovRole": null,
+          "triggers": [
+            {
+              "name": "WHEN-VALIDATE-ITEM",
+              "bodyShape": "select-into",
+              "body": "SELECT C.name, C.sales_rep_id, E.last_name&#10;INTO :S_ORD.customer_name, :S_ORD.sales_rep_id, :S_ORD.sales_rep_name&#10;FROM S_CUSTOMER C, S_EMP E&#10;WHERE (E.id=C.sales_rep_id) AND (:S_ORD.customer_id = C.id);&#10;EXCEPTION&#10; WHEN NO_DATA_FOUND THEN&#10;   MESSAGE('Invalid Customer Id!');&#10;   RAISE FORM_TRIGGER_FAILURE;&#10;"
+            }
+          ]
+        },
+        {
+          "name": "DATE_ORDERED",
+          "itemType": "Text Item",
+          "canvas": "CV_ORDER",
+          "tabPage": null,
+          "geometry": {
+            "x": "25",
+            "y": "51",
+            "width": "66",
+            "height": "14"
+          },
+          "visible": null,
+          "dataType": "Date",
+          "formula": null,
+          "calculateMode": null,
+          "summaryFunction": null,
+          "summaryItemName": null,
+          "listStyle": null,
+          "concealData": null,
+          "multiLine": null,
+          "prompt": "Date Ordered",
+          "columnName": null,
+          "databaseItem": null,
+          "editability": {
+            "updateAllowed": true,
+            "insertAllowed": true,
+            "queryAllowed": true,
+            "enabled": true
+          },
+          "lovRole": null,
+          "triggers": [
+            {
+              "name": "KEY-LISTVAL",
+              "bodyShape": "other",
+              "body": "date_lov.get_date(sysdate,         -- initial date&#10;                  's_ord.date_ordered',  -- return block.item&#10;                  240,             -- window x position&#10;                  60,              -- window y position&#10;                  'Order Date',    -- window title&#10;                  'OK',            -- ok button label&#10;                  'Cancel',        -- cancel button label&#10;                  TRUE,            -- highlight weekend days&#10;                  FALSE,           -- autoconfirm selection&#10;                  FALSE);          -- autoskip after selection"
+            }
+          ]
+        },
+        {
+          "name": "DATE_SHIPPED",
+          "itemType": "Text Item",
+          "canvas": "CV_ORDER",
+          "tabPage": null,
+          "geometry": {
+            "x": "25",
+            "y": "119",
+            "width": "66",
+            "height": "14"
+          },
+          "visible": null,
+          "dataType": "Date",
+          "formula": null,
+          "calculateMode": null,
+          "summaryFunction": null,
+          "summaryItemName": null,
+          "listStyle": null,
+          "concealData": null,
+          "multiLine": null,
+          "prompt": "Date Shipped",
+          "columnName": null,
+          "databaseItem": null,
+          "editability": {
+            "updateAllowed": true,
+            "insertAllowed": true,
+            "queryAllowed": true,
+            "enabled": true
+          },
+          "lovRole": null,
+          "triggers": [
+            {
+              "name": "KEY-LISTVAL",
+              "bodyShape": "other",
+              "body": "date_lov.get_date(sysdate + 7,         -- initial date&#10;                  's_ord.date_shipped',  -- return block.item&#10;                  240,             -- window x position&#10;                  60,              -- window y position&#10;                  'Shipped Date',    -- window title&#10;                  'OK',            -- ok button label&#10;                  'Cancel',        -- cancel button label&#10;                  TRUE,            -- highlight weekend days&#10;                  FALSE,           -- autoconfirm selection&#10;                  FALSE);          -- autoskip after selection"
+            }
+          ]
+        },
+        {
+          "name": "SALES_REP_ID",
+          "itemType": "Text Item",
+          "canvas": "CV_ORDER",
+          "tabPage": null,
+          "geometry": {
+            "x": "103",
+            "y": "85",
+            "width": "66",
+            "height": "14"
+          },
+          "visible": null,
+          "dataType": "Number",
+          "formula": null,
+          "calculateMode": null,
+          "summaryFunction": null,
+          "summaryItemName": null,
+          "listStyle": null,
+          "concealData": null,
+          "multiLine": null,
+          "prompt": "Sales Rep Id",
+          "columnName": null,
+          "databaseItem": null,
+          "editability": {
+            "updateAllowed": true,
+            "insertAllowed": true,
+            "queryAllowed": true,
+            "enabled": true
+          },
+          "lovRole": null,
+          "triggers": []
+        },
+        {
+          "name": "SALES_REP_NAME",
+          "itemType": null,
+          "canvas": "CV_ORDER",
+          "tabPage": null,
+          "geometry": {
+            "x": "177",
+            "y": "85",
+            "width": "116",
+            "height": "14"
+          },
+          "visible": null,
+          "dataType": null,
+          "formula": null,
+          "calculateMode": null,
+          "summaryFunction": null,
+          "summaryItemName": null,
+          "listStyle": null,
+          "concealData": null,
+          "multiLine": null,
+          "prompt": "Sales Rep Name",
+          "columnName": null,
+          "databaseItem": "false",
+          "editability": {
+            "updateAllowed": false,
+            "insertAllowed": false,
+            "queryAllowed": false,
+            "enabled": true
+          },
+          "lovRole": null,
+          "triggers": []
+        },
+        {
+          "name": "PAYMENT_TYPE",
+          "itemType": "Radio Group",
+          "canvas": "CV_ORDER",
+          "tabPage": null,
+          "geometry": {
+            "x": "121",
+            "y": "167",
+            "width": "48",
+            "height": "14"
+          },
+          "visible": null,
+          "dataType": null,
+          "formula": null,
+          "calculateMode": null,
+          "summaryFunction": null,
+          "summaryItemName": null,
+          "listStyle": null,
+          "concealData": null,
+          "multiLine": null,
+          "prompt": "Payment Type",
+          "columnName": null,
+          "databaseItem": null,
+          "editability": {
+            "updateAllowed": true,
+            "insertAllowed": true,
+            "queryAllowed": true,
+            "enabled": true
+          },
+          "lovRole": null,
+          "triggers": [
+            {
+              "name": "WHEN-RADIO-CHANGED",
+              "bodyShape": "select-into",
+              "body": "DECLARE&#10;  N NUMBER;&#10;  v_credit S_CUSTOMER.credit_rating%type;&#10;BEGIN&#10;  IF :S_ORD.payment_type = 'CREDIT' THEN&#10;    SELECT credit_rating&#10;    INTO v_credit&#10;    FROM S_CUSTOMER&#10;    WHERE :S_ORD.customer_id = id;&#10;    IF v_credit NOT IN ('GOOD', 'EXCELLENT') THEN&#10;      :S_ORD.payment_type:= 'CASH';&#10;      n:=SHOW_ALERT('Payment_Type_Alert');&#10;    END IF;&#10;  END IF;&#10;END;&#10;"
+            }
+          ]
+        },
+        {
+          "name": "ORDER_FILLED",
+          "itemType": "Check Box",
+          "canvas": "CV_ORDER",
+          "tabPage": null,
+          "geometry": {
+            "x": "215",
+            "y": "119",
+            "width": "72",
+            "height": "14"
+          },
+          "visible": null,
+          "dataType": null,
+          "formula": null,
+          "calculateMode": null,
+          "summaryFunction": null,
+          "summaryItemName": null,
+          "listStyle": null,
+          "concealData": null,
+          "multiLine": null,
+          "prompt": "",
+          "columnName": null,
+          "databaseItem": null,
+          "editability": {
+            "updateAllowed": true,
+            "insertAllowed": true,
+            "queryAllowed": true,
+            "enabled": true
+          },
+          "lovRole": null,
+          "triggers": []
+        }
+      ],
+      "triggers": [
+        {
+          "name": "KEY-COMMIT",
+          "bodyShape": "other",
+          "body": "COMMIT_FORM;"
+        },
+        {
+          "name": "ON-POPULATE-DETAILS",
+          "bodyShape": "other",
+          "body": "--&#10;-- Begin default relation declare section&#10;--&#10;DECLARE&#10;  recstat     VARCHAR2(20) := :System.record_status;   &#10;  startitm    VARCHAR2(61) := :System.cursor_item;   &#10;  rel_id      Relation;&#10;--&#10;-- End default relation declare section&#10;--&#10;--&#10;-- Begin default relation program section&#10;--&#10;BEGIN&#10;  IF ( recstat = 'NEW' or recstat = 'INSERT' ) THEN   &#10;    RETURN;&#10;  END IF;&#10;  --&#10;  -- Begin S_ITEM detail program section&#10;  --&#10;  IF ( (:S_ORD.ID is not null) ) THEN   &#10;    rel_id := Find_Relation('S_ORD.S_ORD_S_ITEM');   &#10;    Query_Master_Details(rel_id, 'S_ITEM');   &#10;  END IF;&#10;  --&#10;  -- End S_ITEM detail program section&#10;  --&#10;&#10;  IF ( :System.cursor_item <> startitm ) THEN     &#10;     Go_Item(startitm);     &#10;     Check_Package_Failure;     &#10;  END IF;&#10;END;&#10;--&#10;-- End default relation program section&#10;--&#10;"
+        },
+        {
+          "name": "ON-CHECK-DELETE-MASTER",
+          "bodyShape": "mixed",
+          "body": "--&#10;-- Begin default relation declare section&#10;--&#10;DECLARE&#10;  Dummy_Define CHAR(1);&#10;  --&#10;  -- Begin S_ITEM detail declare section&#10;  --&#10;  CURSOR S_ITEM_cur IS      &#10;    SELECT 1 FROM S_ITEM     &#10;    WHERE ORD_ID = :S_ORD.ID;&#10;  --&#10;  -- End S_ITEM detail declare section&#10;  --&#10;--&#10;-- End default relation declare section&#10;--&#10;--&#10;-- Begin default relation program section&#10;--&#10;BEGIN&#10;  --&#10;  -- Begin S_ITEM detail program section&#10;  --&#10;  OPEN S_ITEM_cur;     &#10;  FETCH S_ITEM_cur INTO Dummy_Define;     &#10;  IF ( S_ITEM_cur%found ) THEN     &#10;    Message('Cannot delete master record when matching detail records exist.');     &#10;    CLOSE S_ITEM_cur;     &#10;    RAISE Form_Trigger_Failure;     &#10;  END IF;&#10;  CLOSE S_ITEM_cur;&#10;  --&#10;  -- End S_ITEM detail program section&#10;  --&#10;END;&#10;--&#10;-- End default relation program section&#10;--&#10;"
+        },
+        {
+          "name": "POST-QUERY",
+          "bodyShape": "select-into",
+          "body": "SELECT C.name, E.last_name &#10;INTO :S_ORD.customer_name, :S_ORD.sales_rep_name&#10;FROM S_CUSTOMER C, S_EMP E&#10;WHERE E.id = C.sales_rep_id AND :S_ORD.customer_id = C.id;"
+        },
+        {
+          "name": "WHEN-VALIDATE-RECORD",
+          "bodyShape": "raise-only",
+          "body": "IF :S_ORD.date_shipped < :S_ORD.date_ordered THEN&#10;  MESSAGE('Ship date is before order date!');&#10;  RAISE FORM_TRIGGER_FAILURE;&#10;END IF;"
+        },
+        {
+          "name": "PRE-QUERY",
+          "bodyShape": "other",
+          "body": ":S_ORD.customer_id := :GLOBAL.customer_id;"
+        },
+        {
+          "name": "WHEN-CREATE-RECORD",
+          "bodyShape": "other",
+          "body": ":S_ORD.customer_id := :GLOBAL.customer_id;"
+        },
+        {
+          "name": "PRE-INSERT",
+          "bodyShape": "select-into",
+          "body": "SELECT S_ORD_ID.nextval&#10;INTO :S_ORD.id&#10;FROM SYS.DUAL;&#10;EXCEPTION&#10;  WHEN OTHERS THEN&#10;    MESSAGE('Faild to assign Order Id');&#10;    RAISE form_trigger_failure;"
+        },
+        {
+          "name": "KEY-DUPREC",
+          "bodyShape": "other",
+          "body": ":s_ord.id := NULL;"
+        },
+        {
+          "name": "KEY-EXEQRY",
+          "bodyShape": "other",
+          "body": "EXECUTE_QUERY;"
+        },
+        {
+          "name": "KEY-ENTQRY",
+          "bodyShape": "other",
+          "body": "ENTER_QUERY;"
+        },
+        {
+          "name": "KEY-CREREC",
+          "bodyShape": "other",
+          "body": "CREATE_RECORD;"
+        },
+        {
+          "name": "KEY-CLRBLK",
+          "bodyShape": "other",
+          "body": "CLEAR_BLOCK;"
+        },
+        {
+          "name": "KEY-UP",
+          "bodyShape": "other",
+          "body": "UP;"
+        },
+        {
+          "name": "KEY-DOWN",
+          "bodyShape": "other",
+          "body": "DOWN;"
+        },
+        {
+          "name": "KEY-OTHERS",
+          "bodyShape": "other",
+          "body": "MESSAGE('Function Not Allowed');"
+        },
+        {
+          "name": "KEY-DELREC",
+          "bodyShape": "other",
+          "body": "SET_ALERT_PROPERTY('delete_alert', ALERT_MESSAGE_TEXT, 'Do you want to delete this order?');&#10;IF SHOW_ALERT('delete_alert')=ALERT_BUTTON1&#10;THEN&#10;  DELETE_RECORD;&#10;END IF;"
+        },
+        {
+          "name": "WHEN-NEW-RECORD-INSTANCE",
+          "bodyShape": "other",
+          "body": "DECLARE&#10;  filename VARCHAR2(20);&#10;BEGIN&#10;  IF  GET_ITEM_PROPERTY('S_ITEM.product_image',VISIBLE)='TRUE' THEN&#10;    filename := GET_PRODUCT_IMAGE(:S_ITEM.product_id); &#10;    IF filename = 'No file' THEN  &#10;       null;&#10;    ELSE  &#10;      READ_IMAGE_FILE(filename,'tiff','S_ITEM.product_image');&#10;    END IF;&#10;  END IF;&#10;END;"
+        }
+      ]
+    },
+    {
+      "name": "S_ITEM",
+      "databaseBlock": true,
+      "queryDataSource": "S_ITEM",
+      "relationRole": "detail",
+      "queryable": true,
+      "deferred": "false",
+      "autoQuery": "false",
+      "editable": true,
+      "crud": {
+        "insertAllowed": true,
+        "updateAllowed": true,
+        "deleteAllowed": true,
+        "queryAllowed": true,
+        "injected": true
+      },
+      "recordsDisplayed": null,
+      "derivedMultiRecord": {
+        "value": true,
+        "source": "derived(relation-membership/scrollbar)"
+      },
+      "lockingMode": {
+        "value": "Automatic",
+        "injected": true
+      },
+      "itemCount": 11,
+      "items": [
+        {
+          "name": "ORD_ID",
+          "itemType": "Text Item",
+          "canvas": null,
+          "tabPage": null,
+          "geometry": {
+            "x": "10",
+            "y": "134",
+            "width": "41",
+            "height": "14"
+          },
+          "visible": null,
+          "dataType": "Number",
+          "formula": null,
+          "calculateMode": null,
+          "summaryFunction": null,
+          "summaryItemName": null,
+          "listStyle": null,
+          "concealData": null,
+          "multiLine": null,
+          "prompt": "Ord Id",
+          "columnName": null,
+          "databaseItem": null,
+          "editability": {
+            "updateAllowed": true,
+            "insertAllowed": true,
+            "queryAllowed": true,
+            "enabled": true
+          },
+          "lovRole": null,
+          "triggers": []
+        },
+        {
+          "name": "ITEM_ID",
+          "itemType": "Text Item",
+          "canvas": "CV_ORDER",
+          "tabPage": null,
+          "geometry": {
+            "x": "20",
+            "y": "176",
+            "width": "20",
+            "height": "14"
+          },
+          "visible": null,
+          "dataType": "Number",
+          "formula": null,
+          "calculateMode": null,
+          "summaryFunction": null,
+          "summaryItemName": null,
+          "listStyle": null,
+          "concealData": null,
+          "multiLine": null,
+          "prompt": "Item&#10;Id",
+          "columnName": null,
+          "databaseItem": null,
+          "editability": {
+            "updateAllowed": true,
+            "insertAllowed": true,
+            "queryAllowed": true,
+            "enabled": true
+          },
+          "lovRole": null,
+          "triggers": []
+        },
+        {
+          "name": "PRODUCT_ID",
+          "itemType": "Text Item",
+          "canvas": "CV_ORDER",
+          "tabPage": null,
+          "geometry": {
+            "x": "41",
+            "y": "176",
+            "width": "40",
+            "height": "14"
+          },
+          "visible": null,
+          "dataType": "Number",
+          "formula": null,
+          "calculateMode": null,
+          "summaryFunction": null,
+          "summaryItemName": null,
+          "listStyle": null,
+          "concealData": null,
+          "multiLine": null,
+          "prompt": "Product&#10;Id",
+          "columnName": null,
+          "databaseItem": null,
+          "editability": {
+            "updateAllowed": true,
+            "insertAllowed": true,
+            "queryAllowed": true,
+            "enabled": true
+          },
+          "lovRole": "primary",
+          "triggers": [
+            {
+              "name": "WHEN-VALIDATE-ITEM",
+              "bodyShape": "select-into",
+              "body": "SELECT name, suggested_whlsl_price&#10;INTO :S_ITEM.description, :S_ITEM.price&#10;FROM S_PRODUCT&#10;WHERE :S_ITEM.product_id = id;&#10;EXCEPTION&#10;  WHEN NO_DATA_FOUND THEN&#10;    MESSAGE('Invalid Product Id!');&#10;    RAISE FORM_TRIGGER_FAILURE;&#10;"
+            }
+          ]
+        },
+        {
+          "name": "PRICE",
+          "itemType": "Text Item",
+          "canvas": "CV_ORDER",
+          "tabPage": null,
+          "geometry": {
+            "x": "215",
+            "y": "176",
+            "width": "42",
+            "height": "14"
+          },
+          "visible": null,
+          "dataType": "Number",
+          "formula": null,
+          "calculateMode": null,
+          "summaryFunction": null,
+          "summaryItemName": null,
+          "listStyle": null,
+          "concealData": null,
+          "multiLine": null,
+          "prompt": "Price",
+          "columnName": null,
+          "databaseItem": null,
+          "editability": {
+            "updateAllowed": true,
+            "insertAllowed": true,
+            "queryAllowed": true,
+            "enabled": true
+          },
+          "lovRole": null,
+          "triggers": []
+        },
+        {
+          "name": "QUANTITY",
+          "itemType": "Text Item",
+          "canvas": "CV_ORDER",
+          "tabPage": null,
+          "geometry": {
+            "x": "258",
+            "y": "176",
+            "width": "26",
+            "height": "14"
+          },
+          "visible": null,
+          "dataType": "Number",
+          "formula": null,
+          "calculateMode": null,
+          "summaryFunction": null,
+          "summaryItemName": null,
+          "listStyle": null,
+          "concealData": null,
+          "multiLine": null,
+          "prompt": "Qty",
+          "columnName": null,
+          "databaseItem": null,
+          "editability": {
+            "updateAllowed": true,
+            "insertAllowed": true,
+            "queryAllowed": true,
+            "enabled": true
+          },
+          "lovRole": null,
+          "triggers": []
+        },
+        {
+          "name": "QUANTITY_SHIPPED",
+          "itemType": "Text Item",
+          "canvas": "CV_ORDER",
+          "tabPage": null,
+          "geometry": {
+            "x": "285",
+            "y": "176",
+            "width": "26",
+            "height": "14"
+          },
+          "visible": null,
+          "dataType": "Number",
+          "formula": null,
+          "calculateMode": null,
+          "summaryFunction": null,
+          "summaryItemName": null,
+          "listStyle": null,
+          "concealData": null,
+          "multiLine": null,
+          "prompt": "Shipped",
+          "columnName": null,
+          "databaseItem": null,
+          "editability": {
+            "updateAllowed": false,
+            "insertAllowed": true,
+            "queryAllowed": true,
+            "enabled": true
+          },
+          "lovRole": null,
+          "triggers": []
+        },
+        {
+          "name": "ITEM_TOTAL",
+          "itemType": null,
+          "canvas": "CV_ORDER",
+          "tabPage": null,
+          "geometry": {
+            "x": "312",
+            "y": "176",
+            "width": "86",
+            "height": "14"
+          },
+          "visible": null,
+          "dataType": "Number",
+          "formula": ":S_ITEM.quantity_shipped * :S_ITEM.price",
+          "calculateMode": "Formula",
+          "summaryFunction": null,
+          "summaryItemName": null,
+          "listStyle": null,
+          "concealData": null,
+          "multiLine": null,
+          "prompt": "Item Total",
+          "columnName": null,
+          "databaseItem": "false",
+          "editability": {
+            "updateAllowed": false,
+            "insertAllowed": false,
+            "queryAllowed": false,
+            "enabled": true
+          },
+          "lovRole": null,
+          "triggers": []
+        },
+        {
+          "name": "TOTAL",
+          "itemType": null,
+          "canvas": "CV_ORDER",
+          "tabPage": null,
+          "geometry": {
+            "x": "313",
+            "y": "241",
+            "width": "86",
+            "height": "14"
+          },
+          "visible": null,
+          "dataType": "Number",
+          "formula": null,
+          "calculateMode": "Summary",
+          "summaryFunction": "Sum",
+          "summaryItemName": "ITEM_TOTAL",
+          "listStyle": null,
+          "concealData": null,
+          "multiLine": null,
+          "prompt": "Order Total",
+          "columnName": null,
+          "databaseItem": "false",
+          "editability": {
+            "updateAllowed": true,
+            "insertAllowed": true,
+            "queryAllowed": true,
+            "enabled": true
+          },
+          "lovRole": null,
+          "triggers": []
+        },
+        {
+          "name": "DESCRIPTION",
+          "itemType": "Display Item",
+          "canvas": "CV_ORDER",
+          "tabPage": null,
+          "geometry": {
+            "x": "82",
+            "y": "176",
+            "width": "133",
+            "height": "14"
+          },
+          "visible": null,
+          "dataType": null,
+          "formula": null,
+          "calculateMode": null,
+          "summaryFunction": null,
+          "summaryItemName": null,
+          "listStyle": null,
+          "concealData": null,
+          "multiLine": null,
+          "prompt": "Description",
+          "columnName": null,
+          "databaseItem": "false",
+          "editability": {
+            "updateAllowed": true,
+            "insertAllowed": true,
+            "queryAllowed": true,
+            "enabled": true
+          },
+          "lovRole": null,
+          "triggers": []
+        },
+        {
+          "name": "PRODUCT_IMAGE",
+          "itemType": "Image",
+          "canvas": "CV_ORDER",
+          "tabPage": null,
+          "geometry": {
+            "x": "320",
+            "y": "8",
+            "width": "115",
+            "height": "113"
+          },
+          "visible": "false",
+          "dataType": null,
+          "formula": null,
+          "calculateMode": null,
+          "summaryFunction": null,
+          "summaryItemName": null,
+          "listStyle": null,
+          "concealData": null,
+          "multiLine": null,
+          "prompt": null,
+          "columnName": null,
+          "databaseItem": "false",
+          "editability": {
+            "updateAllowed": true,
+            "insertAllowed": true,
+            "queryAllowed": true,
+            "enabled": true
+          },
+          "lovRole": null,
+          "triggers": [],
+          "imageSource": "file"
+        },
+        {
+          "name": "IMAGE_DESCRIPTION",
+          "itemType": "Display Item",
+          "canvas": "CV_ORDER",
+          "tabPage": null,
+          "geometry": {
+            "x": "312",
+            "y": "124",
+            "width": "133",
+            "height": "16"
+          },
+          "visible": null,
+          "dataType": null,
+          "formula": null,
+          "calculateMode": null,
+          "summaryFunction": null,
+          "summaryItemName": null,
+          "listStyle": null,
+          "concealData": null,
+          "multiLine": null,
+          "prompt": null,
+          "columnName": null,
+          "databaseItem": "false",
+          "editability": {
+            "updateAllowed": true,
+            "insertAllowed": true,
+            "queryAllowed": true,
+            "enabled": true
+          },
+          "lovRole": null,
+          "triggers": []
+        }
+      ],
+      "triggers": [
+        {
+          "name": "POST-QUERY",
+          "bodyShape": "select-into",
+          "body": "SELECT name&#10;INTO :S_ITEM.description&#10;FROM S_PRODUCT&#10;WHERE :S_ITEM.product_id = id;"
+        },
+        {
+          "name": "WHEN-NEW-RECORD-INSTANCE",
+          "bodyShape": "other",
+          "body": "DECLARE&#10;  filename VARCHAR2(20);&#10;BEGIN&#10;  IF  GET_ITEM_PROPERTY('S_ITEM.product_image',VISIBLE)='TRUE' THEN&#10;    filename := GET_PRODUCT_IMAGE(:S_ITEM.product_id); &#10;    IF filename = 'No file' THEN  &#10;       null;&#10;    ELSE  &#10;      READ_IMAGE_FILE(filename,'tiff','S_ITEM.product_image');&#10;    END IF;&#10;  END IF;&#10;END;"
+        },
+        {
+          "name": "PRE-INSERT",
+          "bodyShape": "select-into",
+          "body": "SELECT NVL(MAX(item_id),0) + 1&#10;INTO :S_ITEM.item_id&#10;FROM S_ITEM&#10;WHERE :S_ITEM.ord_id = ord_id;"
+        },
+        {
+          "name": "KEY-DUPREC",
+          "bodyShape": "other",
+          "body": ":s_item.item_id := NULL;&#10;:s_item.product_id := NULL;&#10;:s_item.description := NULL;&#10;:s_item.price := NULL;"
+        },
+        {
+          "name": "KEY-DELREC",
+          "bodyShape": "other",
+          "body": "SET_ALERT_PROPERTY('delete_alert', ALERT_MESSAGE_TEXT, 'Do you want to delete this line order?');&#10;IF SHOW_ALERT('delete_alert')=ALERT_BUTTON1&#10;THEN&#10;  DELETE_RECORD;&#10;END IF;"
+        },
+        {
+          "name": "ON-POPULATE-DETAILS",
+          "bodyShape": "other",
+          "body": "--&#10;-- Begin default relation declare section&#10;--&#10;DECLARE&#10;  recstat     VARCHAR2(20) := :System.record_status;   &#10;  startitm    VARCHAR2(61) := :System.cursor_item;   &#10;  rel_id      Relation;&#10;--&#10;-- End default relation declare section&#10;--&#10;--&#10;-- Begin default relation program section&#10;--&#10;BEGIN&#10;  IF ( recstat = 'NEW' or recstat = 'INSERT' ) THEN   &#10;    RETURN;&#10;  END IF;&#10;  --&#10;  -- Begin S_INVENTORY detail program section&#10;  --&#10;  IF ( (:S_ITEM.PRODUCT_ID is not null) ) THEN   &#10;    rel_id := Find_Relation('S_ITEM.S_ITEM_S_INVENTORY');   &#10;    Query_Master_Details(rel_id, 'S_INVENTORY');   &#10;  END IF;&#10;  --&#10;  -- End S_INVENTORY detail program section&#10;  --&#10;&#10;  IF ( :System.cursor_item <> startitm ) THEN     &#10;     Go_Item(startitm);     &#10;     Check_Package_Failure;     &#10;  END IF;&#10;END;&#10;--&#10;-- End default relation program section&#10;--&#10;"
+        },
+        {
+          "name": "KEY-COMMIT",
+          "bodyShape": "other",
+          "body": "COMMIT_FORM;"
+        }
+      ]
+    },
+    {
+      "name": "S_INVENTORY",
+      "databaseBlock": true,
+      "queryDataSource": "S_INVENTORY",
+      "relationRole": "detail",
+      "queryable": true,
+      "deferred": "true",
+      "autoQuery": "true",
+      "editable": true,
+      "crud": {
+        "insertAllowed": true,
+        "updateAllowed": true,
+        "deleteAllowed": true,
+        "queryAllowed": true,
+        "injected": true
+      },
+      "recordsDisplayed": null,
+      "derivedMultiRecord": {
+        "value": true,
+        "source": "derived(relation-membership/scrollbar)"
+      },
+      "lockingMode": {
+        "value": "Automatic",
+        "injected": true
+      },
+      "itemCount": 6,
+      "items": [
+        {
+          "name": "PRODUCT_ID",
+          "itemType": "Text Item",
+          "canvas": "CV_INVENTORY",
+          "tabPage": null,
+          "geometry": {
+            "x": "13",
+            "y": "20",
+            "width": "64",
+            "height": "14"
+          },
+          "visible": null,
+          "dataType": "Number",
+          "formula": null,
+          "calculateMode": null,
+          "summaryFunction": null,
+          "summaryItemName": null,
+          "listStyle": null,
+          "concealData": null,
+          "multiLine": null,
+          "prompt": "Product Id",
+          "columnName": null,
+          "databaseItem": null,
+          "editability": {
+            "updateAllowed": true,
+            "insertAllowed": true,
+            "queryAllowed": true,
+            "enabled": true
+          },
+          "lovRole": null,
+          "triggers": []
+        },
+        {
+          "name": "WAREHOUSE_ID",
+          "itemType": "Text Item",
+          "canvas": "CV_INVENTORY",
+          "tabPage": null,
+          "geometry": {
+            "x": "26",
+            "y": "65",
+            "width": "41",
+            "height": "14"
+          },
+          "visible": null,
+          "dataType": "Number",
+          "formula": null,
+          "calculateMode": null,
+          "summaryFunction": null,
+          "summaryItemName": null,
+          "listStyle": null,
+          "concealData": null,
+          "multiLine": null,
+          "prompt": "Warehouse Id",
+          "columnName": null,
+          "databaseItem": null,
+          "editability": {
+            "updateAllowed": true,
+            "insertAllowed": true,
+            "queryAllowed": true,
+            "enabled": true
+          },
+          "lovRole": null,
+          "triggers": []
+        },
+        {
+          "name": "AMOUNT_IN_STOCK",
+          "itemType": "Text Item",
+          "canvas": "CV_INVENTORY",
+          "tabPage": null,
+          "geometry": {
+            "x": "68",
+            "y": "65",
+            "width": "50",
+            "height": "14"
+          },
+          "visible": null,
+          "dataType": "Number",
+          "formula": null,
+          "calculateMode": null,
+          "summaryFunction": null,
+          "summaryItemName": null,
+          "listStyle": null,
+          "concealData": null,
+          "multiLine": null,
+          "prompt": "In Stock",
+          "columnName": null,
+          "databaseItem": null,
+          "editability": {
+            "updateAllowed": true,
+            "insertAllowed": true,
+            "queryAllowed": true,
+            "enabled": true
+          },
+          "lovRole": null,
+          "triggers": []
+        },
+        {
+          "name": "REORDER_POINT",
+          "itemType": "Text Item",
+          "canvas": "CV_INVENTORY",
+          "tabPage": null,
+          "geometry": {
+            "x": "117",
+            "y": "65",
+            "width": "50",
+            "height": "14"
+          },
+          "visible": null,
+          "dataType": "Number",
+          "formula": null,
+          "calculateMode": null,
+          "summaryFunction": null,
+          "summaryItemName": null,
+          "listStyle": null,
+          "concealData": null,
+          "multiLine": null,
+          "prompt": "Reorder Point",
+          "columnName": null,
+          "databaseItem": null,
+          "editability": {
+            "updateAllowed": true,
+            "insertAllowed": true,
+            "queryAllowed": true,
+            "enabled": true
+          },
+          "lovRole": null,
+          "triggers": []
+        },
+        {
+          "name": "MAX_IN_STOCK",
+          "itemType": "Text Item",
+          "canvas": "CV_INVENTORY",
+          "tabPage": null,
+          "geometry": {
+            "x": "168",
+            "y": "65",
+            "width": "50",
+            "height": "14"
+          },
+          "visible": null,
+          "dataType": "Number",
+          "formula": null,
+          "calculateMode": null,
+          "summaryFunction": null,
+          "summaryItemName": null,
+          "listStyle": null,
+          "concealData": null,
+          "multiLine": null,
+          "prompt": "Max In Stock",
+          "columnName": null,
+          "databaseItem": null,
+          "editability": {
+            "updateAllowed": true,
+            "insertAllowed": true,
+            "queryAllowed": true,
+            "enabled": true
+          },
+          "lovRole": null,
+          "triggers": []
+        },
+        {
+          "name": "RESTOCK_DATE",
+          "itemType": "Text Item",
+          "canvas": "CV_INVENTORY",
+          "tabPage": null,
+          "geometry": {
+            "x": "218",
+            "y": "65",
+            "width": "54",
+            "height": "14"
+          },
+          "visible": null,
+          "dataType": "Date",
+          "formula": null,
+          "calculateMode": null,
+          "summaryFunction": null,
+          "summaryItemName": null,
+          "listStyle": null,
+          "concealData": null,
+          "multiLine": null,
+          "prompt": "Restock Date",
+          "columnName": null,
+          "databaseItem": null,
+          "editability": {
+            "updateAllowed": true,
+            "insertAllowed": true,
+            "queryAllowed": true,
+            "enabled": true
+          },
+          "lovRole": null,
+          "triggers": []
+        }
+      ],
+      "triggers": []
+    },
+    {
+      "name": "CONTROL",
+      "databaseBlock": false,
+      "queryDataSource": null,
+      "relationRole": "control",
+      "queryable": false,
+      "deferred": null,
+      "autoQuery": null,
+      "editable": true,
+      "crud": {
+        "insertAllowed": true,
+        "updateAllowed": true,
+        "deleteAllowed": true,
+        "queryAllowed": true,
+        "injected": false
+      },
+      "recordsDisplayed": null,
+      "derivedMultiRecord": {
+        "value": true,
+        "source": "derived(relation-membership/scrollbar)"
+      },
+      "lockingMode": {
+        "value": "Automatic",
+        "injected": true
+      },
+      "itemCount": 8,
+      "items": [
+        {
+          "name": "STOCK_BUTTON",
+          "itemType": "Push Button",
+          "canvas": "TOOLBAR",
+          "tabPage": null,
+          "geometry": {
+            "x": "129",
+            "y": "4",
+            "width": "43",
+            "height": "18"
+          },
+          "visible": null,
+          "dataType": null,
+          "formula": null,
+          "calculateMode": null,
+          "summaryFunction": null,
+          "summaryItemName": null,
+          "listStyle": null,
+          "concealData": null,
+          "multiLine": null,
+          "prompt": null,
+          "columnName": null,
+          "databaseItem": null,
+          "editability": {
+            "updateAllowed": true,
+            "insertAllowed": true,
+            "queryAllowed": true,
+            "enabled": true
+          },
+          "lovRole": null,
+          "triggers": [
+            {
+              "name": "WHEN-BUTTON-PRESSED",
+              "bodyShape": "other",
+              "body": "GO_BLOCK('S_INVENTORY');"
+            }
+          ]
+        },
+        {
+          "name": "IMAGE_BUTTON",
+          "itemType": "Push Button",
+          "canvas": "TOOLBAR",
+          "tabPage": null,
+          "geometry": {
+            "x": "172",
+            "y": "4",
+            "width": "61",
+            "height": "18"
+          },
+          "visible": null,
+          "dataType": null,
+          "formula": null,
+          "calculateMode": null,
+          "summaryFunction": null,
+          "summaryItemName": null,
+          "listStyle": null,
+          "concealData": null,
+          "multiLine": null,
+          "prompt": null,
+          "columnName": null,
+          "databaseItem": null,
+          "editability": {
+            "updateAllowed": true,
+            "insertAllowed": true,
+            "queryAllowed": true,
+            "enabled": true
+          },
+          "lovRole": null,
+          "triggers": [
+            {
+              "name": "WHEN-BUTTON-PRESSED",
+              "bodyShape": "other",
+              "body": "DECLARE&#10;\tproduct_image_id\tITEM := FIND_ITEM('s_item.product_image');&#10;\timage_description_id\tITEM := FIND_ITEM('s_item.image_description');&#10;\timage_button_id\t\tITEM := FIND_ITEM('control.image_button');&#10;\tfilename varchar2(500);&#10;BEGIN&#10;\tIF    GET_ITEM_PROPERTY(product_image_id,displayed) = 'TRUE'&#10;\tTHEN&#10;\t\tSET_ITEM_PROPERTY(product_image_id,DISPLAYED,PROPERTY_FALSE);&#10;\t\tSET_ITEM_PROPERTY(image_description_id,DISPLAYED,PROPERTY_FALSE);&#10;\t\tSET_ITEM_PROPERTY(image_button_id,LABEL,'Image On');&#10;\t\tSET_MENU_ITEM_PROPERTY('IMAGE_MENU.IMAGE_ACTIVATE', CHECKED, PROPERTY_FALSE );&#10;\t  IF  GET_ITEM_PROPERTY('S_ITEM.product_image',VISIBLE)='TRUE' THEN&#10;\t    filename := GET_PRODUCT_IMAGE(:S_ITEM.product_id); &#10;\t    IF filename = 'No file' THEN  &#10;\t       null;&#10;\t    ELSE  &#10;\t      READ_IMAGE_FILE(filename,'tiff','S_ITEM.product_image');&#10;\t    END IF;&#10;\t  END IF;\t&#10;\tELSE  &#10;\t\tSET_ITEM_PROPERTY(product_image_id,DISPLAYED,PROPERTY_TRUE);&#10;\t\tSET_ITEM_PROPERTY(image_description_id,DISPLAYED,PROPERTY_TRUE);&#10;\t\tSET_ITEM_PROPERTY(image_button_id,LABEL,'Image Off');&#10;\t\tSET_MENU_ITEM_PROPERTY('IMAGE_MENU.IMAGE_ACTIVATE', CHECKED, PROPERTY_TRUE );&#10;\tEND IF;&#10;END;"
+            }
+          ]
+        },
+        {
+          "name": "SHOW_HELP_BUTTON",
+          "itemType": "Push Button",
+          "canvas": "TOOLBAR",
+          "tabPage": null,
+          "geometry": {
+            "x": "233",
+            "y": "4",
+            "width": "45",
+            "height": "18"
+          },
+          "visible": null,
+          "dataType": null,
+          "formula": null,
+          "calculateMode": null,
+          "summaryFunction": null,
+          "summaryItemName": null,
+          "listStyle": null,
+          "concealData": null,
+          "multiLine": null,
+          "prompt": null,
+          "columnName": null,
+          "databaseItem": null,
+          "editability": {
+            "updateAllowed": true,
+            "insertAllowed": true,
+            "queryAllowed": true,
+            "enabled": true
+          },
+          "lovRole": null,
+          "triggers": [
+            {
+              "name": "WHEN-BUTTON-PRESSED",
+              "bodyShape": "other",
+              "body": ":GLOBAL.save_item_name := :SYSTEM.CURSOR_ITEM;&#10;GO_ITEM('s_ord.id');&#10;SHOW_VIEW('CV_HELP');"
+            }
+          ]
+        },
+        {
+          "name": "EXIT_BUTTON",
+          "itemType": "Push Button",
+          "canvas": "TOOLBAR",
+          "tabPage": null,
+          "geometry": {
+            "x": "278",
+            "y": "4",
+            "width": "45",
+            "height": "18"
+          },
+          "visible": null,
+          "dataType": null,
+          "formula": null,
+          "calculateMode": null,
+          "summaryFunction": null,
+          "summaryItemName": null,
+          "listStyle": null,
+          "concealData": null,
+          "multiLine": null,
+          "prompt": null,
+          "columnName": null,
+          "databaseItem": null,
+          "editability": {
+            "updateAllowed": true,
+            "insertAllowed": true,
+            "queryAllowed": true,
+            "enabled": true
+          },
+          "lovRole": null,
+          "triggers": [
+            {
+              "name": "WHEN-BUTTON-PRESSED",
+              "bodyShape": "other",
+              "body": "DO_KEY('EXIT_FORM');&#10;"
+            }
+          ]
+        },
+        {
+          "name": "PRODUCT_LOV_BUTTON",
+          "itemType": "Push Button",
+          "canvas": "CV_ORDER",
+          "tabPage": null,
+          "geometry": {
+            "x": "50",
+            "y": "235",
+            "width": "17",
+            "height": "17"
+          },
+          "visible": null,
+          "dataType": null,
+          "formula": null,
+          "calculateMode": null,
+          "summaryFunction": null,
+          "summaryItemName": null,
+          "listStyle": null,
+          "concealData": null,
+          "multiLine": null,
+          "prompt": null,
+          "columnName": null,
+          "databaseItem": null,
+          "editability": {
+            "updateAllowed": true,
+            "insertAllowed": true,
+            "queryAllowed": true,
+            "enabled": true
+          },
+          "lovRole": null,
+          "triggers": [
+            {
+              "name": "WHEN-BUTTON-PRESSED",
+              "bodyShape": "other",
+              "body": "DECLARE&#10;  no_rows  NUMBER(7);&#10;  rg_id    RECORDGROUP;&#10;BEGIN&#10;  :GLOBAL.where_cls  := ' id NOT IN (';&#10;  GO_BLOCK('s_item');&#10;  FIRST_RECORD;&#10;  IF:SYSTEM.RECORD_STATUS != 'NEW' THEN&#10;    LOOP&#10;      :GLOBAL.where_cls := :GLOBAL.where_cls || TO_CHAR(:s_item.product_id);&#10;      NEXT_RECORD;&#10;      EXIT WHEN :SYSTEM.LAST_RECORD = 'TRUE';  &#10;      :GLOBAL.where_cls := :GLOBAL.where_cls || ',';&#10;    END LOOP;&#10;    :GLOBAL.where_cls := :GLOBAL.where_cls || ',' || TO_CHAR(:s_item.product_id) || ')';  &#10;  END IF;&#10;--  CALL_FORM('lov_product', NO_HIDE);  &#10;  CALL_FORM('pick', NO_HIDE);&#10;&#10;  GO_BLOCK('s_item');&#10;  rg_id := FIND_GROUP('sel_records');&#10;  IF NOT ID_NULL(rg_id) THEN&#10;    no_rows := GET_GROUP_ROW_COUNT(rg_id);&#10;    FOR i IN 1..no_rows LOOP&#10;      IF :SYSTEM.RECORD_STATUS != 'NEW' THEN&#10;        CREATE_RECORD;&#10;      END IF;&#10;      :s_item.product_id  := GET_GROUP_NUMBER_CELL('sel_records.prodno', i);&#10;      :s_item.description := GET_GROUP_CHAR_CELL('sel_records.prodname', i);&#10;      :s_item.price       := GET_GROUP_NUMBER_CELL('sel_records.prodprice', i);&#10;    END LOOP;&#10;    IF NOT ID_NULL(FIND_GROUP('sel_records')) THEN&#10;      DELETE_GROUP('sel_records');&#10;    END IF;&#10;  END IF;&#10;END;   "
+            }
+          ]
+        },
+        {
+          "name": "IMMEDIATE",
+          "itemType": "Check Box",
+          "canvas": "TOOLBAR",
+          "tabPage": null,
+          "geometry": {
+            "x": "14",
+            "y": "2",
+            "width": "71",
+            "height": "14"
+          },
+          "visible": null,
+          "dataType": null,
+          "formula": null,
+          "calculateMode": null,
+          "summaryFunction": null,
+          "summaryItemName": null,
+          "listStyle": null,
+          "concealData": null,
+          "multiLine": null,
+          "prompt": null,
+          "columnName": null,
+          "databaseItem": "false",
+          "editability": {
+            "updateAllowed": true,
+            "insertAllowed": true,
+            "queryAllowed": true,
+            "enabled": true
+          },
+          "lovRole": null,
+          "triggers": [
+            {
+              "name": "WHEN-CHECKBOX-CHANGED",
+              "bodyShape": "other",
+              "body": "IF get_relation_property( 's_ord_s_item', deferred_coordination ) = 'FALSE'&#10;THEN&#10;\tset_relation_property('s_ord_s_item', deferred_coordination, property_true);&#10;\tset_item_property('control.auto_query', enabled, property_true );&#10;ELSE&#10;\tset_relation_property('s_ord_s_item', deferred_coordination, property_false);&#10;\tset_item_property('control.auto_query', enabled, property_false );&#10;END IF;&#10;&#10;"
+            }
+          ]
+        },
+        {
+          "name": "AUTO_QUERY",
+          "itemType": "Check Box",
+          "canvas": "TOOLBAR",
+          "tabPage": null,
+          "geometry": {
+            "x": "14",
+            "y": "14",
+            "width": "71",
+            "height": "14"
+          },
+          "visible": null,
+          "dataType": null,
+          "formula": null,
+          "calculateMode": null,
+          "summaryFunction": null,
+          "summaryItemName": null,
+          "listStyle": null,
+          "concealData": null,
+          "multiLine": null,
+          "prompt": null,
+          "columnName": null,
+          "databaseItem": "false",
+          "editability": {
+            "updateAllowed": true,
+            "insertAllowed": true,
+            "queryAllowed": true,
+            "enabled": false
+          },
+          "lovRole": null,
+          "triggers": [
+            {
+              "name": "WHEN-CHECKBOX-CHANGED",
+              "bodyShape": "other",
+              "body": "IF get_relation_property('s_ord_s_item', autoquery ) = 'FALSE'&#10;THEN&#10;\tset_relation_property('s_ord_s_item', autoquery, property_true );&#10;ELSE&#10;\tset_relation_property('s_ord_s_item', autoquery, property_false);&#10;END IF;&#10;&#10;&#10;"
+            }
+          ]
+        },
+        {
+          "name": "PUSH_BUTTON57",
+          "itemType": "Push Button",
+          "canvas": "CV_HELP",
+          "tabPage": null,
+          "geometry": {
+            "x": "97",
+            "y": "189",
+            "width": "76",
+            "height": "18"
+          },
+          "visible": null,
+          "dataType": null,
+          "formula": null,
+          "calculateMode": null,
+          "summaryFunction": null,
+          "summaryItemName": null,
+          "listStyle": null,
+          "concealData": null,
+          "multiLine": null,
+          "prompt": null,
+          "columnName": null,
+          "databaseItem": null,
+          "editability": {
+            "updateAllowed": true,
+            "insertAllowed": true,
+            "queryAllowed": true,
+            "enabled": true
+          },
+          "lovRole": null,
+          "triggers": [
+            {
+              "name": "WHEN-BUTTON-PRESSED",
+              "bodyShape": "other",
+              "body": "HIDE_VIEW('cv_help');&#10;GO_ITEM(:GLOBAL.save_item_name);"
+            }
+          ]
+        }
+      ],
+      "triggers": []
+    }
+  ],
+  "relations": [
+    {
+      "name": "S_ORD_S_ITEM",
+      "masterBlock": "S_ORD",
+      "detailBlock": "S_ITEM",
+      "joinCondition": "S_ITEM.ORD_ID = S_ORD.ID",
+      "deleteRecord": "Non Isolated",
+      "deferred": "false",
+      "autoQuery": "false"
+    },
+    {
+      "name": "S_ITEM_S_INVENTORY",
+      "masterBlock": "S_ITEM",
+      "detailBlock": "S_INVENTORY",
+      "joinCondition": "s_item.product_id = s_inventory.product_id",
+      "deleteRecord": "Isolated",
+      "deferred": "true",
+      "autoQuery": "true"
+    }
+  ],
+  "lovs": [
+    {
+      "name": "PRODUCTS_LOV",
+      "title": "Products",
+      "recordGroup": "LOV12",
+      "query": "Select id, name from s_product order by name",
+      "columns": [
+        {
+          "name": "ID",
+          "dataType": "Number",
+          "title": "Id",
+          "displayWidth": "25",
+          "returnItem": "S_ITEM.PRODUCT_ID"
+        },
+        {
+          "name": "NAME",
+          "dataType": "Character",
+          "title": "Name",
+          "displayWidth": "230",
+          "returnItem": null
+        }
+      ],
+      "primaryReturnItem": "S_ITEM.PRODUCT_ID"
+    }
+  ],
+  "recordGroups": [
+    {
+      "name": "LOV12",
+      "query": "Select id, name from s_product order by name",
+      "columns": [
+        {
+          "name": "ID",
+          "dataType": "Number",
+          "maximumLength": "23"
+        },
+        {
+          "name": "NAME",
+          "dataType": "Character",
+          "maximumLength": "50"
+        }
+      ]
+    }
+  ],
+  "windows": [
+    {
+      "name": "WIN_ORDER",
+      "title": "Orders and Items",
+      "width": "455",
+      "height": "340"
+    },
+    {
+      "name": "WIN_INVENTORY",
+      "title": "Stock Levels",
+      "width": "312",
+      "height": "180"
+    }
+  ],
+  "canvases": [
+    {
+      "name": "CV_ORDER",
+      "canvasType": "Content",
+      "window": "WIN_ORDER",
+      "width": "455",
+      "height": "302",
+      "viewport": {
+        "x": null,
+        "y": null,
+        "width": "360",
+        "height": "324"
+      }
+    },
+    {
+      "name": "CV_INVENTORY",
+      "canvasType": "Content",
+      "window": "WIN_INVENTORY",
+      "width": "312",
+      "height": "143",
+      "viewport": {
+        "x": null,
+        "y": null,
+        "width": "360",
+        "height": "324"
+      }
+    },
+    {
+      "name": "CV_HELP",
+      "canvasType": "Stacked",
+      "window": "WIN_ORDER",
+      "width": "360",
+      "height": "324",
+      "viewport": {
+        "x": null,
+        "y": null,
+        "width": "270",
+        "height": "215"
+      }
+    },
+    {
+      "name": "TOOLBAR",
+      "canvasType": "Horizontal Toolbar",
+      "window": "WIN_ORDER",
+      "width": "455",
+      "height": "32",
+      "viewport": {
+        "x": null,
+        "y": null,
+        "width": "360",
+        "height": "324"
+      }
+    }
+  ],
+  "tabPages": [],
+  "formTriggers": [
+    {
+      "name": "ON-CLEAR-DETAILS",
+      "bodyShape": "other",
+      "body": "--&#10;-- Begin default relation program section&#10;--&#10;BEGIN&#10;  Clear_All_Master_Details;&#10;END;&#10;--&#10;-- End default relation program section&#10;--&#10;"
+    },
+    {
+      "name": "WHEN-NEW-FORM-INSTANCE",
+      "bodyShape": "other",
+      "body": "Set_Application_Property(MENU_BUFFERING, 'false');&#10;EXECUTE_QUERY;&#10;:GLOBAL.width_win_order := GET_WINDOW_PROPERTY('win_order', WIDTH);&#10;:GLOBAL.height_win_order := GET_WINDOW_PROPERTY('win_order', HEIGHT);&#10;:GLOBAL.width_win_inventory := GET_WINDOW_PROPERTY('win_inventory', WIDTH);&#10;:GLOBAL.height_win_inventory := GET_WINDOW_PROPERTY('win_inventory', HEIGHT);&#10;"
+    },
+    {
+      "name": "PRE-FORM",
+      "bodyShape": "other",
+      "body": "&#10;break;DEFAULT_VALUE('','GLOBAL.customer_id');&#10;"
+    },
+    {
+      "name": "KEY-DUPREC",
+      "bodyShape": "other",
+      "body": "CREATE_RECORD;&#10;DUPLICATE_RECORD;"
+    },
+    {
+      "name": "KEY-EXIT",
+      "bodyShape": "other",
+      "body": "SET_ALERT_PROPERTY('Question_Alert',ALERT_MESSAGE_TEXT, &#10;                   'Do you really want to leave the form?');&#10;IF SHOW_ALERT('Question_Alert')=ALERT_BUTTON1 THEN&#10;  EXIT_FORM;&#10;END IF;"
+    },
+    {
+      "name": "WHEN-WINDOW-CLOSED",
+      "bodyShape": "other",
+      "body": "IF :SYSTEM.EVENT_WINDOW = 'WIN_ORDER'&#10;THEN&#10;\tDO_KEY('exit_form');&#10;ELSIF :SYSTEM.EVENT_WINDOW = 'WIN_INVENTORY'&#10;       THEN&#10;\tGO_BLOCK('s_ord');&#10;END IF;"
+    },
+    {
+      "name": "WHEN-FORM-NAVIGATE",
+      "bodyShape": "other",
+      "body": "go_block('s_ord');&#10;EXECUTE_QUERY;&#10;:GLOBAL.width_win_order := GET_WINDOW_PROPERTY('win_order', WIDTH);&#10;:GLOBAL.height_win_order := GET_WINDOW_PROPERTY('win_order', HEIGHT);&#10;:GLOBAL.width_win_inventory := GET_WINDOW_PROPERTY('win_inventory', WIDTH);&#10;:GLOBAL.height_win_inventory := GET_WINDOW_PROPERTY('win_inventory', HEIGHT);"
+    }
+  ],
+  "referencedDbObjects": [
+    {
+      "name": "GET_PRODUCT_IMAGE",
+      "paramShape": "unknown (resolve from schema)"
+    },
+    {
+      "name": "date_lov.get_date",
+      "paramShape": "unknown (resolve from schema)"
+    }
+  ],
+  "census": {
+    "totalElements": 183,
+    "byTag": {
+      "Alert": 3,
+      "AttachedLibrary": 1,
+      "Block": 4,
+      "Canvas": 4,
+      "CompoundText": 14,
+      "Coordinate": 1,
+      "DataSourceColumn": 21,
+      "FormModule": 1,
+      "Graphics": 9,
+      "Item": 34,
+      "LOV": 1,
+      "LOVColumnMapping": 2,
+      "Module": 1,
+      "ObjectGroup": 2,
+      "ObjectGroupChild": 12,
+      "ProgramUnit": 4,
+      "RadioButton": 2,
+      "RecordGroup": 1,
+      "RecordGroupColumn": 2,
+      "Relation": 2,
+      "TextSegment": 14,
+      "Trigger": 45,
+      "VisualAttribute": 1,
+      "Window": 2
+    }
+  }
+}

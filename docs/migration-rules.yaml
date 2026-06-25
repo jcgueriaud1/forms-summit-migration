@@ -227,7 +227,7 @@ targets:
       SummaryBlockName: { ignore: "Vaadin Grid footer / aggregator replaces Forms summary items" }
       CalculateMode: { ignore: "Binder converter / read-only field replaces Forms CalculateMode" }
       ItemsDisplay: { ignore: "Vaadin Grid row count is data-driven, not item-declared" }
-      UpdateAllowed: { ignore: "Binder.setReadOnly(...) replaces Forms UpdateAllowed" }
+      UpdateAllowed: { transform: { to: setReadOnly, via: forms-updateallowed-to-readonly } }
       InsertAllowed: { ignore: "Binder / service-level access control replaces Forms InsertAllowed" }
       QueryAllowed: { ignore: "Filterable Grid columns replace Forms QueryAllowed" }
       KeyboardState: { ignore: "Web focus model — keyboard state is browser-owned" }
@@ -319,7 +319,7 @@ targets:
       SummaryBlockName: { ignore: "Vaadin Grid footer / aggregator replaces Forms summary items" }
       CalculateMode: { ignore: "Binder converter / read-only field replaces Forms CalculateMode" }
       ItemsDisplay: { ignore: "Vaadin Grid row count is data-driven, not item-declared" }
-      UpdateAllowed: { ignore: "Binder.setReadOnly(...) replaces Forms UpdateAllowed" }
+      UpdateAllowed: { transform: { to: setReadOnly, via: forms-updateallowed-to-readonly } }
       InsertAllowed: { ignore: "Binder / service-level access control replaces Forms InsertAllowed" }
       QueryAllowed: { ignore: "Filterable Grid columns replace Forms QueryAllowed" }
       KeyboardState: { ignore: "Web focus model — keyboard state is browser-owned" }
@@ -409,7 +409,7 @@ targets:
       SummaryBlockName: { ignore: "Vaadin Grid footer / aggregator replaces Forms summary items" }
       CalculateMode: { ignore: "Binder converter / read-only field replaces Forms CalculateMode" }
       ItemsDisplay: { ignore: "Vaadin Grid row count is data-driven, not item-declared" }
-      UpdateAllowed: { ignore: "Binder.setReadOnly(...) replaces Forms UpdateAllowed" }
+      UpdateAllowed: { transform: { to: setReadOnly, via: forms-updateallowed-to-readonly } }
       InsertAllowed: { ignore: "Binder / service-level access control replaces Forms InsertAllowed" }
       QueryAllowed: { ignore: "Filterable Grid columns replace Forms QueryAllowed" }
       KeyboardState: { ignore: "Web focus model — keyboard state is browser-owned" }
@@ -498,7 +498,7 @@ targets:
       SummaryBlockName: { ignore: "Vaadin Grid footer / aggregator replaces Forms summary items" }
       CalculateMode: { ignore: "Binder converter / read-only field replaces Forms CalculateMode" }
       ItemsDisplay: { ignore: "Vaadin Grid row count is data-driven, not item-declared" }
-      UpdateAllowed: { ignore: "Binder.setReadOnly(...) replaces Forms UpdateAllowed" }
+      UpdateAllowed: { transform: { to: setReadOnly, via: forms-updateallowed-to-readonly } }
       InsertAllowed: { ignore: "Binder / service-level access control replaces Forms InsertAllowed" }
       QueryAllowed: { ignore: "Filterable Grid columns replace Forms QueryAllowed" }
       KeyboardState: { ignore: "Web focus model — keyboard state is browser-owned" }
@@ -581,7 +581,7 @@ targets:
       SummaryBlockName: { ignore: "Vaadin Grid footer / aggregator replaces Forms summary items" }
       CalculateMode: { ignore: "Binder converter / read-only field replaces Forms CalculateMode" }
       ItemsDisplay: { ignore: "Vaadin Grid row count is data-driven, not item-declared" }
-      UpdateAllowed: { ignore: "Binder.setReadOnly(...) replaces Forms UpdateAllowed" }
+      UpdateAllowed: { transform: { to: setReadOnly, via: forms-updateallowed-to-readonly } }
       InsertAllowed: { ignore: "Binder / service-level access control replaces Forms InsertAllowed" }
       QueryAllowed: { ignore: "Filterable Grid columns replace Forms QueryAllowed" }
       KeyboardState: { ignore: "Web focus model — keyboard state is browser-owned" }
@@ -666,7 +666,7 @@ targets:
       SummaryBlockName: { ignore: "Vaadin Grid footer / aggregator replaces Forms summary items" }
       CalculateMode: { ignore: "Binder converter / read-only field replaces Forms CalculateMode" }
       ItemsDisplay: { ignore: "Vaadin Grid row count is data-driven, not item-declared" }
-      UpdateAllowed: { ignore: "Binder.setReadOnly(...) replaces Forms UpdateAllowed" }
+      UpdateAllowed: { transform: { to: setReadOnly, via: forms-updateallowed-to-readonly } }
       InsertAllowed: { ignore: "Binder / service-level access control replaces Forms InsertAllowed" }
       QueryAllowed: { ignore: "Filterable Grid columns replace Forms QueryAllowed" }
       KeyboardState: { ignore: "Web focus model — keyboard state is browser-owned" }
@@ -749,7 +749,7 @@ targets:
       SummaryBlockName: { ignore: "Vaadin Grid footer / aggregator replaces Forms summary items" }
       CalculateMode: { ignore: "Binder converter / read-only field replaces Forms CalculateMode" }
       ItemsDisplay: { ignore: "Vaadin Grid row count is data-driven, not item-declared" }
-      UpdateAllowed: { ignore: "Binder.setReadOnly(...) replaces Forms UpdateAllowed" }
+      UpdateAllowed: { transform: { to: setReadOnly, via: forms-updateallowed-to-readonly } }
       InsertAllowed: { ignore: "Binder / service-level access control replaces Forms InsertAllowed" }
       QueryAllowed: { ignore: "Filterable Grid columns replace Forms QueryAllowed" }
       KeyboardState: { ignore: "Web focus model — keyboard state is browser-owned" }
@@ -837,7 +837,7 @@ targets:
       SummaryBlockName: { ignore: "Vaadin Grid footer / aggregator replaces Forms summary items" }
       CalculateMode: { ignore: "Binder converter / read-only field replaces Forms CalculateMode" }
       ItemsDisplay: { ignore: "Vaadin Grid row count is data-driven, not item-declared" }
-      UpdateAllowed: { ignore: "Binder.setReadOnly(...) replaces Forms UpdateAllowed" }
+      UpdateAllowed: { transform: { to: setReadOnly, via: forms-updateallowed-to-readonly } }
       InsertAllowed: { ignore: "Binder / service-level access control replaces Forms InsertAllowed" }
       QueryAllowed: { ignore: "Filterable Grid columns replace Forms QueryAllowed" }
       KeyboardState: { ignore: "Web focus model — keyboard state is browser-owned" }
@@ -919,7 +919,7 @@ targets:
       SummaryBlockName: { ignore: "Vaadin Grid footer / aggregator replaces Forms summary items" }
       CalculateMode: { ignore: "Binder converter / read-only field replaces Forms CalculateMode" }
       ItemsDisplay: { ignore: "Vaadin Grid row count is data-driven, not item-declared" }
-      UpdateAllowed: { ignore: "Binder.setReadOnly(...) replaces Forms UpdateAllowed" }
+      UpdateAllowed: { transform: { to: setReadOnly, via: forms-updateallowed-to-readonly } }
       InsertAllowed: { ignore: "Binder / service-level access control replaces Forms InsertAllowed" }
       QueryAllowed: { ignore: "Filterable Grid columns replace Forms QueryAllowed" }
       KeyboardState: { ignore: "Web focus model — keyboard state is browser-owned" }
@@ -1004,7 +1004,7 @@ targets:
       SummaryBlockName: { ignore: "Vaadin Grid footer / aggregator replaces Forms summary items" }
       CalculateMode: { ignore: "Binder converter / read-only field replaces Forms CalculateMode" }
       ItemsDisplay: { ignore: "Vaadin Grid row count is data-driven, not item-declared" }
-      UpdateAllowed: { ignore: "Binder.setReadOnly(...) replaces Forms UpdateAllowed" }
+      UpdateAllowed: { transform: { to: setReadOnly, via: forms-updateallowed-to-readonly } }
       InsertAllowed: { ignore: "Binder / service-level access control replaces Forms InsertAllowed" }
       QueryAllowed: { ignore: "Filterable Grid columns replace Forms QueryAllowed" }
       KeyboardState: { ignore: "Web focus model — keyboard state is browser-owned" }
@@ -1086,7 +1086,7 @@ targets:
       SummaryBlockName: { ignore: "Vaadin Grid footer / aggregator replaces Forms summary items" }
       CalculateMode: { ignore: "Binder converter / read-only field replaces Forms CalculateMode" }
       ItemsDisplay: { ignore: "Vaadin Grid row count is data-driven, not item-declared" }
-      UpdateAllowed: { ignore: "Binder.setReadOnly(...) replaces Forms UpdateAllowed" }
+      UpdateAllowed: { transform: { to: setReadOnly, via: forms-updateallowed-to-readonly } }
       InsertAllowed: { ignore: "Binder / service-level access control replaces Forms InsertAllowed" }
       QueryAllowed: { ignore: "Filterable Grid columns replace Forms QueryAllowed" }
       KeyboardState: { ignore: "Web focus model — keyboard state is browser-owned" }
@@ -1175,7 +1175,7 @@ targets:
       SummaryBlockName: { ignore: "Vaadin Grid footer / aggregator replaces Forms summary items" }
       CalculateMode: { ignore: "Binder converter / read-only field replaces Forms CalculateMode" }
       ItemsDisplay: { ignore: "Vaadin Grid row count is data-driven, not item-declared" }
-      UpdateAllowed: { ignore: "Binder.setReadOnly(...) replaces Forms UpdateAllowed" }
+      UpdateAllowed: { transform: { to: setReadOnly, via: forms-updateallowed-to-readonly } }
       InsertAllowed: { ignore: "Binder / service-level access control replaces Forms InsertAllowed" }
       QueryAllowed: { ignore: "Filterable Grid columns replace Forms QueryAllowed" }
       KeyboardState: { ignore: "Web focus model — keyboard state is browser-owned" }
@@ -1242,7 +1242,7 @@ targets:
       SummaryBlockName: { ignore: "Vaadin Grid footer / aggregator replaces Forms summary items" }
       CalculateMode: { ignore: "Binder converter / read-only field replaces Forms CalculateMode" }
       ItemsDisplay: { ignore: "Vaadin Grid row count is data-driven, not item-declared" }
-      UpdateAllowed: { ignore: "Binder.setReadOnly(...) replaces Forms UpdateAllowed" }
+      UpdateAllowed: { transform: { to: setReadOnly, via: forms-updateallowed-to-readonly } }
       InsertAllowed: { ignore: "Binder / service-level access control replaces Forms InsertAllowed" }
       QueryAllowed: { ignore: "Filterable Grid columns replace Forms QueryAllowed" }
       KeyboardState: { ignore: "Web focus model — keyboard state is browser-owned" }
@@ -1313,7 +1313,7 @@ targets:
       SummaryBlockName: { ignore: "Vaadin Grid footer / aggregator replaces Forms summary items" }
       CalculateMode: { ignore: "Binder converter / read-only field replaces Forms CalculateMode" }
       ItemsDisplay: { ignore: "Vaadin Grid row count is data-driven, not item-declared" }
-      UpdateAllowed: { ignore: "Binder.setReadOnly(...) replaces Forms UpdateAllowed" }
+      UpdateAllowed: { transform: { to: setReadOnly, via: forms-updateallowed-to-readonly } }
       InsertAllowed: { ignore: "Binder / service-level access control replaces Forms InsertAllowed" }
       QueryAllowed: { ignore: "Filterable Grid columns replace Forms QueryAllowed" }
       KeyboardState: { ignore: "Web focus model — keyboard state is browser-owned" }
@@ -1696,19 +1696,20 @@ canvasTargets:
 # Drive Block → Vaadin container decisions for the scaffolder (ADR 0010).
 # Block shape is driven by relation topology + queryability, analyzer-supplied
 # operands: `relationRole` (master / detail / none), `deferred`, `autoQuery`,
-# `databaseBlock`, `queryable`. "Multi-record" is derived from relation
-# membership, not RecordsDisplayed (absent in real FMB exports).
+# `editable` (insert|update|delete allowed), `databaseBlock`, `queryable`.
+# "Multi-record" is derived from relation membership, not RecordsDisplayed
+# (absent in real FMB exports).
 blockClassifiers:
   - id: block-detail-readonly
-    when: relationRole == "detail" and (deferred == "true" or autoQuery == "true")
+    when: relationRole == "detail" and (deferred == "true" or autoQuery == "true" or editable == false)
     target: Grid
     treatment: Automated
-    aiHint: "Detail of a deferred / auto-query relation → read-only Grid (or panel) loaded on the parent's selection-change."
+    aiHint: "Read-only detail Grid loaded on the parent's selection-change — either a deferred / auto-query relation, or a detail the block forbids inserting/updating/deleting."
   - id: block-detail
     when: relationRole == "detail"
     target: Grid
     treatment: Automated
-    aiHint: "Detail side of a relation → editable Grid bound to the parent's selection. Items become Grid columns; block-level Required/UpdateAllowed flags carry to editor mode."
+    aiHint: "Editable detail Grid bound to the parent's selection. Items become Grid columns; per-column editability comes from each item's `editability` (read-only column where updateAllowed=false). Forms's insert-allowed-but-update-locked items (e.g. set-on-new-line-only) are a documented Grid editor seam — model as editable only in the new-row editor."
   - id: block-master-queryable
     when: databaseBlock == "true" and queryable == "true"
     target: Grid
@@ -1758,7 +1759,7 @@ blockTargets:
       QueryDataSourceName: { ignore: "Database binding lives on the Binder, not the layout" }
       QueryDataSourceColumns: { ignore: "Database binding lives on the Binder, not the layout" }
       InsertAllowed: { ignore: "Binder / service-level access control replaces Forms InsertAllowed" }
-      UpdateAllowed: { ignore: "Binder.setReadOnly(...) replaces Forms UpdateAllowed" }
+      UpdateAllowed: { transform: { to: setReadOnly, via: forms-updateallowed-to-readonly } }
       DeleteAllowed: { ignore: "Service-level access control replaces Forms DeleteAllowed" }
       QueryAllowed: { ignore: "Filterable fields cover Forms QueryAllowed" }
       Required: { ignore: "Required-state lives on the bound fields, not the FormLayout" }
