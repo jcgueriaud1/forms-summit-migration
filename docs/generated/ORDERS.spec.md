@@ -49,10 +49,22 @@ Windows: WIN_ORDER (Orders and Items), WIN_INVENTORY (Stock Levels)
 | S_INVENTORY | detail | True | 1/1/1/1 (True) | True | Automatic (True) |
 | CONTROL | control | False | 1/1/1/1 (False) | True | Automatic (True) |
 
+## Block data-source columns (base-table types)
+
+- **S_ORD**: ID NUMBER(7,0)*, CUSTOMER_ID NUMBER(7,0)*, DATE_ORDERED DATE, DATE_SHIPPED DATE, SALES_REP_ID NUMBER(7,0), TOTAL NUMBER(11,2), PAYMENT_TYPE VARCHAR2, ORDER_FILLED VARCHAR2
+- **S_ITEM**: ORD_ID NUMBER(7,0)*, ITEM_ID NUMBER(7,0)*, PRODUCT_ID NUMBER(7,0)*, PRICE NUMBER(11,2), QUANTITY NUMBER(9,0), QUANTITY_SHIPPED NUMBER(9,0)
+- **S_INVENTORY**: PRODUCT_ID NUMBER(7,0)*, WAREHOUSE_ID NUMBER(7,0)*, AMOUNT_IN_STOCK NUMBER(9,0), REORDER_POINT NUMBER(9,0), MAX_IN_STOCK NUMBER(9,0), OUT_OF_STOCK_EXPLANATION VARCHAR2, RESTOCK_DATE DATE
+
 ## Relations
 
 - **S_ORD_S_ITEM**: S_ORD → S_ITEM | DeleteRecord=Non Isolated Deferred=false AutoQuery=false
 - **S_ITEM_S_INVENTORY**: S_ITEM → S_INVENTORY | DeleteRecord=Isolated Deferred=true AutoQuery=true
+
+## Alerts
+
+- **DELETE_ALERT** style=Caution buttons=[Yes, No] message=None
+- **QUESTION_ALERT** style=None buttons=[Yes, No] message=None
+- **PAYMENT_TYPE_ALERT** style=Caution buttons=[None, ] message=This customer must pay cash!
 
 ## LOVs
 
@@ -108,6 +120,35 @@ Windows: WIN_ORDER (Orders and Items), WIN_INVENTORY (Stock Levels)
 - FORM.KEY-EXIT · other
 - FORM.WHEN-WINDOW-CLOSED · other
 - FORM.WHEN-FORM-NAVIGATE · other
+
+## Option sets (radio / checkbox values)
+
+- S_ORD.PAYMENT_TYPE (Radio Group) init=CASH: Cash=CASH, Credit=CREDIT
+- S_ORD.ORDER_FILLED (Check Box) checked=Y unchecked=N init=N label=Order Filled
+- CONTROL.IMMEDIATE (Check Box) checked=Y unchecked=N init=Y label=Immediate
+- CONTROL.AUTO_QUERY (Check Box) checked=Y unchecked=N init=Y label=Auto Query
+
+## In-form program units
+
+- CHECK_PACKAGE_FAILURE (Procedure)
+- QUERY_MASTER_DETAILS (Procedure)
+- CLEAR_ALL_MASTER_DETAILS (Procedure)
+- CHECK_WINDOW_SIZE (Procedure)
+
+## Reused / deferred objects (recorded, not detailed)
+
+- AttachedLibraries: CALENDAR
+- VisualAttributes: CURRENT_RECORD
+- ObjectGroups: CALENDAR(9), STOCK_OBJECTS(3)
+- MenuModule: m_summit
+
+## Static text (verbatim labels / headers / help)
+
+- CV_ORDER/TEXT91: "Order Information"
+- CV_ORDER/TEXT15: "Payment Type"
+- CV_INVENTORY/TEXT27: "Stock Information"
+- CV_HELP/TEXT99: "The Orders Form lets you insert, update,&#10;delete and query orders for a cu..."
+- CV_HELP/TEXT126: "Help Information"
 
 ## Referenced DB program units (resolve signatures from schema)
 

@@ -260,7 +260,8 @@ def analyze(path):
         if local(el.tag) in ("FormModule", "FormModuleData"):
             form_el = el
             break
-    form_name = attrs(form_el).get("Name") if form_el is not None else None
+    form_attrs = attrs(form_el) if form_el is not None else {}
+    form_name = form_attrs.get("Name")
 
     # ---- blocks + items --------------------------------------------------
     blocks = []
@@ -294,6 +295,21 @@ def analyze(path):
             multi = is_detail or scrollbar
             src = "derived(relation-membership/scrollbar)"
 
+        # base-table column types (verbatim) — the bean field types live here.
+        data_source_columns = []
+        for dsc in bel.iter():
+            if local(dsc.tag) != "DataSourceColumn":
+                continue
+            da = attrs(dsc)
+            data_source_columns.append({
+                "name": da.get("DSCName"),
+                "dscType": da.get("DSCType"),
+                "precision": da.get("DSCPrecision"),
+                "scale": da.get("DSCScale"),
+                "length": da.get("DSCLength"),
+                "mandatory": da.get("DSCMandatory"),
+            })
+
         items = []
         for iel in bel.iter():
             if local(iel.tag) != "Item":
@@ -302,6 +318,14 @@ def analyze(path):
             iname = ia.get("Name")
             qualified = "{}.{}".format(bname, iname).upper() if iname else ""
             itype = ia.get("ItemType")
+            # Radio Group option set: each <RadioButton> child's value + label.
+            radio_buttons = [
+                {"name": attrs(rb).get("Name"),
+                 "radioButtonValue": attrs(rb).get("RadioButtonValue"),
+                 "label": attrs(rb).get("Label")}
+                for rb in iel.iter()
+                if local(rb.tag) == "RadioButton" and parent_map.get(rb) is iel
+            ]
             item = {
                 "name": iname,
                 "itemType": itype,
@@ -321,8 +345,20 @@ def analyze(path):
                 "concealData": ia.get("ConcealData"),
                 "multiLine": ia.get("MultiLine"),
                 "prompt": ia.get("Prompt"),
+                "label": ia.get("Label"),
                 "columnName": ia.get("ColumnName"),
                 "databaseItem": ia.get("DatabaseItem"),
+                # Builder-grade attributes recorded verbatim (consumed by ruleset
+                # per-target attribute tables: MaximumLength, Required,
+                # InitializeValue, FormatMask, Checked/UncheckedValue, ...).
+                "maximumLength": ia.get("MaximumLength"),
+                "required": ia.get("Required"),
+                "initializeValue": ia.get("InitializeValue"),
+                "formatMask": ia.get("FormatMask"),
+                "checkedValue": ia.get("CheckedValue"),
+                "uncheckedValue": ia.get("UncheckedValue"),
+                "copyValueFromItem": ia.get("CopyValueFromItem"),
+                "lovName": ia.get("LovName"),
                 "editability": {
                     "updateAllowed": yn(ia.get("UpdateAllowed")),
                     "insertAllowed": yn(ia.get("InsertAllowed")),
@@ -332,6 +368,8 @@ def analyze(path):
                 "lovRole": "primary" if qualified in lov_return_items else None,
                 "triggers": collect_triggers(iel, parent_map),
             }
+            if radio_buttons:
+                item["radioButtons"] = radio_buttons
             if itype == "Image":
                 item["imageSource"] = "file" if qualified in image_file_targets else "blob"
             items.append(item)
@@ -356,6 +394,7 @@ def analyze(path):
             "recordsDisplayed": rd,
             "derivedMultiRecord": {"value": multi, "source": src},
             "lockingMode": locking,
+            "dataSourceColumns": data_source_columns,
             "itemCount": len(items),
             "items": items,
             "triggers": collect_triggers(bel, parent_map),
@@ -392,6 +431,102 @@ def analyze(path):
             tab_pages.append({"name": ta.get("Name"), "label": ta.get("Label"),
                               "canvas": a.get("Name")})
 
+    # ---- alerts (confirm/question dialogs referenced by triggers) --------
+    alerts = []
+    for el in root.iter():
+        if local(el.tag) != "Alert":
+            continue
+        a = attrs(el)
+        alerts.append({
+            "name": a.get("Name"),
+            "title": a.get("Title"),
+            "alertStyle": a.get("AlertStyle"),
+            "alertMessage": a.get("AlertMessage"),
+            "button1Label": a.get("Button1Label"),
+            "button2Label": a.get("Button2Label"),
+            "button3Label": a.get("Button3Label"),
+        })
+
+    # ---- in-form program units (Forms coordination boilerplate, verbatim) -
+    # Distinct from referencedDbObjects (external/DB calls); these are the
+    # form's own PL/SQL, so a planner can recognise dissolvable boilerplate.
+    program_units = []
+    for el in root.iter():
+        if local(el.tag) != "ProgramUnit":
+            continue
+        a = attrs(el)
+        program_units.append({
+            "name": a.get("Name"),
+            "kind": "program-unit",
+            "programUnitType": a.get("ProgramUnitType"),
+            "body": a.get("ProgramUnitText"),
+        })
+
+    # ---- attached PL/SQL libraries ---------------------------------------
+    attached_libraries = []
+    for el in root.iter():
+        if local(el.tag) != "AttachedLibrary":
+            continue
+        a = attrs(el)
+        attached_libraries.append({
+            "name": a.get("Name"),
+            "libraryLocation": a.get("LibraryLocation"),
+            "librarySource": a.get("LibrarySource"),
+        })
+
+    # ---- visual attributes (named style bundles) -------------------------
+    visual_attributes = []
+    for el in root.iter():
+        if local(el.tag) != "VisualAttribute":
+            continue
+        a = attrs(el)
+        visual_attributes.append({
+            "name": a.get("Name"),
+            "backColor": a.get("BackColor"),
+            "foregroundColor": a.get("ForegroundColor"),
+            "fontName": a.get("FontName"),
+            "fontSize": a.get("FontSize"),
+        })
+
+    # ---- object groups (subclassed/reused object bundles) ----------------
+    object_groups = []
+    for el in root.iter():
+        if local(el.tag) != "ObjectGroup":
+            continue
+        a = attrs(el)
+        children = [
+            {"name": attrs(c).get("Name"), "type": attrs(c).get("Type")}
+            for c in el.iter() if local(c.tag) == "ObjectGroupChild"
+        ]
+        object_groups.append({
+            "name": a.get("Name"),
+            "parentName": a.get("ParentName"),
+            "parentModule": a.get("ParentModule"),
+            "children": children,
+        })
+
+    # ---- static text (boilerplate labels / headers / help paragraph) -----
+    # Verbatim text + placement; no judgement about role (header vs help).
+    static_text = []
+    for el in root.iter():
+        if local(el.tag) != "Graphics":
+            continue
+        a = attrs(el)
+        text = a.get("GraphicsText")
+        if not text:
+            continue  # non-text Graphics (Rectangle, Line, ...) carry no label
+        # owning canvas = nearest ancestor Canvas
+        anc = parent_map.get(el)
+        while anc is not None and local(anc.tag) != "Canvas":
+            anc = parent_map.get(anc)
+        static_text.append({
+            "name": a.get("Name"),
+            "text": text,
+            "canvas": attrs(anc).get("Name") if anc is not None else None,
+            "geometry": {"x": a.get("XPosition"), "y": a.get("YPosition"),
+                         "width": a.get("Width"), "height": a.get("Height")},
+        })
+
     # ---- referenced DB program units (resolve signatures from schema) ----
     refs = set()
     for b in all_bodies:
@@ -402,14 +537,22 @@ def analyze(path):
         "source": path,
         "grain": "form-object",
         "decisionFree": True,
-        "form": {"name": form_name, "commitStyle": commit_style},
+        "form": {"name": form_name, "commitStyle": commit_style,
+                 "menuModule": form_attrs.get("MenuModule") or None,
+                 "title": form_attrs.get("Title")},
         "blocks": blocks,
         "relations": relations,
+        "alerts": alerts,
         "lovs": lovs,
         "recordGroups": list(record_groups.values()),
+        "programUnits": program_units,
+        "attachedLibraries": attached_libraries,
+        "visualAttributes": visual_attributes,
+        "objectGroups": object_groups,
         "windows": windows,
         "canvases": canvases,
         "tabPages": tab_pages,
+        "staticText": static_text,
         "formTriggers": collect_triggers(form_el, parent_map) if form_el is not None else [],
         "referencedDbObjects": [
             {"name": n, "paramShape": "unknown (resolve from schema)"} for n in sorted(refs)
@@ -459,6 +602,18 @@ def to_markdown(spec):
             b["name"], b["relationRole"], b["databaseBlock"], crud, dm["value"],
             lk["value"], lk["injected"]))
     L.append("")
+    L.append("## Block data-source columns (base-table types)")
+    L.append("")
+    for b in spec["blocks"]:
+        dsc = b.get("dataSourceColumns") or []
+        if not dsc:
+            continue
+        cols = ", ".join("{} {}{}{}".format(
+            c["name"], c["dscType"],
+            "({},{})".format(c["precision"], c["scale"]) if c.get("precision") and c["precision"] != "0" else "",
+            "*" if c.get("mandatory") == "true" else "") for c in dsc)
+        L.append("- **{}**: {}".format(b["name"], cols))
+    L.append("")
     L.append("## Relations")
     L.append("")
     for r in spec["relations"]:
@@ -466,6 +621,14 @@ def to_markdown(spec):
             r["name"], r["masterBlock"], r["detailBlock"], r["deleteRecord"],
             r["deferred"], r["autoQuery"]))
     L.append("")
+    if spec.get("alerts"):
+        L.append("## Alerts")
+        L.append("")
+        for a in spec["alerts"]:
+            L.append("- **{}** style={} buttons=[{}, {}] message={}".format(
+                a["name"], a["alertStyle"], a["button1Label"], a["button2Label"],
+                a["alertMessage"]))
+        L.append("")
     L.append("## LOVs")
     L.append("")
     for lov in spec["lovs"]:
@@ -487,6 +650,57 @@ def to_markdown(spec):
     for tg in spec.get("formTriggers", []):
         L.append("- FORM.{} · {}".format(tg["name"], tg["bodyShape"]))
     L.append("")
+    # Option-set details a builder needs (Radio Group / Check Box).
+    option_rows = []
+    for b in spec["blocks"]:
+        for it in b["items"]:
+            if it.get("radioButtons"):
+                opts = ", ".join("{}={}".format(rb["label"], rb["radioButtonValue"])
+                                 for rb in it["radioButtons"])
+                option_rows.append("- {}.{} (Radio Group) init={}: {}".format(
+                    b["name"], it["name"], it.get("initializeValue"), opts))
+            elif it.get("checkedValue") is not None or it.get("uncheckedValue") is not None:
+                option_rows.append("- {}.{} (Check Box) checked={} unchecked={} init={} label={}".format(
+                    b["name"], it["name"], it.get("checkedValue"),
+                    it.get("uncheckedValue"), it.get("initializeValue"), it.get("label")))
+    if option_rows:
+        L.append("## Option sets (radio / checkbox values)")
+        L.append("")
+        L.extend(option_rows)
+        L.append("")
+    if spec.get("programUnits"):
+        L.append("## In-form program units")
+        L.append("")
+        for p in spec["programUnits"]:
+            L.append("- {} ({})".format(p["name"], p["programUnitType"]))
+        L.append("")
+    reused = []
+    if spec.get("attachedLibraries"):
+        reused.append("AttachedLibraries: " + ", ".join(
+            l["name"] for l in spec["attachedLibraries"]))
+    if spec.get("visualAttributes"):
+        reused.append("VisualAttributes: " + ", ".join(
+            v["name"] for v in spec["visualAttributes"]))
+    if spec.get("objectGroups"):
+        reused.append("ObjectGroups: " + ", ".join(
+            "{}({})".format(g["name"], len(g["children"])) for g in spec["objectGroups"]))
+    if spec["form"].get("menuModule"):
+        reused.append("MenuModule: " + spec["form"]["menuModule"])
+    if reused:
+        L.append("## Reused / deferred objects (recorded, not detailed)")
+        L.append("")
+        for r in reused:
+            L.append("- " + r)
+        L.append("")
+    if spec.get("staticText"):
+        L.append("## Static text (verbatim labels / headers / help)")
+        L.append("")
+        for s in spec["staticText"]:
+            snippet = s["text"].replace("\n", " ")
+            if len(snippet) > 80:
+                snippet = snippet[:77] + "..."
+            L.append("- {}/{}: \"{}\"".format(s["canvas"], s["name"], snippet))
+        L.append("")
     if spec["referencedDbObjects"]:
         L.append("## Referenced DB program units (resolve signatures from schema)")
         L.append("")
