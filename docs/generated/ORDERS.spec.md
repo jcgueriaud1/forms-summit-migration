@@ -60,6 +60,17 @@ Windows: WIN_ORDER (Orders and Items), WIN_INVENTORY (Stock Levels)
 - **S_ORD_S_ITEM**: S_ORD → S_ITEM | DeleteRecord=Non Isolated Deferred=false AutoQuery=false
 - **S_ITEM_S_INVENTORY**: S_ITEM → S_INVENTORY | DeleteRecord=Isolated Deferred=true AutoQuery=true
 
+## Dependencies (out-of-slice surfaces — decide per item)
+
+> Each is `status: undecided`. Per the skill workflow, ask the user whether to spec each as a dependency or ignore it — never drop silently.
+
+| Type | Name | Source | Via | Status |
+|---|---|---|---|---|
+| menu-module | m_summit | — | FormModule.MenuModule | undecided |
+| attached-library | CALENDAR | calendar | AttachedLibrary | undecided |
+| called-form | pick | — | CALL_FORM/OPEN_FORM/NEW_FORM/RUN_PRODUCT | undecided |
+| object-library | CALENDAR | Form_Builder_II.olb | ObjectGroup (subclassed) | undecided |
+
 ## Alerts
 
 - **DELETE_ALERT** style=Caution buttons=[Yes, No] message=None

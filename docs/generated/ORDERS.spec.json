@@ -1,5 +1,5 @@
 {
-  "source": "forms-summit-example/ORDERS_fmb.xml",
+  "source": "../../../forms-summit-example/ORDERS_fmb.xml",
   "grain": "form-object",
   "decisionFree": true,
   "form": {
@@ -2056,6 +2056,7 @@
       "name": "CALENDAR",
       "parentName": "CALENDAR",
       "parentModule": "FORM_BUILDER_II",
+      "parentFilename": "Form_Builder_II.olb",
       "children": [
         {
           "name": "DATE_CHOOSEN",
@@ -2099,6 +2100,7 @@
       "name": "STOCK_OBJECTS",
       "parentName": null,
       "parentModule": null,
+      "parentFilename": null,
       "children": [
         {
           "name": "S_INVENTORY",
@@ -2113,6 +2115,36 @@
           "type": "Window"
         }
       ]
+    }
+  ],
+  "dependencies": [
+    {
+      "type": "menu-module",
+      "name": "m_summit",
+      "source": null,
+      "via": "FormModule.MenuModule",
+      "status": "undecided"
+    },
+    {
+      "type": "attached-library",
+      "name": "CALENDAR",
+      "source": "calendar",
+      "via": "AttachedLibrary",
+      "status": "undecided"
+    },
+    {
+      "type": "called-form",
+      "name": "pick",
+      "source": null,
+      "via": "CALL_FORM/OPEN_FORM/NEW_FORM/RUN_PRODUCT",
+      "status": "undecided"
+    },
+    {
+      "type": "object-library",
+      "name": "CALENDAR",
+      "source": "Form_Builder_II.olb",
+      "via": "ObjectGroup (subclassed)",
+      "status": "undecided"
     }
   ],
   "windows": [
