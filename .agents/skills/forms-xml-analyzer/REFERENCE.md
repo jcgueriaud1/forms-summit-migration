@@ -10,20 +10,37 @@ Forms defaults + derived signals. No Vaadin/migration decisions.
   "source": "ORDERS_fmb.xml",
   "grain": "form-object",
   "decisionFree": true,
-  "form": { "name": "ORDERS", "commitStyle": "COMMIT_FORM" | null },
+  "form": { "name": "ORDERS", "commitStyle": "COMMIT_FORM" | null,
+            "menuModule": "m_summit" | null, "title": "..." },
   "blocks":   [ Block, ... ],
   "relations":[ Relation, ... ],
+  "alerts":   [ Alert, ... ],
   "lovs":     [ Lov, ... ],
   "recordGroups": [ RecordGroup, ... ],
+  "programUnits": [ ProgramUnit, ... ],
+  "attachedLibraries": [ { "name", "libraryLocation", "librarySource" }, ... ],
+  "visualAttributes": [ { "name", "backColor", "foregroundColor", "fontName", "fontSize" }, ... ],
+  "objectGroups": [ { "name", "parentName", "parentModule",
+                      "children": [ { "name", "type" }, ... ] }, ... ],
   "windows":  [ { "name", "title", "width", "height" }, ... ],
   "canvases": [ { "name", "canvasType", "window", "width", "height",
                   "viewport": { "x", "y", "width", "height" } }, ... ],
   "tabPages": [ { "name", "label", "canvas" }, ... ],
+  "staticText": [ StaticText, ... ],
   "formTriggers": [ Trigger, ... ],
   "referencedDbObjects": [ { "name", "paramShape": "unknown (resolve from schema)" } ],
   "census": { "totalElements": N, "byTag": { "Item": 34, ... } }
 }
 ```
+
+**Key convention.** The spec uses curated lowercase camelCase keys (`itemType`,
+`maximumLength`, `formatMask`, `checkedValue`, …). The PascalCase names in
+`docs/migration-rules.yaml` (`MaximumLength`, `FormatMask`, `CheckedValue`,
+`LovRole`) are the ruleset's *predicate / attribute-table* namespace; a renderer
+layer bridges the two (the comment at `migration-rules.yaml` line ~19 documents
+`LovRole` as one such synthetic, injected key). New fields follow the spec's
+camelCase convention; `check_against_ruleset.py` reads them by their camelCase
+keys.
 
 ### Block
 ```jsonc
@@ -36,9 +53,16 @@ Forms defaults + derived signals. No Vaadin/migration decisions.
   "recordsDisplayed": "n" | null,
   "derivedMultiRecord": { "value": bool|null, "source": "RecordsDisplayed" | "derived(relation-membership/scrollbar)" },
   "lockingMode": { "value": "Automatic"|..., "injected": bool },
+  "dataSourceColumns": [ { "name", "dscType", "precision", "scale", "length", "mandatory" }, ... ],
   "itemCount", "items": [ Item, ... ], "triggers": [ Trigger, ... ]
 }
 ```
+
+`dataSourceColumns` are the base-table column types verbatim from
+`<DataSourceColumn>` (`DSCType`/`DSCPrecision`/`DSCScale`/`DSCMandatory`) — the
+source for typing domain-bean fields (e.g. `NUMBER(7,0)` → `Long`,
+`NUMBER(11,2)` → `BigDecimal`, `DATE` → `LocalDate`). The mapping is the
+ruleset's call, not the analyzer's.
 
 ### Item
 ```jsonc
@@ -47,15 +71,27 @@ Forms defaults + derived signals. No Vaadin/migration decisions.
   "geometry": { "x", "y", "width", "height" },   // facts for layoutPlan; ruleset drops for setters
   "visible", "dataType",
   "formula", "calculateMode", "summaryFunction", "summaryItemName",
-  "listStyle", "concealData", "multiLine", "prompt", "columnName", "databaseItem",
+  "listStyle", "concealData", "multiLine", "prompt", "label", "columnName", "databaseItem",
+  // builder-grade attributes, verbatim (null when absent in the XML):
+  "maximumLength", "required", "initializeValue", "formatMask",
+  "checkedValue", "uncheckedValue",   // Check Box
+  "copyValueFromItem",                // master→detail FK propagation
+  "lovName",                          // record-group LOV bound to the item
   "editability": { "updateAllowed", "insertAllowed", "queryAllowed", "enabled": bool },  // absent => true
   "lovRole": "primary" | null,
+  "radioButtons": [ { "name", "radioButtonValue", "label" }, ... ],  // Radio Group only
   "imageSource": "file" | "blob",   // Image items only
   "triggers": [ Trigger, ... ]
 }
 ```
 
-### Trigger / Relation / Lov / RecordGroup
+`lovName` records the item's own `LovName` (a record-group LOV); a date item
+instead invokes a calendar LOV via a `KEY-LISTVAL` trigger (`date_lov.get_date`),
+so absence of `lovName` with a `KEY-LISTVAL` trigger distinguishes the two
+picker styles. `lovRole` (synthetic, from the LOV's `ReturnItem` walk) is
+independent of `lovName`.
+
+### Trigger / Relation / Lov / RecordGroup / Alert / ProgramUnit / StaticText
 ```jsonc
 Trigger     { "name", "bodyShape", "body" }
 Relation    { "name", "masterBlock", "detailBlock", "joinCondition", "deleteRecord", "deferred", "autoQuery" }
@@ -63,6 +99,10 @@ Lov         { "name", "title", "recordGroup", "query",
               "columns": [ { "name", "dataType", "title", "displayWidth", "returnItem" } ],
               "primaryReturnItem" }
 RecordGroup { "name", "query", "columns": [ { "name", "dataType", "maximumLength" } ] }
+Alert       { "name", "title", "alertStyle", "alertMessage",
+              "button1Label", "button2Label", "button3Label" }   // verbatim; referenced by SHOW_ALERT in triggers
+ProgramUnit { "name", "kind": "program-unit", "programUnitType", "body" }  // the form's own PL/SQL (≠ referencedDbObjects, which are external/DB calls)
+StaticText  { "name", "text", "canvas", "geometry": { "x", "y", "width", "height" } }  // <Graphics GraphicsText="…">; non-text Graphics (Rectangle/Line) are omitted
 ```
 
 ## Signal heuristics
