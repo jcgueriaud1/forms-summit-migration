@@ -130,6 +130,28 @@ def referenced_db_objects(text):
     return sorted(set(out))
 
 
+_FORM_NAV = ("CALL_FORM", "OPEN_FORM", "NEW_FORM", "RUN_PRODUCT")
+
+
+def called_forms(text):
+    """Form/module names invoked via CALL_FORM/OPEN_FORM/NEW_FORM/RUN_PRODUCT in a
+    body — candidate sibling forms this form depends on at runtime. PL/SQL line
+    comments are stripped first so a commented-out call is not reported as a live
+    dependency. Mechanical detection only; no scoping decision."""
+    if not text:
+        return []
+    # FMB bodies separate lines with the literal token '&#10;', not real
+    # newlines — normalise so a single-line '--' comment strips to its own line
+    # end and does not swallow live calls that follow.
+    normalized = text.replace("&#10;", "\n")
+    stripped = re.sub(r"--[^\n]*", "", normalized)
+    out = []
+    pattern = r"\b({})\s*\(\s*'([^']+)'".format("|".join(_FORM_NAV))
+    for m in re.finditer(pattern, stripped, re.IGNORECASE):
+        out.append(m.group(2))
+    return sorted(set(out))
+
+
 def trigger_text(el):
     a = attrs(el)
     # frmf2xml stores body on the TriggerText attribute (entities already decoded
@@ -502,6 +524,7 @@ def analyze(path):
             "name": a.get("Name"),
             "parentName": a.get("ParentName"),
             "parentModule": a.get("ParentModule"),
+            "parentFilename": a.get("ParentFilename"),
             "children": children,
         })
 
@@ -533,6 +556,38 @@ def analyze(path):
         for r in referenced_db_objects(b):
             refs.add(r)
 
+    # ---- external dependencies (other migration units this form needs) ---
+    # Inventoried mechanically; every entry is flagged status:"undecided". The
+    # analyzer makes NO scoping decision — the SKILL workflow requires the agent
+    # to ask, per dependency, whether to produce a separate spec (mark it a
+    # dependency) or ignore it. This is the "never silently drop an out-of-slice
+    # surface" guarantee.
+    dependencies = []
+    if form_attrs.get("MenuModule"):
+        dependencies.append({
+            "type": "menu-module", "name": form_attrs.get("MenuModule"),
+            "source": None, "via": "FormModule.MenuModule", "status": "undecided",
+        })
+    for lib in attached_libraries:
+        dependencies.append({
+            "type": "attached-library", "name": lib["name"],
+            "source": lib.get("libraryLocation"), "via": "AttachedLibrary",
+            "status": "undecided",
+        })
+    nav_sources = list(all_bodies) + [pu.get("body") for pu in program_units]
+    for fn in sorted({f for b in nav_sources for f in called_forms(b)}):
+        dependencies.append({
+            "type": "called-form", "name": fn, "source": None,
+            "via": "CALL_FORM/OPEN_FORM/NEW_FORM/RUN_PRODUCT", "status": "undecided",
+        })
+    for og in object_groups:
+        if og.get("parentFilename"):
+            dependencies.append({
+                "type": "object-library", "name": og.get("parentName") or og["name"],
+                "source": og["parentFilename"], "via": "ObjectGroup (subclassed)",
+                "status": "undecided",
+            })
+
     return {
         "source": path,
         "grain": "form-object",
@@ -549,6 +604,7 @@ def analyze(path):
         "attachedLibraries": attached_libraries,
         "visualAttributes": visual_attributes,
         "objectGroups": object_groups,
+        "dependencies": dependencies,
         "windows": windows,
         "canvases": canvases,
         "tabPages": tab_pages,
@@ -621,6 +677,18 @@ def to_markdown(spec):
             r["name"], r["masterBlock"], r["detailBlock"], r["deleteRecord"],
             r["deferred"], r["autoQuery"]))
     L.append("")
+    if spec.get("dependencies"):
+        L.append("## Dependencies (out-of-slice surfaces — decide per item)")
+        L.append("")
+        L.append("> Each is `status: undecided`. Per the skill workflow, ask the user"
+                 " whether to spec each as a dependency or ignore it — never drop silently.")
+        L.append("")
+        L.append("| Type | Name | Source | Via | Status |")
+        L.append("|---|---|---|---|---|")
+        for d in spec["dependencies"]:
+            L.append("| {} | {} | {} | {} | {} |".format(
+                d["type"], d["name"], d.get("source") or "—", d["via"], d["status"]))
+        L.append("")
     if spec.get("alerts"):
         L.append("## Alerts")
         L.append("")

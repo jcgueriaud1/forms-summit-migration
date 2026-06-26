@@ -20,8 +20,9 @@ Forms defaults + derived signals. No Vaadin/migration decisions.
   "programUnits": [ ProgramUnit, ... ],
   "attachedLibraries": [ { "name", "libraryLocation", "librarySource" }, ... ],
   "visualAttributes": [ { "name", "backColor", "foregroundColor", "fontName", "fontSize" }, ... ],
-  "objectGroups": [ { "name", "parentName", "parentModule",
+  "objectGroups": [ { "name", "parentName", "parentModule", "parentFilename",
                       "children": [ { "name", "type" }, ... ] }, ... ],
+  "dependencies": [ Dependency, ... ],
   "windows":  [ { "name", "title", "width", "height" }, ... ],
   "canvases": [ { "name", "canvasType", "window", "width", "height",
                   "viewport": { "x", "y", "width", "height" } }, ... ],
@@ -103,7 +104,24 @@ Alert       { "name", "title", "alertStyle", "alertMessage",
               "button1Label", "button2Label", "button3Label" }   // verbatim; referenced by SHOW_ALERT in triggers
 ProgramUnit { "name", "kind": "program-unit", "programUnitType", "body" }  // the form's own PL/SQL (≠ referencedDbObjects, which are external/DB calls)
 StaticText  { "name", "text", "canvas", "geometry": { "x", "y", "width", "height" } }  // <Graphics GraphicsText="…">; non-text Graphics (Rectangle/Line) are omitted
+Dependency  { "type", "name", "source", "via", "status": "undecided" }
 ```
+
+### Dependency
+
+An external migration unit this form references. Inventoried mechanically; the
+analyzer makes **no** scoping decision (`status` is always `"undecided"` on
+emit). The skill workflow requires the agent to ask the user, per dependency,
+whether to **spec** it (emit its own spec, mark it a dependency → `status:"spec"`)
+or **ignore** it (acknowledged exclusion → `status:"ignore"`) — never a silent
+drop. See SKILL.md "Dependencies — ask, never silently drop".
+
+| `type` | `name` | `source` | detected from |
+|---|---|---|---|
+| `menu-module` | menu module name | — | `FormModule.MenuModule` |
+| `attached-library` | library name | `LibraryLocation` | `<AttachedLibrary>` |
+| `called-form` | form/module invoked at runtime | — | `CALL_FORM`/`OPEN_FORM`/`NEW_FORM`/`RUN_PRODUCT` in a trigger/program-unit body (PL/SQL `--` comments stripped first, so commented-out calls are not reported) |
+| `object-library` | parent object name | `.olb` filename | `<ObjectGroup>` with a `ParentFilename` (subclassed) |
 
 ## Signal heuristics
 
