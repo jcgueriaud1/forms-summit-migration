@@ -1,0 +1,23 @@
+# Maven
+target/
+
+# Vaadin / frontend build artifacts
+node_modules/
+frontend/generated/
+src/main/frontend/generated/
+src/main/bundles/
+vite.generated.ts
+package-lock.json
+tsconfig.json
+types.d.ts
+
+# IDE
+.idea/
+*.iml
+.vscode/
+.classpath
+.project
+.settings/
+
+# OS
+.DS_Store
