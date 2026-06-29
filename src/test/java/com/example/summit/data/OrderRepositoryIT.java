@@ -19,7 +19,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * headline assertion: {@code loadGraph} returns the customer and sales-rep display
  * names <em>in one shot</em> — the join dissolves the Forms POST-QUERY lookups.
  */
-class OrderRepositoryIntegrationTest extends SummitDbIntegrationTest {
+class OrderRepositoryIT extends SummitDbIT {
 
     private final OrderRepository repository = new OrderRepository(jdbcClient());
 

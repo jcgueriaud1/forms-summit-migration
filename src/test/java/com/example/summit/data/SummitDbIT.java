@@ -16,7 +16,7 @@ import oracle.jdbc.OracleDriver;
  * test suite pays the Oracle boot cost once. Later repository slices extend this by
  * subclassing and adding rows/tables to the seed script.
  */
-public abstract class SummitDbIntegrationTest {
+public abstract class SummitDbIT {
 
     private static final OracleContainer SUMMIT_DB =
             new OracleContainer("gvenzl/oracle-free:23-slim")
