@@ -6,6 +6,8 @@ import org.testcontainers.oracle.OracleContainer;
 
 import oracle.jdbc.OracleDriver;
 
+import java.time.Duration;
+
 /**
  * Reusable integration-test harness: a real Summit Oracle in a container (the gvenzl
  * image, same family the app runs against), seeded with the slice schema + data from
@@ -20,7 +22,12 @@ public abstract class SummitDbIT {
 
     private static final OracleContainer SUMMIT_DB =
             new OracleContainer("gvenzl/oracle-free:23-slim")
-                    .withInitScript("db/summit-slice.sql");
+                    .withInitScript("db/summit-slice.sql")
+                    // A full `mvn verify` runs this repository harness in the same JVM as the
+                    // UI harness (OracleSpringPlaywrightIT), so a second Oracle is booting
+                    // alongside this one and the Vaadin frontend build — well past the 60s
+                    // default. Give it the same generous headroom rather than fail flakily.
+                    .withStartupTimeout(Duration.ofMinutes(5));
 
     private static final JdbcClient JDBC_CLIENT;
 

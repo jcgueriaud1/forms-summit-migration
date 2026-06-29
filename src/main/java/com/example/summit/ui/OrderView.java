@@ -57,7 +57,12 @@ public class OrderView extends VerticalLayout {
         search.setPlaceholder("Order id, customer, or sales rep");
         search.setItemLabelGenerator(OrderView::suggestionLabel);
         // Server-side autocomplete: each keystroke runs the quick search through the presenter.
-        search.setItems(query -> presenter.suggest(query.getFilter().orElse("")).stream());
+        // The fetch must honor the ComboBox's lazy-loading window (offset/limit) or Vaadin
+        // rejects the result; the quick search is already capped at 50, so the first page
+        // holds every suggestion and later pages are empty.
+        search.setItems(query -> presenter.suggest(query.getFilter().orElse("")).stream()
+                .skip(query.getOffset())
+                .limit(query.getLimit()));
         search.addValueChangeListener(event -> {
             OrderSummary picked = event.getValue();
             if (picked == null) {
