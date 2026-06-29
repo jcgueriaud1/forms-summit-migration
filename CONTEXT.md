@@ -42,6 +42,15 @@ known (push into the ruleset — works for every form) or an irreducible quirk o
 form (hand-fix, log, move on). A fix is **specific by default** unless the rule
 behind it can be stated in form-construct terms.
 
+**UI test**:
+A migrated construct is not done until it ships with a test that drives the running
+app in a real browser (Playwright + DramaFinder) and asserts user-visible behavior —
+the same construct the user recognized in Forms, now exercised end-to-end through
+View ← Presenter ← Service ← Domain ← Data against a real Oracle (Testcontainers).
+This is the build phase's completeness check, the runtime counterpart to the
+analyzer's form-object grain. _Avoid_: treating unit tests of the domain formula as
+sufficient — they prove the calculation, not that the construct works in the view.
+
 ### Architectural layers
 
 **Domain**:

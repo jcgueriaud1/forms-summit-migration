@@ -1,6 +1,12 @@
 {
   "version": 1,
   "skills": {
+    "vaadin-playwright-test": {
+      "source": "parttio/dramafinder",
+      "sourceType": "github",
+      "skillPath": "skills/vaadin-playwright-test/SKILL.md",
+      "computedHash": "61b20d28fc6ec08539f28677f417075ce5b7940e689e8ec016df31f8d5ef1a9a"
+    },
     "ask-matt": {
       "source": "mattpocock/skills",
       "sourceType": "github",

@@ -21,6 +21,9 @@
         <java.version>21</java.version>
         <vaadin.version>25.2.0</vaadin.version>
         <ojdbc.version>23.8.0.25.04</ojdbc.version>
+        <dramafinder.version>1.1.2</dramafinder.version>
+        <!-- Pinned to the Playwright version DramaFinder 1.1.2 is built against. -->
+        <playwright.version>1.59.0</playwright.version>
     </properties>
 
     <dependencyManagement>
@@ -58,6 +61,35 @@
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
+
+        <!-- Integration-test harness: a real Summit Oracle in a container (gvenzl image).
+             Versions are managed by the Spring Boot-imported testcontainers BOM. -->
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>testcontainers-oracle-free</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>testcontainers-junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- UI feedback loop: drive the running app in a real browser. DramaFinder wraps
+             Vaadin components in Playwright; the vaadin-playwright-test skill generates the
+             tests. See README "UI tests (Playwright + DramaFinder)". -->
+        <dependency>
+            <groupId>com.microsoft.playwright</groupId>
+            <artifactId>playwright</artifactId>
+            <version>${playwright.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.vaadin.addons</groupId>
+            <artifactId>dramafinder</artifactId>
+            <version>${dramafinder.version}</version>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>
@@ -65,6 +97,21 @@
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+
+            <!-- Failsafe runs the *IT.java integration tests (Playwright + DramaFinder UI
+                 tests) in the verify phase, kept separate from Surefire's fast unit tests. -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-failsafe-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>integration-test</goal>
+                            <goal>verify</goal>
+                        </goals>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
     </build>
