@@ -26,6 +26,10 @@ public abstract class OracleSpringPlaywrightIT extends SpringPlaywrightIT {
 
     private static final OracleContainer SUMMIT_DB =
             new OracleContainer("gvenzl/oracle-free:23-slim")
+                    // Seed the slice schema + data the same way the repository harness does
+                    // (SummitDbIT), so views that read Summit tables have data to render.
+                    // Harmless to views that don't (DemoView reads only the version banner).
+                    .withInitScript("db/summit-slice.sql")
                     // First Oracle boot is ~40s standalone, but the Vaadin frontend build
                     // runs alongside the first UI test and starves CPU — well past the 60s
                     // default. Give it generous headroom rather than fail flakily.
