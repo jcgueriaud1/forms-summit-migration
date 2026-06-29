@@ -1,0 +1,854 @@
+<!--
+  THROWAWAY PROTOTYPE — Summit ORDERS view, search-UX decision (variant a vs b).
+  Question: faithful web rendering of Forms' single-record Execute/Enter-Query on S_ORD.
+    A = lookup search -> load ONE order (ruleset-faithful, block-master-single)
+    B = results grid -> click a row to load (diverges; resurrects PLAN's master Grid)
+  Read-only mock. Styled to Vaadin Lumo so the choice is judged in the shipping medium.
+  Delete or fold the winner into the real view once decided.
+-->
+<style>
+  :root {
+    /* Vaadin Lumo light tokens (the project's real design system) */
+    --primary:        hsl(214, 90%, 52%);
+    --primary-strong: hsl(214, 90%, 44%);
+    --primary-10:     hsl(214, 90%, 96%);
+    --primary-20:     hsl(214, 85%, 90%);
+    --body:           hsl(214, 35%, 15%);
+    --secondary:      hsl(214, 20%, 40%);
+    --tertiary:       hsl(214, 16%, 55%);
+    --border:         hsl(214, 25%, 90%);
+    --border-strong:  hsl(214, 22%, 82%);
+    --base:           #ffffff;
+    --shade-3:        hsl(214, 30%, 98%);
+    --shade-5:        hsl(214, 28%, 96%);
+    --shade-8:        hsl(214, 26%, 93%);
+    --success:        hsl(145, 76%, 31%);
+    --success-10:     hsl(145, 60%, 94%);
+    --idle:           hsl(38, 90%, 38%);
+    --idle-10:        hsl(40, 90%, 94%);
+    --radius-s: 4px;
+    --radius-m: 8px;
+    --radius-l: 12px;
+    --shadow-s: 0 1px 2px hsl(214 30% 20% / .08), 0 2px 6px hsl(214 30% 20% / .06);
+    --shadow-m: 0 2px 6px hsl(214 30% 20% / .10), 0 8px 24px hsl(214 30% 20% / .10);
+    --font: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    font-family: var(--font);
+    color: var(--body);
+    background: var(--shade-5);
+    -webkit-font-smoothing: antialiased;
+    line-height: 1.45;
+  }
+
+  /* ---------- App shell (fake Vaadin AppLayout) ---------- */
+  .app {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+  .appbar {
+    height: 56px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 0 20px;
+    background: var(--base);
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    z-index: 20;
+  }
+  .appbar .logo {
+    width: 26px; height: 26px;
+    border-radius: 6px;
+    background: linear-gradient(135deg, var(--primary), var(--primary-strong));
+    display: grid; place-items: center;
+    color: #fff; font-weight: 700; font-size: 13px;
+    flex: none;
+  }
+  .appbar .crumbs { color: var(--tertiary); font-size: 14px; }
+  .appbar .crumbs b { color: var(--body); font-weight: 600; }
+  .appbar .spacer { flex: 1; }
+  .appbar .user {
+    width: 30px; height: 30px; border-radius: 50%;
+    background: var(--shade-8); color: var(--secondary);
+    display: grid; place-items: center; font-size: 12px; font-weight: 600;
+  }
+
+  .view {
+    flex: 1;
+    width: 100%;
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 24px 20px 120px;
+  }
+
+  .view-head { margin-bottom: 18px; }
+  .view-head h1 {
+    margin: 0;
+    font-size: 22px;
+    font-weight: 650;
+    letter-spacing: -0.01em;
+  }
+  .view-head p { margin: 4px 0 0; color: var(--secondary); font-size: 14px; }
+
+  /* ---------- Decision aside (NOT part of the design under test) ---------- */
+  .aside {
+    border-left: 3px solid var(--note-accent, var(--primary));
+    background: var(--note-bg, var(--primary-10));
+    border-radius: 0 var(--radius-m) var(--radius-m) 0;
+    padding: 12px 16px;
+    margin: 0 0 20px;
+    font-size: 13px;
+    color: var(--body);
+  }
+  .aside.faithful  { --note-accent: var(--success); --note-bg: var(--success-10); }
+  .aside.diverges  { --note-accent: var(--idle);    --note-bg: var(--idle-10); }
+  .aside .tag {
+    display: inline-block;
+    font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
+    padding: 2px 8px; border-radius: 100px; margin-bottom: 6px;
+    background: var(--note-accent); color: #fff;
+  }
+  .aside b { font-weight: 650; }
+  .aside .loss { color: var(--secondary); }
+
+  /* ---------- Cards / panels ---------- */
+  .card {
+    background: var(--base);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-l);
+    box-shadow: var(--shadow-s);
+  }
+  .card + .card { margin-top: 16px; }
+  .card-head {
+    display: flex; align-items: center; gap: 10px;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--border);
+  }
+  .card-head h2 { margin: 0; font-size: 14px; font-weight: 650; }
+  .card-head .sub { color: var(--tertiary); font-size: 12px; }
+  .card-head .spacer { flex: 1; }
+  .card-body { padding: 18px; }
+
+  /* ---------- Lumo-style fields ---------- */
+  .field { display: flex; flex-direction: column; gap: 4px; }
+  .field > label {
+    font-size: 13px; color: var(--secondary); font-weight: 500;
+  }
+  .input {
+    height: 36px;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-s);
+    background: var(--shade-3);
+    padding: 0 11px;
+    font: inherit; font-size: 14px; color: var(--body);
+    display: flex; align-items: center;
+  }
+  .input.readonly { background: var(--shade-5); color: var(--body); }
+  .input.ghost { color: var(--tertiary); }
+  input.input { outline: none; }
+  input.input:focus { border-color: var(--primary); box-shadow: 0 0 0 2px var(--primary-20); background:#fff; }
+
+  /* radio + checkbox */
+  .radio-group { display: flex; gap: 18px; align-items: center; height: 36px; }
+  .radio { display: inline-flex; align-items: center; gap: 7px; font-size: 14px; }
+  .dot { width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--border-strong); display: inline-block; position: relative; }
+  .radio.on .dot { border-color: var(--primary); }
+  .radio.on .dot::after { content: ""; position: absolute; inset: 3px; border-radius: 50%; background: var(--primary); }
+  .checkbox { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; height: 36px; }
+  .box { width: 17px; height: 17px; border-radius: var(--radius-s); border: 2px solid var(--border-strong); display: grid; place-items: center; }
+  .checkbox.on .box { background: var(--primary); border-color: var(--primary); }
+  .checkbox.on .box::after { content: ""; width: 4px; height: 8px; border: solid #fff; border-width: 0 2px 2px 0; transform: rotate(45deg) translateY(-1px); }
+
+  /* FormLayout: responsive 3-col */
+  .form-layout {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 14px 20px;
+  }
+  .form-layout .col-span-2 { grid-column: span 2; }
+  @media (max-width: 720px) { .form-layout { grid-template-columns: 1fr; } .form-layout .col-span-2 { grid-column: auto; } }
+
+  /* ---------- Buttons ---------- */
+  .btn {
+    height: 36px; padding: 0 16px;
+    border-radius: var(--radius-s);
+    border: 1px solid transparent;
+    font: inherit; font-size: 14px; font-weight: 600;
+    display: inline-flex; align-items: center; gap: 7px;
+    cursor: pointer; white-space: nowrap;
+  }
+  .btn-primary { background: var(--primary); color: #fff; }
+  .btn-primary:hover { background: var(--primary-strong); }
+  .btn-tertiary { background: transparent; color: var(--primary); }
+  .btn-tertiary:hover { background: var(--primary-10); }
+  .btn-icon {
+    width: 36px; padding: 0; justify-content: center;
+    background: var(--base); border: 1px solid var(--border-strong); color: var(--secondary);
+    border-radius: var(--radius-s); cursor: pointer; height: 36px;
+  }
+  .btn-icon:hover:not(:disabled) { border-color: var(--primary); color: var(--primary); }
+  .btn-icon:disabled { opacity: .4; cursor: not-allowed; }
+
+  /* ---------- Grid (Vaadin Grid look) ---------- */
+  .grid { width: 100%; border-collapse: collapse; font-size: 14px; }
+  .grid th {
+    text-align: left; font-weight: 600; color: var(--secondary);
+    font-size: 12px; letter-spacing: .02em;
+    padding: 10px 12px; border-bottom: 1px solid var(--border-strong);
+    background: var(--shade-3); position: sticky; top: 56px;
+  }
+  .grid td { padding: 10px 12px; border-bottom: 1px solid var(--border); }
+  .grid tbody tr:hover { background: var(--primary-10); }
+  .grid .num { text-align: right; font-variant-numeric: tabular-nums; }
+  .grid tfoot td { font-weight: 700; border-top: 2px solid var(--border-strong); border-bottom: none; background: var(--shade-3); }
+  .grid-scroll { overflow-x: auto; }
+
+  /* master grid clickable rows */
+  .grid.selectable tbody tr { cursor: pointer; }
+  .grid.selectable tbody tr.selected { background: var(--primary-10); box-shadow: inset 3px 0 0 var(--primary); }
+  .grid.selectable tbody tr.selected:hover { background: var(--primary-20); }
+
+  /* ---------- Badges ---------- */
+  .badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 12px; font-weight: 600; padding: 2px 9px; border-radius: 100px;
+  }
+  .badge.filled { background: var(--success-10); color: var(--success); }
+  .badge.open   { background: var(--idle-10); color: var(--idle); }
+  .badge .pip { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+
+  /* ---------- Variant A: search + pager ---------- */
+  .searchbar {
+    display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap;
+  }
+  .searchbar .field { flex: 1; min-width: 200px; }
+  .combo-wrap { position: relative; }
+  .combo-pop {
+    position: absolute; left: 0; right: 0; top: calc(100% + 4px); z-index: 10;
+    background: var(--base); border: 1px solid var(--border-strong);
+    border-radius: var(--radius-m); box-shadow: var(--shadow-m); overflow: hidden;
+  }
+  .combo-pop .opt { padding: 9px 12px; font-size: 14px; cursor: pointer; display: flex; justify-content: space-between; gap: 12px; }
+  .combo-pop .opt:hover, .combo-pop .opt.active { background: var(--primary-10); }
+  .combo-pop .opt .meta { color: var(--tertiary); font-size: 12px; }
+  .combo-pop .opt .hl { color: var(--primary); font-weight: 600; }
+
+  .pager {
+    display: flex; align-items: center; gap: 10px;
+    color: var(--secondary); font-size: 13px;
+  }
+  .pager .count { font-variant-numeric: tabular-nums; }
+  .pager .count b { color: var(--body); }
+
+  .order-id-chip {
+    font-size: 13px; color: var(--secondary);
+  }
+  .order-id-chip b { color: var(--body); font-size: 15px; font-variant-numeric: tabular-nums; }
+
+  .empty {
+    text-align: center; color: var(--tertiary); padding: 48px 20px; font-size: 14px;
+  }
+
+  /* ---------- Variant A: advanced search ---------- */
+  .adv-toggle {
+    background: none; border: none; color: var(--primary); font: inherit; font-size: 13px;
+    font-weight: 600; cursor: pointer; padding: 8px 0 0; display: inline-flex; align-items: center; gap: 6px;
+  }
+  .adv-toggle .chev { transition: transform .15s ease; display: inline-block; }
+  .adv-toggle.open .chev { transform: rotate(90deg); }
+  .adv-panel {
+    margin-top: 14px; padding-top: 16px; border-top: 1px solid var(--border);
+    display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px 18px;
+  }
+  @media (max-width: 720px) { .adv-panel { grid-template-columns: 1fr; } }
+  .adv-actions { grid-column: 1 / -1; display: flex; gap: 10px; padding-top: 2px; }
+  select.input { appearance: none; background-image: linear-gradient(45deg, transparent 50%, var(--secondary) 50%), linear-gradient(135deg, var(--secondary) 50%, transparent 50%); background-position: calc(100% - 16px) 15px, calc(100% - 11px) 15px; background-size: 5px 5px; background-repeat: no-repeat; padding-right: 30px; cursor: pointer; }
+  input[type=date].input { cursor: text; }
+
+  /* ---------- Variant C: list page -> detail page ---------- */
+  .backlink {
+    background: none; border: none; color: var(--primary); font: inherit; font-size: 14px;
+    font-weight: 600; cursor: pointer; padding: 0; display: inline-flex; align-items: center; gap: 6px;
+    margin-bottom: 14px;
+  }
+  .backlink:hover { text-decoration: underline; }
+  .detail-pager { display: flex; align-items: center; gap: 10px; }
+  .row-open { color: var(--primary); font-weight: 600; }
+  .grid.selectable tbody tr:hover .row-open { text-decoration: underline; }
+
+  /* ---------- Floating prototype switcher ---------- */
+  .switcher {
+    position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+    z-index: 100;
+    display: flex; align-items: center; gap: 4px;
+    background: hsl(214, 38%, 14%); color: #fff;
+    border-radius: 100px; padding: 6px 8px;
+    box-shadow: 0 6px 30px hsl(214 40% 10% / .35);
+    font-size: 13px;
+  }
+  .switcher button {
+    width: 30px; height: 30px; border-radius: 50%; border: none;
+    background: hsl(214 30% 24%); color: #fff; cursor: pointer; font-size: 15px;
+    display: grid; place-items: center;
+  }
+  .switcher button:hover { background: hsl(214 90% 52%); }
+  .switcher .label { padding: 0 12px; min-width: 190px; text-align: center; }
+  .switcher .label .k { font-weight: 700; }
+  .switcher .label .n { color: hsl(214 30% 75%); }
+  .switcher .hint { font-size: 11px; color: hsl(214 25% 62%); padding-right: 6px; }
+
+  .hidden { display: none !important; }
+</style>
+
+<div class="app">
+  <header class="appbar">
+    <div class="logo">S</div>
+    <div class="crumbs">Summit&nbsp; / &nbsp;<b>Orders</b></div>
+    <div class="spacer"></div>
+    <div class="user">JG</div>
+  </header>
+
+  <main class="view">
+    <div class="view-head">
+      <h1>Orders</h1>
+      <p id="subhead"></p>
+    </div>
+    <div id="aside-slot"></div>
+    <div id="variant-slot"></div>
+  </main>
+</div>
+
+<div class="switcher">
+  <button id="prev" aria-label="Previous variant">&#8249;</button>
+  <div class="label"><span class="k" id="vk">A</span> &mdash; <span class="n" id="vn"></span></div>
+  <button id="next" aria-label="Next variant">&#8250;</button>
+  <span class="hint">&larr; &rarr;</span>
+</div>
+
+<script>
+  // ---------------- Mock Summit data (read-only) ----------------
+  const ORDERS = [
+    { id: 100, custId: 201, customer: "Unisports",                 ordered: "2024-01-15", shipped: "2024-01-20", repId: 11, rep: "Carmen Velasquez", pay: "CREDIT", filled: true,
+      lines: [
+        { item: 1, prod: 10011, desc: "Bunny Boot",            price: 49.99, qty: 100, shipped: 100 },
+        { item: 2, prod: 30421, desc: "Bag Boot — Receptacle", price: 8.20,  qty: 50,  shipped: 50  },
+        { item: 3, prod: 20106, desc: "Junior Ski Pole",       price: 11.10, qty: 100, shipped: 90  },
+      ] },
+    { id: 101, custId: 202, customer: "Womansport",               ordered: "2024-01-18", shipped: "2024-01-26", repId: 12, rep: "Mark Quick-to-See", pay: "CREDIT", filled: true,
+      lines: [
+        { item: 1, prod: 20108, desc: "Pro Ski Boot",          price: 380.00, qty: 30, shipped: 30 },
+        { item: 2, prod: 41010, desc: "Prostar 10 Bindings",   price: 90.00,  qty: 20, shipped: 20 },
+      ] },
+    { id: 102, custId: 203, customer: "Kam's Sporting Goods",     ordered: "2024-02-02", shipped: "",           repId: 13, rep: "Audry Ropeburn", pay: "CASH", filled: false,
+      lines: [
+        { item: 1, prod: 50273, desc: "Major League Baseball", price: 2.40,  qty: 1000, shipped: 0 },
+        { item: 2, prod: 50419, desc: "World Cup Soccer Ball", price: 36.00, qty: 40,   shipped: 0 },
+        { item: 3, prod: 50532, desc: "Pro Football",          price: 49.00, qty: 25,   shipped: 0 },
+      ] },
+    { id: 103, custId: 204, customer: "Sportier",                 ordered: "2024-02-09", shipped: "2024-02-15", repId: 11, rep: "Carmen Velasquez", pay: "CREDIT", filled: true,
+      lines: [
+        { item: 1, prod: 30326, desc: "Himalayan Cliff Climber", price: 489.99, qty: 8, shipped: 8 },
+      ] },
+    { id: 104, custId: 205, customer: "Beisbol Si!",              ordered: "2024-02-20", shipped: "",           repId: 14, rep: "Andre Dumas", pay: "CASH", filled: false,
+      lines: [
+        { item: 1, prod: 50273, desc: "Major League Baseball", price: 2.40,  qty: 800, shipped: 400 },
+        { item: 2, prod: 50536, desc: "Catcher's Mask",        price: 62.00, qty: 15,  shipped: 0   },
+      ] },
+    { id: 105, custId: 206, customer: "Big John's Sports Emporium", ordered: "2024-03-01", shipped: "2024-03-08", repId: 12, rep: "Mark Quick-to-See", pay: "CREDIT", filled: true,
+      lines: [
+        { item: 1, prod: 10012, desc: "Ski Pole",              price: 25.00, qty: 60, shipped: 60 },
+        { item: 2, prod: 20108, desc: "Pro Ski Boot",          price: 380.00, qty: 12, shipped: 12 },
+        { item: 3, prod: 41010, desc: "Prostar 10 Bindings",   price: 90.00, qty: 12,  shipped: 12 },
+      ] },
+    { id: 106, custId: 207, customer: "Sweet Rock Sports",        ordered: "2024-03-11", shipped: "",           repId: 13, rep: "Audry Ropeburn", pay: "CASH", filled: false,
+      lines: [
+        { item: 1, prod: 30326, desc: "Himalayan Cliff Climber", price: 489.99, qty: 4, shipped: 0 },
+        { item: 2, prod: 30421, desc: "Bag Boot — Receptacle",   price: 8.20,   qty: 200, shipped: 0 },
+      ] },
+  ];
+
+  const money = n => n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const fmtDate = s => s ? new Date(s + "T00:00:00").toLocaleDateString("en-US", { year: "numeric", month: "short", day: "2-digit" }) : "—";
+  const itemTotal = l => l.shipped * l.price;            // Forms ITEM_TOTAL: quantity_shipped * price
+  const orderTotal = o => o.lines.reduce((s, l) => s + itemTotal(l), 0);
+  const esc = s => String(s).replace(/[&<>]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+
+  // ---------------- Shared renderers (header form + line grid) ----------------
+  function headerForm(o) {
+    const radio = (val, label) => `
+      <span class="radio ${o.pay === val ? "on" : ""}"><span class="dot"></span>${label}</span>`;
+    return `
+      <div class="form-layout">
+        <div class="field"><label>Order Id</label><div class="input readonly">${o.id}</div></div>
+        <div class="field col-span-2"><label>Customer Name</label><div class="input readonly">${esc(o.customer)}</div></div>
+
+        <div class="field"><label>Customer Id</label><div class="input">${o.custId}</div></div>
+        <div class="field"><label>Date Ordered</label><div class="input">${fmtDate(o.ordered)}</div></div>
+        <div class="field"><label>Date Shipped</label><div class="input ${o.shipped ? "" : "ghost"}">${fmtDate(o.shipped)}</div></div>
+
+        <div class="field col-span-2"><label>Sales Rep</label><div class="input readonly">${esc(o.rep)} <span style="color:var(--tertiary);margin-left:6px">#${o.repId}</span></div></div>
+        <div class="field"><label>Order Filled</label>
+          <span class="checkbox ${o.filled ? "on" : ""}"><span class="box"></span>${o.filled ? "Filled" : "Open"}</span>
+        </div>
+
+        <div class="field"><label>Payment Type</label>
+          <div class="radio-group">${radio("CASH", "Cash")}${radio("CREDIT", "Credit")}</div>
+        </div>
+      </div>`;
+  }
+
+  function lineGrid(o) {
+    const rows = o.lines.map(l => `
+      <tr>
+        <td class="num">${l.item}</td>
+        <td class="num">${l.prod}</td>
+        <td>${esc(l.desc)}</td>
+        <td class="num">${money(l.price)}</td>
+        <td class="num">${l.qty}</td>
+        <td class="num">${l.shipped}</td>
+        <td class="num">${money(itemTotal(l))}</td>
+      </tr>`).join("");
+    return `
+      <div class="grid-scroll">
+        <table class="grid">
+          <thead><tr>
+            <th class="num">Item</th><th class="num">Product</th><th>Description</th>
+            <th class="num">Price</th><th class="num">Qty</th><th class="num">Shipped</th><th class="num">Item Total</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+          <tfoot><tr>
+            <td colspan="6" class="num">Order Total</td>
+            <td class="num">${money(orderTotal(o))}</td>
+          </tr></tfoot>
+        </table>
+      </div>`;
+  }
+
+  function statusBadge(o) {
+    return o.filled
+      ? `<span class="badge filled"><span class="pip"></span>Filled</span>`
+      : `<span class="badge open"><span class="pip"></span>Open</span>`;
+  }
+
+  const REPS = [...new Set(ORDERS.map(o => o.rep))].sort();
+
+  // ---------------- VARIANT A — lookup search -> one order + prev/next ----------------
+  const stateA = {
+    idx: 0, query: "", open: false, matches: ORDERS.slice(),
+    advOpen: false,
+    adv: { customer: "", rep: "", dateFrom: "", dateTo: "", pay: "", status: "" },
+  };
+
+  function matchesA(o) {
+    const q = stateA.query.trim().toLowerCase();
+    if (q && !(String(o.id).includes(q) || o.customer.toLowerCase().includes(q) || o.rep.toLowerCase().includes(q))) return false;
+    const a = stateA.adv;
+    if (a.customer && !o.customer.toLowerCase().includes(a.customer.toLowerCase())) return false;
+    if (a.rep && o.rep !== a.rep) return false;
+    if (a.dateFrom && o.ordered < a.dateFrom) return false;
+    if (a.dateTo && o.ordered > a.dateTo) return false;
+    if (a.pay && o.pay !== a.pay) return false;
+    if (a.status === "filled" && !o.filled) return false;
+    if (a.status === "open" && o.filled) return false;
+    return true;
+  }
+
+  function advActive() {
+    const a = stateA.adv;
+    return !!(a.customer || a.rep || a.dateFrom || a.dateTo || a.pay || a.status);
+  }
+
+  function renderA() {
+    const slot = document.getElementById("variant-slot");
+    document.getElementById("subhead").textContent =
+      "Find one order, then step through matches with the pager — single-record, like the original form.";
+    document.getElementById("aside-slot").innerHTML = `
+      <div class="aside faithful">
+        <span class="tag">Variant A · ruleset-faithful</span>
+        <div><b>Lookup &rarr; load one order.</b> Mirrors Forms' single-record Execute Query on <code>S_ORD</code>
+        (<code>block-master-single</code> &rarr; <code>FormLayout</code>). Search/filter narrows to matches; you pick one; prev/next walks the set.</div>
+        <div class="loss" style="margin-top:6px"><b>Honest losses:</b> arbitrary QBE &rarr; curated filter (Id / customer); the record scrollbar &rarr; a prev/next pager. No grid-of-orders.</div>
+      </div>`;
+
+    const m = stateA.matches;
+    const cur = m[stateA.idx];
+    const a = stateA.adv;
+
+    const opts = stateA.open && stateA.query && !stateA.advOpen
+      ? `<div class="combo-pop">${
+          (m.length ? m : []).slice(0, 6).map((o, i) => `
+            <div class="opt ${i === 0 ? "active" : ""}" data-pick="${o.id}">
+              <span><span class="hl">#${o.id}</span> &nbsp; ${esc(o.customer)}</span>
+              <span class="meta">${fmtDate(o.ordered)} · ${o.rep}</span>
+            </div>`).join("") || `<div class="opt"><span class="meta">No matching orders</span></div>`
+        }</div>`
+      : "";
+
+    const repOpts = ['<option value="">Any rep</option>']
+      .concat(REPS.map(r => `<option value="${esc(r)}" ${a.rep === r ? "selected" : ""}>${esc(r)}</option>`)).join("");
+
+    const advPanel = stateA.advOpen ? `
+      <div class="adv-panel">
+        <div class="field"><label>Customer name</label><input class="input" id="advCustomer" value="${esc(a.customer)}" placeholder="contains…"></div>
+        <div class="field"><label>Sales rep</label><select class="input" id="advRep">${repOpts}</select></div>
+        <div class="field"><label>Payment type</label>
+          <select class="input" id="advPay">
+            <option value="">Any</option>
+            <option value="CASH"   ${a.pay === "CASH" ? "selected" : ""}>Cash</option>
+            <option value="CREDIT" ${a.pay === "CREDIT" ? "selected" : ""}>Credit</option>
+          </select>
+        </div>
+        <div class="field"><label>Ordered from</label><input type="date" class="input" id="advFrom" value="${a.dateFrom}"></div>
+        <div class="field"><label>Ordered to</label><input type="date" class="input" id="advTo" value="${a.dateTo}"></div>
+        <div class="field"><label>Status</label>
+          <select class="input" id="advStatus">
+            <option value="">Any</option>
+            <option value="filled" ${a.status === "filled" ? "selected" : ""}>Filled</option>
+            <option value="open"   ${a.status === "open" ? "selected" : ""}>Open</option>
+          </select>
+        </div>
+        <div class="adv-actions">
+          <button class="btn btn-primary" id="advApply">Apply filters</button>
+          <button class="btn btn-tertiary" id="advReset">Reset</button>
+        </div>
+      </div>` : "";
+
+    slot.innerHTML = `
+      <div class="card">
+        <div class="card-body">
+          <div class="searchbar">
+            <div class="field combo-wrap">
+              <label>Find order &mdash; by Id, customer or rep</label>
+              <input class="input" id="searchA" placeholder="e.g. 102, or “Womansport”" autocomplete="off" value="${esc(stateA.query)}">
+              ${opts}
+            </div>
+            <button class="btn btn-primary" id="searchBtn">Search</button>
+            <button class="btn btn-tertiary" id="clearA">Clear</button>
+          </div>
+          <button class="adv-toggle ${stateA.advOpen ? "open" : ""}" id="advToggle">
+            <span class="chev">&#8250;</span> Advanced search${advActive() ? ' <span style="color:var(--tertiary);font-weight:500">· active</span>' : ""}
+          </button>
+          ${advPanel}
+        </div>
+      </div>
+
+      ${cur ? `
+      <div class="card">
+        <div class="card-head">
+          <h2>Order #${cur.id}</h2>
+          ${statusBadge(cur)}
+          <span class="spacer"></span>
+          <div class="pager">
+            <button class="btn-icon" id="prevRec" ${stateA.idx === 0 ? "disabled" : ""} aria-label="Previous order">&#8249;</button>
+            <span class="count">Order <b>${stateA.idx + 1}</b> of <b>${m.length}</b></span>
+            <button class="btn-icon" id="nextRec" ${stateA.idx >= m.length - 1 ? "disabled" : ""} aria-label="Next order">&#8250;</button>
+          </div>
+        </div>
+        <div class="card-body">${headerForm(cur)}</div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h2>Line items</h2><span class="sub">${cur.lines.length} item(s)</span></div>
+        <div class="card-body" style="padding:0 4px 4px">${lineGrid(cur)}</div>
+      </div>` : `
+      <div class="card"><div class="empty">No order loaded. Search above to load one.</div></div>`}
+    `;
+
+    // wire search
+    const input = document.getElementById("searchA");
+    if (input) {
+      input.addEventListener("input", e => {
+        stateA.query = e.target.value;
+        stateA.open = true;
+        applyFilterA();
+      });
+      input.addEventListener("focus", () => { if (stateA.query) { stateA.open = true; renderA(); document.getElementById("searchA").focus(); moveCaretEnd(); } });
+    }
+    slot.querySelectorAll("[data-pick]").forEach(el =>
+      el.addEventListener("mousedown", e => {            // mousedown so it beats input blur
+        const id = +e.currentTarget.getAttribute("data-pick");
+        stateA.idx = stateA.matches.findIndex(o => o.id === id);
+        if (stateA.idx < 0) stateA.idx = 0;
+        stateA.open = false;
+        renderA();
+      }));
+    const clr = document.getElementById("clearA");
+    if (clr) clr.addEventListener("click", () => { stateA.query = ""; stateA.open = false; applyFilterA(true); });
+    const sb = document.getElementById("searchBtn");
+    if (sb) sb.addEventListener("click", () => { stateA.open = false; applyFilterA(true); });
+
+    // advanced search
+    const at = document.getElementById("advToggle");
+    if (at) at.addEventListener("click", () => { stateA.advOpen = !stateA.advOpen; stateA.open = false; renderA(); });
+    const apply = document.getElementById("advApply");
+    if (apply) apply.addEventListener("click", () => {
+      const val = id => { const el = document.getElementById(id); return el ? el.value.trim() : ""; };
+      stateA.adv = { customer: val("advCustomer"), rep: val("advRep"), dateFrom: val("advFrom"), dateTo: val("advTo"), pay: val("advPay"), status: val("advStatus") };
+      stateA.open = false;
+      applyFilterA(true);
+    });
+    const reset = document.getElementById("advReset");
+    if (reset) reset.addEventListener("click", () => {
+      stateA.adv = { customer: "", rep: "", dateFrom: "", dateTo: "", pay: "", status: "" };
+      applyFilterA(true);
+    });
+    const pr = document.getElementById("prevRec");
+    if (pr) pr.addEventListener("click", () => { if (stateA.idx > 0) { stateA.idx--; renderA(); } });
+    const nx = document.getElementById("nextRec");
+    if (nx) nx.addEventListener("click", () => { if (stateA.idx < stateA.matches.length - 1) { stateA.idx++; renderA(); } });
+  }
+
+  function moveCaretEnd() {
+    const el = document.getElementById("searchA");
+    if (el) { const v = el.value; el.value = ""; el.value = v; }
+  }
+
+  function applyFilterA(commit) {
+    stateA.matches = ORDERS.filter(matchesA);
+    if (commit) { stateA.idx = 0; }
+    else if (stateA.idx >= stateA.matches.length) stateA.idx = 0;
+    renderA();
+    if (!commit) { const el = document.getElementById("searchA"); if (el) { el.focus(); moveCaretEnd(); } }
+  }
+
+  // ---------------- VARIANT B — results grid -> click a row ----------------
+  const stateB = { query: "", selectedId: ORDERS[0].id };
+
+  function renderB() {
+    const slot = document.getElementById("variant-slot");
+    document.getElementById("subhead").textContent =
+      "Search returns a list of orders; click a row to load its details below — a master/detail grid.";
+    document.getElementById("aside-slot").innerHTML = `
+      <div class="aside diverges">
+        <span class="tag">Variant B · diverges from ruleset</span>
+        <div><b>Results grid &rarr; click to load.</b> More webby, but it resurrects PLAN's “master Grid” that
+        <code>block-master-single</code> deliberately rejected, and breaks the single-record fidelity the rest of the slice relies on.</div>
+        <div class="loss" style="margin-top:6px"><b>If chosen:</b> record an ADR superseding <code>block-master-single</code> for this form.</div>
+      </div>`;
+
+    const q = stateB.query.trim().toLowerCase();
+    const matches = q
+      ? ORDERS.filter(o => String(o.id).includes(q) || o.customer.toLowerCase().includes(q) || o.rep.toLowerCase().includes(q))
+      : ORDERS.slice();
+    if (!matches.some(o => o.id === stateB.selectedId)) stateB.selectedId = matches[0] ? matches[0].id : null;
+    const sel = ORDERS.find(o => o.id === stateB.selectedId);
+
+    const masterRows = matches.map(o => `
+      <tr class="${o.id === stateB.selectedId ? "selected" : ""}" data-row="${o.id}">
+        <td class="num">${o.id}</td>
+        <td>${esc(o.customer)}</td>
+        <td>${fmtDate(o.ordered)}</td>
+        <td>${fmtDate(o.shipped)}</td>
+        <td>${esc(o.rep)}</td>
+        <td>${o.pay === "CREDIT" ? "Credit" : "Cash"}</td>
+        <td>${statusBadge(o)}</td>
+        <td class="num">${money(orderTotal(o))}</td>
+      </tr>`).join("");
+
+    slot.innerHTML = `
+      <div class="card">
+        <div class="card-body">
+          <div class="searchbar">
+            <div class="field">
+              <label>Search orders &mdash; by Id, customer or rep</label>
+              <input class="input" id="searchB" placeholder="Filter the list…" autocomplete="off" value="${esc(stateB.query)}">
+            </div>
+            <button class="btn btn-tertiary" id="clearB">Clear</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h2>Orders</h2><span class="sub">${matches.length} result(s) · click a row to open</span></div>
+        <div class="grid-scroll">
+          <table class="grid selectable">
+            <thead><tr>
+              <th class="num">Id</th><th>Customer</th><th>Ordered</th><th>Shipped</th>
+              <th>Sales Rep</th><th>Payment</th><th>Status</th><th class="num">Total</th>
+            </tr></thead>
+            <tbody>${masterRows || `<tr><td colspan="8"><div class="empty">No matching orders.</div></td></tr>`}</tbody>
+          </table>
+        </div>
+      </div>
+
+      ${sel ? `
+      <div class="card">
+        <div class="card-head"><h2>Order #${sel.id}</h2>${statusBadge(sel)}<span class="sub" style="margin-left:8px">${esc(sel.customer)}</span></div>
+        <div class="card-body">${headerForm(sel)}</div>
+      </div>
+      <div class="card">
+        <div class="card-head"><h2>Line items</h2><span class="sub">${sel.lines.length} item(s)</span></div>
+        <div class="card-body" style="padding:0 4px 4px">${lineGrid(sel)}</div>
+      </div>` : ""}
+    `;
+
+    const input = document.getElementById("searchB");
+    if (input) input.addEventListener("input", e => { stateB.query = e.target.value; renderB(); const el = document.getElementById("searchB"); el.focus(); const v = el.value; el.value = ""; el.value = v; });
+    const clr = document.getElementById("clearB");
+    if (clr) clr.addEventListener("click", () => { stateB.query = ""; renderB(); });
+    slot.querySelectorAll("[data-row]").forEach(tr =>
+      tr.addEventListener("click", () => { stateB.selectedId = +tr.getAttribute("data-row"); renderB(); }));
+  }
+
+  // ---------------- VARIANT C — search/list page -> navigate to detail page ----------------
+  const stateC = { screen: "list", query: "", selectedId: null };
+
+  function matchesC() {
+    const q = stateC.query.trim().toLowerCase();
+    return q
+      ? ORDERS.filter(o => String(o.id).includes(q) || o.customer.toLowerCase().includes(q) || o.rep.toLowerCase().includes(q))
+      : ORDERS.slice();
+  }
+
+  function renderC() {
+    const slot = document.getElementById("variant-slot");
+    document.getElementById("aside-slot").innerHTML = `
+      <div class="aside diverges">
+        <span class="tag">Variant C · partial divergence</span>
+        <div><b>Search page &rarr; navigate to a detail page.</b> The most conventional web CRUD shape: a results list is a
+        <i>search index</i> you navigate <i>from</i>, and the order opens on its own focused route — the detail surface itself stays a single-record <code>FormLayout</code>.</div>
+        <div class="loss" style="margin-top:6px"><b>Tradeoff:</b> still surfaces a list of orders (softer divergence than B — it's a landing index, not a coordinated master block), and adds a route + navigation the original form never had. <b>If chosen:</b> note in an ADR how the search index relates to <code>block-master-single</code>.</div>
+      </div>`;
+
+    const matches = matchesC();
+
+    if (stateC.screen === "list") {
+      setCrumbs(`Summit&nbsp; / &nbsp;<b>Orders</b>`);
+      document.getElementById("subhead").textContent =
+        "Search for orders, then open one on its own page — a list view that routes to a detail view.";
+
+      const rows = matches.map(o => `
+        <tr data-open="${o.id}">
+          <td class="num">${o.id}</td>
+          <td>${esc(o.customer)}</td>
+          <td>${fmtDate(o.ordered)}</td>
+          <td>${fmtDate(o.shipped)}</td>
+          <td>${esc(o.rep)}</td>
+          <td>${o.pay === "CREDIT" ? "Credit" : "Cash"}</td>
+          <td>${statusBadge(o)}</td>
+          <td class="num">${money(orderTotal(o))}</td>
+          <td class="num"><span class="row-open">Open &#8250;</span></td>
+        </tr>`).join("");
+
+      slot.innerHTML = `
+        <div class="card">
+          <div class="card-body">
+            <div class="searchbar">
+              <div class="field">
+                <label>Search orders &mdash; by Id, customer or rep</label>
+                <input class="input" id="searchC" placeholder="Filter the list…" autocomplete="off" value="${esc(stateC.query)}">
+              </div>
+              <button class="btn btn-tertiary" id="clearC">Clear</button>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-head"><h2>Orders</h2><span class="sub">${matches.length} result(s)</span></div>
+          <div class="grid-scroll">
+            <table class="grid selectable">
+              <thead><tr>
+                <th class="num">Id</th><th>Customer</th><th>Ordered</th><th>Shipped</th>
+                <th>Sales Rep</th><th>Payment</th><th>Status</th><th class="num">Total</th><th></th>
+              </tr></thead>
+              <tbody>${rows || `<tr><td colspan="9"><div class="empty">No matching orders.</div></td></tr>`}</tbody>
+            </table>
+          </div>
+        </div>`;
+
+      const input = document.getElementById("searchC");
+      if (input) input.addEventListener("input", e => { stateC.query = e.target.value; renderC(); const el = document.getElementById("searchC"); el.focus(); const v = el.value; el.value = ""; el.value = v; });
+      const clr = document.getElementById("clearC");
+      if (clr) clr.addEventListener("click", () => { stateC.query = ""; renderC(); });
+      slot.querySelectorAll("[data-open]").forEach(tr =>
+        tr.addEventListener("click", () => { stateC.selectedId = +tr.getAttribute("data-open"); stateC.screen = "detail"; renderC(); window.scrollTo(0, 0); }));
+
+    } else {
+      // detail page
+      const pos = matches.findIndex(o => o.id === stateC.selectedId);
+      const o = ORDERS.find(x => x.id === stateC.selectedId);
+      setCrumbs(`Summit&nbsp; / &nbsp;<span style="cursor:pointer;text-decoration:underline" id="crumbBack">Orders</span>&nbsp; / &nbsp;<b>#${o.id}</b>`);
+      document.getElementById("subhead").textContent =
+        "Detail page — opened from the search list. Single-record, with a path back to results.";
+
+      slot.innerHTML = `
+        <button class="backlink" id="backC">&#8249; Back to results</button>
+        <div class="card">
+          <div class="card-head">
+            <h2>Order #${o.id}</h2>
+            ${statusBadge(o)}
+            <span class="sub" style="margin-left:8px">${esc(o.customer)}</span>
+            <span class="spacer"></span>
+            <div class="detail-pager">
+              <button class="btn-icon" id="cPrev" ${pos <= 0 ? "disabled" : ""} aria-label="Previous result">&#8249;</button>
+              <span class="pager count">Result <b>${pos + 1}</b> of <b>${matches.length}</b></span>
+              <button class="btn-icon" id="cNext" ${pos >= matches.length - 1 ? "disabled" : ""} aria-label="Next result">&#8250;</button>
+            </div>
+          </div>
+          <div class="card-body">${headerForm(o)}</div>
+        </div>
+        <div class="card">
+          <div class="card-head"><h2>Line items</h2><span class="sub">${o.lines.length} item(s)</span></div>
+          <div class="card-body" style="padding:0 4px 4px">${lineGrid(o)}</div>
+        </div>`;
+
+      const back = () => { stateC.screen = "list"; renderC(); window.scrollTo(0, 0); };
+      document.getElementById("backC").addEventListener("click", back);
+      const cb = document.getElementById("crumbBack");
+      if (cb) cb.addEventListener("click", back);
+      const cp = document.getElementById("cPrev");
+      if (cp) cp.addEventListener("click", () => { if (pos > 0) { stateC.selectedId = matches[pos - 1].id; renderC(); window.scrollTo(0, 0); } });
+      const cn = document.getElementById("cNext");
+      if (cn) cn.addEventListener("click", () => { if (pos < matches.length - 1) { stateC.selectedId = matches[pos + 1].id; renderC(); window.scrollTo(0, 0); } });
+    }
+  }
+
+  function setCrumbs(html) {
+    const el = document.querySelector(".appbar .crumbs");
+    if (el) el.innerHTML = html;
+  }
+
+  // ---------------- Variant switcher ----------------
+  const VARIANTS = [
+    { key: "A", name: "Lookup search → one order", render: renderA },
+    { key: "B", name: "Results grid → load below", render: renderB },
+    { key: "C", name: "Search page → detail page", render: renderC },
+  ];
+
+  function currentVariant() {
+    const p = new URLSearchParams(location.search).get("variant");
+    const i = VARIANTS.findIndex(v => v.key === (p || "").toUpperCase());
+    return i >= 0 ? i : 0;
+  }
+
+  function show(i) {
+    const v = VARIANTS[(i + VARIANTS.length) % VARIANTS.length];
+    document.getElementById("vk").textContent = v.key;
+    document.getElementById("vn").textContent = v.name;
+    setCrumbs(`Summit&nbsp; / &nbsp;<b>Orders</b>`);   // reset; C overrides on its detail page
+    try {
+      const u = new URL(location.href);
+      u.searchParams.set("variant", v.key);
+      history.replaceState(null, "", u);
+    } catch (e) { /* sandboxed: ignore */ }
+    v.render();
+  }
+
+  let cur = currentVariant();
+  document.getElementById("prev").addEventListener("click", () => { cur = (cur - 1 + VARIANTS.length) % VARIANTS.length; show(cur); });
+  document.getElementById("next").addEventListener("click", () => { cur = (cur + 1) % VARIANTS.length; show(cur); });
+  document.addEventListener("keydown", e => {
+    const t = e.target;
+    if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+    if (e.key === "ArrowLeft")  { cur = (cur - 1 + VARIANTS.length) % VARIANTS.length; show(cur); }
+    if (e.key === "ArrowRight") { cur = (cur + 1) % VARIANTS.length; show(cur); }
+  });
+
+  show(cur);
+</script>
