@@ -21,6 +21,9 @@
         <java.version>21</java.version>
         <vaadin.version>25.2.0</vaadin.version>
         <ojdbc.version>23.8.0.25.04</ojdbc.version>
+        <dramafinder.version>1.1.2</dramafinder.version>
+        <!-- Pinned to the Playwright version DramaFinder 1.1.2 is built against. -->
+        <playwright.version>1.59.0</playwright.version>
     </properties>
 
     <dependencyManagement>
@@ -56,6 +59,22 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- UI feedback loop: drive the running app in a real browser. DramaFinder wraps
+             Vaadin components in Playwright; the vaadin-playwright-test skill generates the
+             tests. See README "UI tests (Playwright + DramaFinder)". -->
+        <dependency>
+            <groupId>com.microsoft.playwright</groupId>
+            <artifactId>playwright</artifactId>
+            <version>${playwright.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.vaadin.addons</groupId>
+            <artifactId>dramafinder</artifactId>
+            <version>${dramafinder.version}</version>
             <scope>test</scope>
         </dependency>
     </dependencies>
