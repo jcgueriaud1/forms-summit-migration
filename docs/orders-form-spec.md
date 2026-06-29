@@ -12,14 +12,17 @@ form-specific facts here, not in `CONTEXT.md`. Open scope questions are marked
 |---|---|---|---|
 | `S_ORD` | master | `CV_ORDER` | one order |
 | `S_ITEM` | detail | `CV_ORDER` | order line items |
-| `S_INVENTORY` | sub-detail | `CV_INVENTORY` | auto-queried (deferred) stock for the current line's product; shown on a separate canvas toggled by `STOCK_BUTTON`. **IN SCOPE** — demonstrates a second coordination pattern (auto-query sub-detail) beyond master-detail. |
+| `S_INVENTORY` | sub-detail | `CV_INVENTORY` | auto-queried (deferred) stock for the current line's product; shown on a separate canvas toggled by `STOCK_BUTTON`. **OUT OF SCOPE for this PRD** — deferred to its own follow-up PRD (it demonstrates a second coordination pattern, auto-query sub-detail, that stretches this slice beyond the `S_ORD`/`S_ITEM` spine). |
 
 ## Slice scope (resolved)
 
-**In the build:** master-detail (`S_ORD`/`S_ITEM`) + totals + product LOV + locking
-+ **`S_INVENTORY` auto-query coordination**.
+**In the build:** master-detail (`S_ORD`/`S_ITEM`) + search/load (Variant A) + totals
++ product LOV + locking + commit.
 
 **Deferred — out of slice (but listed on the scorecard with a reason):**
+- **`S_INVENTORY` auto-query coordination** → **its own follow-up PRD**. Keeps this
+  PRD on the `S_ORD`/`S_ITEM` spine; the deferred/auto-query sub-detail is a distinct
+  coordination pattern worth its own slice.
 - Date LOVs (`date_ordered`/`date_shipped`) → trivially `DatePicker`.
 - Product image (filesystem TIFF, default-hidden, toggle button).
 - Coordination-control checkboxes (`IMMEDIATE`, `AUTO_QUERY`).
@@ -27,6 +30,33 @@ form-specific facts here, not in `CONTEXT.md`. Open scope questions are marked
 Relations:
 - `S_ORD_S_ITEM` — `S_ITEM.ord_id = S_ORD.id`, not deferred, no auto-query.
 - `S_ITEM_S_INVENTORY` — `s_item.product_id = s_inventory.product_id`, **deferred + auto-query**.
+
+## Search / query UX (resolved)
+
+The `S_ORD` master is a single-record queryable block (`block-master-single` →
+`FormLayout`). How Forms' Execute/Enter-Query surfaces on the web was prototyped
+(`docs/prototypes/orders-search-prototype.html`, three toggleable variants) and
+**resolved to Variant A — lookup search → load one order**:
+
+- A quick search (by order id / customer / sales rep) with autocomplete, plus an
+  **advanced search** panel (customer, rep, payment type, ordered date-range,
+  status) for the QBE-style multi-field case.
+- The chosen match loads into the header `FormLayout` + line-items `Grid`;
+  **prev/next** walks the result set (the record-scrollbar seam).
+- No grid-of-orders. Honest losses: arbitrary QBE → curated filter; record
+  scrollbar → prev/next pager.
+
+This is exactly what the `block-master-single` aiHint encodes; the prototype
+**confirms** the rule rather than changing it.
+
+**Rejected alternatives (recorded so they aren't re-litigated):**
+- **Variant B — results grid → load detail inline below.** Rejected: weird UX,
+  and it resurrects PLAN's master Grid that `block-master-single` deliberately
+  rejects, breaking single-record fidelity.
+- **Variant C — search page → navigate to a detail page.** A sound, conventional
+  web CRUD shape, but **too far from the Forms original** for this migration; it's
+  a good fit for a *different* application, not this one. No ADR superseding
+  `block-master-single` is needed (neither rejected option was adopted).
 
 ## Items of interest
 

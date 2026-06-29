@@ -1721,7 +1721,7 @@ blockClassifiers:
     when: databaseBlock == "true" and queryable == "true"
     target: FormLayout
     treatment: Automated
-    aiHint: "Queryable but single-record master (RecordsDisplayCount absent or 1) → single-record FormLayout, not a browsing Grid. Forms Execute/Enter-Query plus the record scrollbar become a filter/lookup that loads one record into the bound form; navigation between fetched records is a prev/next seam, not rows in a grid."
+    aiHint: "Queryable but single-record master (RecordsDisplayCount absent or 1) → single-record FormLayout, not a browsing Grid. Forms Execute/Enter-Query plus the record scrollbar become a filter/lookup that loads one record into the bound form; navigation between fetched records is a prev/next seam, not rows in a grid. Realize the lookup as a quick search (by id or identifying display fields) with autocomplete, plus an optional expandable advanced multi-field filter panel; the chosen match loads into the form and prev/next walks the result set. A results-grid that you browse-then-click (master Grid + inline or routed detail) is explicitly rejected for single-record masters — it reintroduces the Grid this rule avoids and breaks single-record fidelity; a routed search-index→detail-page split belongs to a different application shape, not this one."
   - id: block-control
     when: databaseBlock == "false"
     target: LayoutHost
