@@ -21,6 +21,7 @@ idiom and keeps the migration finding legible. Signals would add an unfamiliar
 reactive axis without changing what the POC demonstrates. The choice is reversible
 in principle but shapes the reactive model app-wide, so it is recorded.
 
-**Consequence / seam (scorecard behavioral-parity row):** invalid input can briefly
-exist on screen (no focus block); the commit gate guarantees nothing invalid
-commits. Honest loss vs Forms's modal navigation block.
+**Consequence / seam (scorecard behavioral-parity row):** invalid input is allowed
+on screen (no focus block). Invalid fields stay flagged as invalid, each showing the
+error message explaining why, until the user fixes them; the commit gate guarantees
+nothing invalid commits. Honest difference vs Forms's modal navigation block.
