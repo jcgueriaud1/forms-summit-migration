@@ -33,8 +33,8 @@ Stdlib only (Python 3.9+). No external dependencies.
   Nothing out-of-slice is silently dropped — see the gate below.
 - **Decision-free.** A Formula item's expression, a LOV's query, a relation's
   `DeleteRecord` are recorded verbatim. No Vaadin target, no layer assignment.
-- **Forms defaults injected, flagged.** Attributes absent in real exports
-  (`LockingMode`, `RecordsDisplayed`, `commitStyle`) are resolved to the Forms
+- **Forms defaults injected, flagged.** Attributes often absent in real exports
+  (`LockingMode`, the record-display count, `commitStyle`) are resolved to the Forms
   default and marked (`injected: true`, `source: derived(...)`), because the
   ruleset's predicates need them. This is the most generalizable correction the
   analyzer makes.
@@ -47,7 +47,7 @@ Stdlib only (Python 3.9+). No external dependencies.
 | `relationRole` | block | `master` / `detail` / `control` — from `<Relation>` topology, not `RecordsDisplayed` |
 | `databaseBlock`, `queryable` | block | base-table + query flow signals |
 | `lockingMode` | block | resolved value + `injected` flag (default `Automatic` = pessimistic) |
-| `derivedMultiRecord` | block | value + `source` (relation membership / scrollbar / `RecordsDisplayed`) |
+| `derivedMultiRecord` | block | value + `source` (`RecordsDisplayCount`, else relation membership) |
 | `commitStyle` | form | `COMMIT_FORM` when present |
 | `crud` | block | insert/update/delete/query allowed (+ `injected`) — editable vs read-only Grid, add/delete affordances |
 | `editability` | item | update/insert/query/enabled — which Grid columns are editable / read-only |

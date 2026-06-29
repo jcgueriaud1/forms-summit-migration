@@ -308,14 +308,18 @@ def analyze(path):
                          or yn(ba.get("DeleteAllowed")))
         lock_attr = ba.get("LockingMode")
         locking = {"value": lock_attr or "Automatic", "injected": lock_attr is None}
-        rd = ba.get("RecordsDisplayed")
-        scrollbar = bool(ba.get("ScrollbarLength") or ba.get("ScrollBarLength"))
+        # Forms exports the count as RecordsDisplayCount; older/edge exports use
+        # RecordsDisplayed. Read both so the explicit signal isn't lost.
+        rd = ba.get("RecordsDisplayCount") or ba.get("RecordsDisplayed")
         if rd is not None:
             multi = int(rd) > 1 if rd.isdigit() else None
-            src = "RecordsDisplayed"
+            src = "RecordsDisplayCount"
         else:
-            multi = is_detail or scrollbar
-            src = "derived(relation-membership/scrollbar)"
+            # No count attribute => Forms displays a single record. Only a
+            # detail block (rendered as a grid) is multi by topology; a block
+            # scrollbar just navigates records and is not a reliable signal.
+            multi = is_detail
+            src = "derived(relation-membership)"
 
         # base-table column types (verbatim) — the bean field types live here.
         data_source_columns = []

@@ -1696,9 +1696,11 @@ canvasTargets:
 # Drive Block → Vaadin container decisions for the scaffolder (ADR 0010).
 # Block shape is driven by relation topology + queryability, analyzer-supplied
 # operands: `relationRole` (master / detail / none), `deferred`, `autoQuery`,
-# `editable` (insert|update|delete allowed), `databaseBlock`, `queryable`.
-# "Multi-record" is derived from relation membership, not RecordsDisplayed
-# (absent in real FMB exports).
+# `editable` (insert|update|delete allowed), `databaseBlock`, `queryable`,
+# `multiRecord` (= derivedMultiRecord.value).
+# "Multi-record" reads the block's record-display count (`RecordsDisplayCount`,
+# count > 1); when the count is absent Forms displays a single record, so multi
+# falls back to relation topology — a detail block renders as a grid.
 blockClassifiers:
   - id: block-detail-readonly
     when: relationRole == "detail" and (deferred == "true" or autoQuery == "true" or editable == false)
@@ -1711,10 +1713,15 @@ blockClassifiers:
     treatment: Automated
     aiHint: "Editable detail Grid bound to the parent's selection. Items become Grid columns; per-column editability comes from each item's `editability` (read-only column where updateAllowed=false). Forms's insert-allowed-but-update-locked items (e.g. set-on-new-line-only) are a documented Grid editor seam — model as editable only in the new-row editor."
   - id: block-master-queryable
-    when: databaseBlock == "true" and queryable == "true"
+    when: databaseBlock == "true" and queryable == "true" and multiRecord == true
     target: Grid
     treatment: Automated
-    aiHint: "Independently-queryable base-table master → master browsing Grid + persistent filter bar + lazy DataProvider. Replaces Forms Execute/Enter-Query; arbitrary QBE collapses to a curated filter set."
+    aiHint: "Independently-queryable, multi-record base-table master (RecordsDisplayCount > 1) → master browsing Grid + persistent filter bar + lazy DataProvider. Replaces Forms Execute/Enter-Query; arbitrary QBE collapses to a curated filter set."
+  - id: block-master-single
+    when: databaseBlock == "true" and queryable == "true"
+    target: FormLayout
+    treatment: Automated
+    aiHint: "Queryable but single-record master (RecordsDisplayCount absent or 1) → single-record FormLayout, not a browsing Grid. Forms Execute/Enter-Query plus the record scrollbar become a filter/lookup that loads one record into the bound form; navigation between fetched records is a prev/next seam, not rows in a grid."
   - id: block-control
     when: databaseBlock == "false"
     target: LayoutHost
@@ -1730,7 +1737,7 @@ blockTargets:
   Grid:
     attributes:
       BlockName: { ignore: "Selector attribute used by classifier predicates" }
-      RecordsDisplayed: { ignore: "Selector attribute — drove the Grid vs FormLayout choice" }
+      RecordsDisplayCount: { ignore: "Selector attribute — feeds multiRecord, which drives the Grid vs FormLayout choice; not emitted as a setter" }
       Name: { ignore: "Becomes the Grid variable name in code, not a setter" }
       Label: { carry: setHeader }
       QueryDataSourceName: { ignore: "Database binding lives on the DataProvider, not the Grid" }
@@ -1753,7 +1760,7 @@ blockTargets:
   FormLayout:
     attributes:
       BlockName: { ignore: "Selector attribute used by classifier predicates" }
-      RecordsDisplayed: { ignore: "Selector attribute — drove the Grid vs FormLayout choice" }
+      RecordsDisplayCount: { ignore: "Selector attribute — feeds multiRecord, which drives the Grid vs FormLayout choice; not emitted as a setter" }
       Name: { ignore: "Becomes the layout variable name in code, not a setter" }
       Label: { carry: setText }
       QueryDataSourceName: { ignore: "Database binding lives on the Binder, not the layout" }
@@ -1776,7 +1783,7 @@ blockTargets:
 # ---- Policy-side rules — cross-cutting (transaction / concurrency / delete) -
 # Not per-component: predicates apply to Form / Block / Relation properties.
 # The analyzer injects Forms defaults where an attribute is absent (LockingMode
-# absent → pessimistic; same correction as RecordsDisplayed). Operands: `scope`
+# absent → pessimistic; RecordsDisplayCount absent → single record). Operands: `scope`
 # (Form / Block / Relation), `commitStyle`, `databaseBlock`, `LockingMode`,
 # `DeleteRecord`.
 policyClassifiers:
