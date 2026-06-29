@@ -1,78 +1,91 @@
 ---
 type: OKF Bundle
-title: Summit ORDERS — Referenced DB Objects
-description: Resolved DDL and signatures for the database objects the ORDERS structural spec defers to as "resolve from schema".
-resource: urn:summit:okf:orders-referenced-db-objects
-tags: [oracle, summit, orders, schema, reference]
-timestamp: 2026-06-26
+title: Summit Migration — Database Reference
+description: Pure database reference (DDL, columns, constraints, relationships) for the Summit objects in migration scope. Database facts only — no form behaviour.
+resource: urn:summit:okf:referenced-db-objects
+tags: [oracle, summit, migration, schema, reference]
+timestamp: 2026-06-29
 ---
 
-# Summit ORDERS — Referenced DB Objects (OKF bundle)
+# Summit Migration — Database Reference (OKF bundle)
 
 This is an [Open Knowledge Format](https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/main/okf/SPEC.md)
 bundle: a directory of Markdown-with-frontmatter concept files, one per database
-object. It **resolves** the objects that `docs/generated/ORDERS.spec.json` lists
-but does not contain — the entries under `referencedDbObjects` (marked
-`"unknown (resolve from schema)"`) plus the lookup tables the form's triggers
-`SELECT` against.
+object, for understanding the Summit database during the migration.
 
-It is **decision-free reference** (the same contract as the structural spec):
-it records what the objects *are*, not what they become in Vaadin. Migration
-decisions live in `docs/migration-rules.yaml`; per-form findings live in
-`docs/orders-form-spec.md`.
+It is **database facts only** — DDL, columns, constraints, and relationships —
+for the subset of objects the migration touches. It says what each object *is*;
+it does **not** describe how any form uses it. Form behaviour (which block,
+trigger, LOV or query reads an object) lives in the per-form structural specs
+(e.g. `docs/generated/ORDERS.spec.json`, `docs/orders-form-spec.md`) and the
+source `forms-summit-example/*.fmb.xml`. Migration decisions live in
+`docs/migration-rules.yaml`.
 
-Source of all DDL: `forms-summit-example/init-summit.sql` (line numbers cited per
-file). DDL is shown **portable** — Oracle storage/segment/`TABLESPACE "SYSTEM"`
-clauses stripped (see the `summit-dump-load-gotchas` note) so it can seed the
-container; the dump remains the authority.
+DDL is shown **portable** — Oracle storage/segment/`TABLESPACE "SYSTEM"` clauses
+stripped (see the `summit-dump-load-gotchas` note) so it can seed a container.
+The dump (`forms-summit-example/init-summit.sql`) remains the authority; line
+numbers are cited per file.
 
-## Contents
+## Scope
 
-### Base tables (the form's own blocks)
+This bundle is the **migration-relevant subset** of the schema, not the whole
+dump (`init-summit.sql` carries ~70 tables, most unrelated to the forms being
+migrated). The subset is **FK-closed**: every foreign-key target reachable from
+the documented objects is itself documented in this bundle.
 
-These back the `S_ORD` / `S_ITEM` / `S_INVENTORY` blocks. Their columns are
-already in `ORDERS.spec.json` as data-source columns; these files add the
-**constraints** (PKs, CHECKs, FKs) the spec omits but the build needs.
+## Objects
 
-| Concept | Type | Why ORDERS needs it |
+| Concept | Type | Summary |
 |---|---|---|
-| [tables/s_ord.md](tables/s_ord.md) | Oracle Table | `S_ORD` master block; PAYMENT_TYPE/ORDER_FILLED CHECKs; stored-`TOTAL` parked-task signal |
-| [tables/s_item.md](tables/s_item.md) | Oracle Table | `S_ITEM` detail block; composite PK explains `MAX(item_id)+1`; UK = product-once-per-order |
-| [tables/s_inventory.md](tables/s_inventory.md) | Oracle Table | `S_INVENTORY` sub-detail; composite PK `(PRODUCT_ID, WAREHOUSE_ID)` |
+| [tables/s_ord.md](tables/s_ord.md) | Oracle Table | Order master (header); PK from `S_ORD_ID`; CHECKs on PAYMENT_TYPE / ORDER_FILLED |
+| [tables/s_item.md](tables/s_item.md) | Oracle Table | Order line items; composite PK `(ORD_ID, ITEM_ID)`; UK `(ORD_ID, PRODUCT_ID)` |
+| [tables/s_inventory.md](tables/s_inventory.md) | Oracle Table | Per-warehouse stock; composite PK `(PRODUCT_ID, WAREHOUSE_ID)` |
+| [tables/s_customer.md](tables/s_customer.md) | Oracle Table | Customer master; CHECK on CREDIT_RATING |
+| [tables/s_emp.md](tables/s_emp.md) | Oracle Table | Employee master; UK on USERID; CHECK on COMMISSION_PCT; FKs to DEPT/TITLE/self |
+| [tables/s_product.md](tables/s_product.md) | Oracle Table | Product master; UK on NAME |
+| [tables/s_dept.md](tables/s_dept.md) | Oracle Table | Department lookup; UK `(NAME, REGION_ID)`; FK to S_REGION |
+| [tables/s_region.md](tables/s_region.md) | Oracle Table | Sales-region lookup; UK on NAME |
+| [tables/s_warehouse.md](tables/s_warehouse.md) | Oracle Table | Warehouse master; FKs to S_REGION and S_EMP |
+| [tables/s_image.md](tables/s_image.md) | Oracle Table | Image catalog (FILENAME + inline `LONG RAW`); CHECKs on FORMAT / USE_FILENAME |
+| [tables/s_longtext.md](tables/s_longtext.md) | Oracle Table | Long-text catalog (FILENAME + inline TEXT) |
+| [tables/s_title.md](tables/s_title.md) | Oracle Table | Job-title lookup; PK is the title string |
+| [tables/s_item_audit.md](tables/s_item_audit.md) | Oracle Table | Audit sink; one constant row per `S_ITEM` insert |
+| [sequences/s_ord_id.md](sequences/s_ord_id.md) | Oracle Sequence | PK generator for `S_ORD` |
+| [functions/get_product_image.md](functions/get_product_image.md) | Oracle Function | Returns a product's image filename (or `'No file'`) |
+| [triggers/audit_s_item.md](triggers/audit_s_item.md) | Oracle Trigger | `AFTER INSERT` on `S_ITEM` → constant row into `S_ITEM_AUDIT` |
 
-### Referenced objects (resolved from the dump)
+## Relationships (FK overview)
 
-These are read by the form's triggers/LOV but are not carried by the spec — the
-entries it marked `"resolve from schema"`.
+Within the bundle:
 
-| Concept | Type | Why ORDERS needs it |
-|---|---|---|
-| [tables/s_customer.md](tables/s_customer.md) | Oracle Table | `S_ORD.CUSTOMER_ID` WHEN-VALIDATE-ITEM + POST-QUERY name lookup; `PAYMENT_TYPE` credit check reads `CREDIT_RATING` |
-| [tables/s_emp.md](tables/s_emp.md) | Oracle Table | sales-rep name (`E.last_name`) for the `SALES_REP_NAME` display item |
-| [tables/s_product.md](tables/s_product.md) | Oracle Table | `PRODUCTS_LOV` query + `S_ITEM.PRODUCT_ID` WHEN-VALIDATE-ITEM defaulter (`name`, `suggested_whlsl_price`) |
-| [sequences/s_ord_id.md](sequences/s_ord_id.md) | Oracle Sequence | `S_ORD` PRE-INSERT new-order id (`S_ORD_ID.nextval`) |
-| [functions/get_product_image.md](functions/get_product_image.md) | Oracle Function | product-image filename lookup (deferred construct; `WHEN-NEW-RECORD-INSTANCE`) |
-| [triggers/audit_s_item.md](triggers/audit_s_item.md) | Oracle Trigger | fires on `S_ITEM` insert; boundary-rule proof point (**stays in DB**) |
+- `S_ORD.CUSTOMER_ID` → `S_CUSTOMER.ID`
+- `S_ORD.SALES_REP_ID` → `S_EMP.ID`
+- `S_ITEM.ORD_ID` → `S_ORD.ID`
+- `S_ITEM.PRODUCT_ID` → `S_PRODUCT.ID`
+- `S_INVENTORY.PRODUCT_ID` → `S_PRODUCT.ID`
+- `S_INVENTORY.WAREHOUSE_ID` → `S_WAREHOUSE.ID`
+- `S_CUSTOMER.SALES_REP_ID` → `S_EMP.ID`
+- `S_CUSTOMER.REGION_ID` → `S_REGION.ID`
+- `S_PRODUCT.IMAGE_ID` → `S_IMAGE.ID`
+- `S_PRODUCT.LONGTEXT_ID` → `S_LONGTEXT.ID`
+- `S_EMP.MANAGER_ID` → `S_EMP.ID` (self-reference)
+- `S_EMP.DEPT_ID` → `S_DEPT.ID`
+- `S_DEPT.REGION_ID` → `S_REGION.ID`
+- `S_WAREHOUSE.REGION_ID` → `S_REGION.ID`
+- `S_WAREHOUSE.MANAGER_ID` → `S_EMP.ID`
+- `S_EMP.TITLE` → `S_TITLE.TITLE`
 
-## Not resolvable from the DB dump
+All FK targets are documented in this bundle (FK-closed).
 
-- **`date_lov.get_date`** — the other `referencedDbObjects` entry. It is **not a
-  database object**; it lives in the Forms PL/SQL library `calendar.pll`
-  (`AttachedLibrary CALENDAR`). Deferred construct → maps to `DatePicker`
-  (`orders-form-spec.md` § Date LOVs). No DB signature to extract.
+## Key constraints
 
-## Constraint highlights (across the bundle)
-
-Constraints the structural spec omits but that materially shape the build,
-now captured per object:
-
-- `S_ITEM` PK = **composite `(ORD_ID, ITEM_ID)`** → the PRE-INSERT
-  `MAX(item_id)+1` per-order scheme; UK `(ORD_ID, PRODUCT_ID)` → a product
-  appears once per order (the `PRODUCT_LOV_BUTTON` `id NOT IN (...)` rule).
-- `S_ORD` CHECKs `PAYMENT_TYPE IN ('CASH','CREDIT')` and
-  `ORDER_FILLED IN ('Y','N')` → DB mirror of the radio group / checkbox sets.
-- `S_CUSTOMER` CHECK `CREDIT_RATING IN ('EXCELLENT','GOOD','POOR')` → but the
-  CREDIT payment trigger only accepts `('GOOD','EXCELLENT')`, so `'POOR'` is the
-  rating forced back to CASH.
-- `S_INVENTORY` PK = composite `(PRODUCT_ID, WAREHOUSE_ID)` → multi-record
-  sub-detail (one product, many warehouses).
+- `S_ITEM` — PK `(ORD_ID, ITEM_ID)` (item id scoped to the order); UK
+  `(ORD_ID, PRODUCT_ID)` (a product at most once per order).
+- `S_INVENTORY` — PK `(PRODUCT_ID, WAREHOUSE_ID)` (one row per product/warehouse).
+- `S_ORD` — CHECK `PAYMENT_TYPE IN ('CASH','CREDIT')`, CHECK `ORDER_FILLED IN ('Y','N')`.
+- `S_CUSTOMER` — CHECK `CREDIT_RATING IN ('EXCELLENT','GOOD','POOR')`.
+- `S_EMP` — UK `USERID`; CHECK `COMMISSION_PCT IN (10, 12.5, 15, 17.5, 20)`.
+- `S_PRODUCT` — UK `NAME`.
+- `S_DEPT` — UK `(NAME, REGION_ID)`. `S_REGION` — UK `NAME`.
+- `S_IMAGE` — CHECK `FORMAT IN ('JFIFF','JTIFF')`, CHECK `USE_FILENAME IN ('Y','N')`.
+- `S_LONGTEXT` — CHECK `USE_FILENAME IN ('Y','N')`.

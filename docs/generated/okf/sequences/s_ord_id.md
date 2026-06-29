@@ -1,16 +1,15 @@
 ---
 type: Oracle Sequence
 title: S_ORD_ID
-description: Order-id generator; supplies the new S_ORD.ID in the S_ORD PRE-INSERT trigger.
+description: Sequence generating primary-key values for S_ORD.
 resource: urn:oracle:summit:sequence:S_ORD_ID
-tags: [oracle, summit, sequence, orders]
-timestamp: 2026-06-26
+tags: [oracle, summit, sequence]
+timestamp: 2026-06-29
 ---
 
 # S_ORD_ID
 
-Sequence that generates primary keys for `S_ORD`. The ORDERS form draws the next
-value in the `S_ORD` PRE-INSERT trigger.
+Sequence that generates primary keys for [S_ORD](../tables/s_ord.md).
 
 Source: `forms-summit-example/init-summit.sql:232`.
 
@@ -35,16 +34,9 @@ CREATE SEQUENCE S_ORD_ID
 | Order | NOORDER |
 
 > The committed `init-summit.sql` already advances live data well past 50000;
-> seed data for the container should keep `START WITH` above the max existing
-> `S_ORD.ID` to avoid PK collisions on the first insert.
-
-## Used by ORDERS
-
-- **`S_ORD` PRE-INSERT** —
-  `SELECT S_ORD_ID.nextval INTO :S_ORD.id FROM SYS.DUAL;` with
-  `WHEN OTHERS` → "Faild to assign Order Id" (sic) + `form_trigger_failure`.
-  This is the new-order id assignment (stretch / create-from-scratch flow).
+> seed data for a fresh container should keep `START WITH` above the maximum
+> existing `S_ORD.ID` to avoid PK collisions on the first insert.
 
 ## Related
 
-- `../../orders-form-spec.md` § Triggers (PRE-INSERT)
+- [tables/s_ord.md](../tables/s_ord.md) — the table whose `ID` it feeds

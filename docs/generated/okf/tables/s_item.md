@@ -1,21 +1,18 @@
 ---
 type: Oracle Table
 title: S_ITEM
-description: Order line-item table — the ORDERS form's S_ITEM detail block base table.
+description: Order line-item table — one row per product line on an order.
 resource: urn:oracle:summit:table:S_ITEM
-tags: [oracle, summit, table, base-table, detail, orders]
-timestamp: 2026-06-26
+tags: [oracle, summit, table]
+timestamp: 2026-06-29
 ---
 
 # S_ITEM
 
-Order line items. Base table of the `S_ITEM` block (detail of `S_ORD_S_ITEM`,
-master of `S_ITEM_S_INVENTORY`). Columns are in `ORDERS.spec.json`; this file
-adds the **constraints** — notably the composite PK that explains the
-`MAX(item_id)+1` PRE-INSERT scheme.
+Order line items. Child of `S_ORD`; references `S_PRODUCT`.
 
 Source: `forms-summit-example/init-summit.sql:1216` (table), `:56766` (constraints),
-`:56993` (FKs), `:56429` (AUDIT_S_ITEM trigger).
+`:56993` (FKs), `:56429` (`AUDIT_S_ITEM` trigger).
 
 ## Schema
 
@@ -34,34 +31,27 @@ CREATE TABLE S_ITEM (
 );
 ```
 
-| Column | Type | Null | Notes |
+| Column | Type | Null | Constraint / notes |
 |---|---|---|---|
-| ORD_ID | NUMBER(7,0) | NOT NULL | PK part 1; FK → `S_ORD.ID`; copied from `S_ORD.ID` |
-| ITEM_ID | NUMBER(7,0) | NOT NULL | PK part 2; PRE-INSERT `NVL(MAX(item_id),0)+1` per order |
-| PRODUCT_ID | NUMBER(7,0) | NOT NULL | FK → `S_PRODUCT.ID`; LOV-bound; WHEN-VALIDATE-ITEM defaulter |
-| PRICE | NUMBER(11,2) | | defaulted from `S_PRODUCT.SUGGESTED_WHLSL_PRICE` |
-| QUANTITY | NUMBER(9,0) | | ordered qty |
-| QUANTITY_SHIPPED | NUMBER(9,0) | | **drives `ITEM_TOTAL` = qty_shipped × price**, not QUANTITY |
+| ORD_ID | NUMBER(7,0) | NOT NULL | PK part 1; FK → `S_ORD.ID` |
+| ITEM_ID | NUMBER(7,0) | NOT NULL | PK part 2 |
+| PRODUCT_ID | NUMBER(7,0) | NOT NULL | FK → `S_PRODUCT.ID` |
+| PRICE | NUMBER(11,2) | | |
+| QUANTITY | NUMBER(9,0) | | |
+| QUANTITY_SHIPPED | NUMBER(9,0) | | |
 
-> Form-only (non-DB) items on this block: `ITEM_TOTAL` (Formula),
-> `TOTAL` (Summary sum of ITEM_TOTAL), `DESCRIPTION`, `PRODUCT_IMAGE`,
-> `IMAGE_DESCRIPTION`. None are columns here.
+## Keys
 
-## Keys & cardinality
+- **Composite PK `(ORD_ID, ITEM_ID)`** — `ITEM_ID` is scoped to the order, not
+  globally unique.
+- **UK `(ORD_ID, PRODUCT_ID)`** — a given product appears at most once per order.
 
-- **Composite PK `(ORD_ID, ITEM_ID)`** → item ids are per-order, hence the
-  `MAX(item_id)+1` allocation rather than a sequence.
-- **UK `(ORD_ID, PRODUCT_ID)`** → a product appears at most once per order; this
-  is the rule the `PRODUCT_LOV_BUTTON` enforces with its `id NOT IN (...)`
-  exclusion list.
+## Relationships
 
-## Relations / triggers / DB objects
-
-- Detail of **`S_ORD_S_ITEM`**; master of **`S_ITEM_S_INVENTORY`**
-  (deferred + auto-query).
-- Triggers: PRE-INSERT (item id), POST-QUERY (description), WHEN-VALIDATE-ITEM
-  (product defaulter), WHEN-NEW-RECORD-INSTANCE (image), KEY-DELREC/DUPREC.
-- **[AUDIT_S_ITEM](../triggers/audit_s_item.md)** fires AFTER INSERT — stays in DB.
+- FK `ORD_ID` → [S_ORD](s_ord.md).ID (parent)
+- FK `PRODUCT_ID` → [S_PRODUCT](s_product.md).ID
+- Referenced by [S_INVENTORY](s_inventory.md) on `PRODUCT_ID` (shared product key)
+- DB trigger [AUDIT_S_ITEM](../triggers/audit_s_item.md) fires `AFTER INSERT`
 
 ## Related
 

@@ -1,17 +1,15 @@
 ---
 type: Oracle Table
 title: S_PRODUCT
-description: Product master; backs the PRODUCTS_LOV and the S_ITEM product defaulter (name + suggested price).
+description: Product master — one row per product.
 resource: urn:oracle:summit:table:S_PRODUCT
-tags: [oracle, summit, table, lookup, lov, orders]
-timestamp: 2026-06-26
+tags: [oracle, summit, table]
+timestamp: 2026-06-29
 ---
 
 # S_PRODUCT
 
-Product master. Two ORDERS constructs read it: the `PRODUCTS_LOV` picker and the
-`S_ITEM.PRODUCT_ID` WHEN-VALIDATE-ITEM defaulter (re-defaults description + price
-on any product change, including direct entry).
+Product master.
 
 Source: `forms-summit-example/init-summit.sql:1283` (table), `:56785` (constraints),
 `:57009` (FKs).
@@ -34,29 +32,25 @@ CREATE TABLE S_PRODUCT (
 );
 ```
 
-| Column | Type | Null | Notes |
+| Column | Type | Null | Constraint / notes |
 |---|---|---|---|
-| ID | NUMBER(7,0) | NOT NULL | PK; LOV return value → `S_ITEM.PRODUCT_ID` |
-| NAME | VARCHAR2(50) | NOT NULL | UK; LOV "Name" column + `S_ITEM.DESCRIPTION` defaulter |
-| SUGGESTED_WHLSL_PRICE | NUMBER(11,2) | | → `S_ITEM.PRICE` defaulter |
-| IMAGE_ID | NUMBER(7,0) | | FK → `S_IMAGE.ID`; path used by [GET_PRODUCT_IMAGE](../functions/get_product_image.md) |
-| (SHORT_DESC, LONGTEXT_ID, WHLSL_UNITS) | | | not used by ORDERS |
+| ID | NUMBER(7,0) | NOT NULL | PK |
+| NAME | VARCHAR2(50) | NOT NULL | UK |
+| SHORT_DESC | VARCHAR2(255) | | |
+| LONGTEXT_ID | NUMBER(7,0) | | FK → `S_LONGTEXT.ID` |
+| IMAGE_ID | NUMBER(7,0) | | FK → `S_IMAGE.ID` |
+| SUGGESTED_WHLSL_PRICE | NUMBER(11,2) | | |
+| WHLSL_UNITS | VARCHAR2(25) | | |
 
-## Used by ORDERS
+## Relationships
 
-- **`PRODUCTS_LOV`** — `Select id, name from s_product order by name`. Columns:
-  `ID` (Number, "Id", width 25, **returns to** `S_ITEM.PRODUCT_ID`); `NAME`
-  (Character, "Name", width 230, display-only). Picker returns the `id` only.
-- **`S_ITEM.PRODUCT_ID` WHEN-VALIDATE-ITEM** —
-  `SELECT name, suggested_whlsl_price INTO :S_ITEM.description, :S_ITEM.price
-  FROM S_PRODUCT WHERE :S_ITEM.product_id = id`. `NO_DATA_FOUND` → "Invalid
-  Product Id!". Fires on any product change, so it is distinct from the LOV.
-- **`S_ITEM` POST-QUERY** — `SELECT name INTO :S_ITEM.description ...` to fill the
-  display-only description on load.
-- **`GET_PRODUCT_IMAGE`** joins `S_PRODUCT.IMAGE_ID → S_IMAGE.ID` to find the
-  image filename.
+- FK `IMAGE_ID` → [S_IMAGE](s_image.md).ID; resolved to a filename by DB function
+  [GET_PRODUCT_IMAGE](../functions/get_product_image.md)
+- FK `LONGTEXT_ID` → [S_LONGTEXT](s_longtext.md).ID
+- Referenced by [S_ITEM](s_item.md).PRODUCT_ID and [S_INVENTORY](s_inventory.md).PRODUCT_ID
 
 ## Related
 
-- [functions/get_product_image.md](../functions/get_product_image.md)
-- `../../orders-form-spec.md` § LOV
+- [tables/s_image.md](s_image.md) · [tables/s_longtext.md](s_longtext.md)
+- [functions/get_product_image.md](../functions/get_product_image.md) — reads `IMAGE_ID`
+- [tables/s_item.md](s_item.md) · [tables/s_inventory.md](s_inventory.md)

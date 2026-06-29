@@ -1,21 +1,19 @@
 ---
 type: Oracle Trigger
 title: AUDIT_S_ITEM
-description: AFTER INSERT row trigger on S_ITEM that writes a constant audit row; captures no actor.
+description: AFTER INSERT row trigger on S_ITEM that writes a constant audit row.
 resource: urn:oracle:summit:trigger:AUDIT_S_ITEM
-tags: [oracle, summit, trigger, audit, orders, stays-in-db]
-timestamp: 2026-06-26
+tags: [oracle, summit, trigger]
+timestamp: 2026-06-29
 ---
 
 # AUDIT_S_ITEM
 
-Row-level `AFTER INSERT` trigger on `S_ITEM`. It inserts a single constant row
-into `S_ITEM_AUDIT (A NUMBER)` for every line item inserted. It is **not**
-referenced from the form (it fires transparently in the DB), but it is part of
-the ORDERS commit path and the project's boundary-rule proof point.
+Row-level `AFTER INSERT` trigger on [S_ITEM](../tables/s_item.md). For every line
+item inserted it writes a single constant row into
+[S_ITEM_AUDIT](../tables/s_item_audit.md).
 
-Source: `forms-summit-example/init-summit.sql:56429` (trigger),
-`:1234` (`S_ITEM_AUDIT` table).
+Source: `forms-summit-example/init-summit.sql:56429`.
 
 ## Definition (verbatim)
 
@@ -28,28 +26,18 @@ BEGIN
 END;
 ```
 
-Backing table:
+## Notes
 
-```sql
-CREATE TABLE S_ITEM_AUDIT ( A NUMBER );
-```
+- **Captures no actor** — writes the literal `1`; reads no `USER`, `SYS_CONTEXT`,
+  or `CLIENT_IDENTIFIER`.
+- Fires transparently inside the inserting transaction; not invoked by
+  application code.
 
-## Key finding
+## Relationships
 
-**Captures no actor** — no `USER`, no `SYS_CONTEXT`, no `CLIENT_IDENTIFIER`; it
-writes the literal `1`. This resolves the parked USER-vs-`SYS_CONTEXT` question:
-it reads *neither*, so the `CLIENT_IDENTIFIER` connection-pool bridge is **not
-exercised** by this slice and is dropped (a plain HikariCP pool suffices).
-
-## Migration note
-
-**Stays in DB.** It fires inside the Vaadin commit's transaction (the
-`@Transactional` whole-graph save) with zero Java written — "some things you
-don't migrate, and they keep working." Decision recorded in
-`orders-form-spec.md` § Server-side DB objects; this file is the resolved DDL
-behind it.
+- Defined on [S_ITEM](../tables/s_item.md); inserts into [S_ITEM_AUDIT](../tables/s_item_audit.md)
 
 ## Related
 
-- `../../orders-form-spec.md` § Server-side DB objects
-- `PLAN.md` § Server-side DB objects (boundary rule)
+- [tables/s_item.md](../tables/s_item.md) — the table it audits
+- [tables/s_item_audit.md](../tables/s_item_audit.md) — the audit sink

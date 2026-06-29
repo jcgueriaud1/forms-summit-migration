@@ -1,19 +1,18 @@
 ---
 type: Oracle Table
 title: S_EMP
-description: Employee master; supplies the sales-rep last name displayed on the ORDERS form.
+description: Employee master — one row per employee.
 resource: urn:oracle:summit:table:S_EMP
-tags: [oracle, summit, table, lookup, orders]
-timestamp: 2026-06-26
+tags: [oracle, summit, table]
+timestamp: 2026-06-29
 ---
 
 # S_EMP
 
-Employee master. ORDERS reads it only to resolve a sales rep's `LAST_NAME` for
-the display-only `S_ORD.SALES_REP_NAME` item (joined via
-`E.id = C.sales_rep_id`).
+Employee master.
 
-Source: `forms-summit-example/init-summit.sql:1157` (table), `:56971` (constraints).
+Source: `forms-summit-example/init-summit.sql:1157` (table), `:56674` (constraints),
+`:56975` (FKs).
 
 ## Schema
 
@@ -33,23 +32,34 @@ CREATE TABLE S_EMP (
   CONSTRAINT S_EMP_ID_PK     PRIMARY KEY (ID),
   CONSTRAINT S_EMP_USERID_UK UNIQUE (USERID),
   CONSTRAINT S_EMP_COMMISSION_PCT_CK
-    CHECK (COMMISSION_PCT IN (10, 12.5, 15, 17.5, 20))
+    CHECK (COMMISSION_PCT IN (10, 12.5, 15, 17.5, 20)),
+  CONSTRAINT S_EMP_MANAGER_ID_FK FOREIGN KEY (MANAGER_ID) REFERENCES S_EMP(ID),
+  CONSTRAINT S_EMP_DEPT_ID_FK    FOREIGN KEY (DEPT_ID)    REFERENCES S_DEPT(ID),
+  CONSTRAINT S_EMP_TITLE_FK      FOREIGN KEY (TITLE)      REFERENCES S_TITLE(TITLE)
 );
 ```
 
-| Column | Type | Null | Notes |
+| Column | Type | Null | Constraint / notes |
 |---|---|---|---|
-| ID | NUMBER(7,0) | NOT NULL | PK; target of `S_CUSTOMER.SALES_REP_ID` |
-| LAST_NAME | VARCHAR2(25) | NOT NULL | → `S_ORD.SALES_REP_NAME` display |
-| USERID | VARCHAR2(8) | | UK (login id) |
-| (FIRST_NAME, START_DATE, COMMENTS, MANAGER_ID, TITLE, DEPT_ID, SALARY, COMMISSION_PCT) | | | not used by ORDERS |
+| ID | NUMBER(7,0) | NOT NULL | PK |
+| LAST_NAME | VARCHAR2(25) | NOT NULL | |
+| FIRST_NAME | VARCHAR2(25) | | |
+| USERID | VARCHAR2(8) | | UK |
+| START_DATE | DATE | | |
+| COMMENTS | VARCHAR2(255) | | |
+| MANAGER_ID | NUMBER(7,0) | | FK → `S_EMP.ID` (self-reference) |
+| TITLE | VARCHAR2(25) | | FK → `S_TITLE.TITLE` |
+| DEPT_ID | NUMBER(7,0) | | FK → `S_DEPT.ID` |
+| SALARY | NUMBER(11,2) | | |
+| COMMISSION_PCT | NUMBER(4,2) | | CHECK `(10, 12.5, 15, 17.5, 20)` |
 
-## Used by ORDERS
+## Relationships
 
-- **`S_ORD.CUSTOMER_ID` WHEN-VALIDATE-ITEM** and **`S_ORD` POST-QUERY** — both
-  join `S_EMP E` on `E.id = C.sales_rep_id` to read `E.last_name` into
-  `:S_ORD.sales_rep_name`.
+- FK `MANAGER_ID` → `S_EMP.ID` (self-reference)
+- FK `DEPT_ID` → [S_DEPT](s_dept.md).ID
+- FK `TITLE` → [S_TITLE](s_title.md).TITLE
+- Referenced by [S_CUSTOMER](s_customer.md).SALES_REP_ID, [S_ORD](s_ord.md).SALES_REP_ID, [S_WAREHOUSE](s_warehouse.md).MANAGER_ID
 
 ## Related
 
-- [tables/s_customer.md](s_customer.md) — `SALES_REP_ID` FK target is this table
+- [tables/s_dept.md](s_dept.md) · [tables/s_title.md](s_title.md) · [tables/s_customer.md](s_customer.md) · [tables/s_ord.md](s_ord.md) · [tables/s_warehouse.md](s_warehouse.md)

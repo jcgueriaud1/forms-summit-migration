@@ -1,17 +1,15 @@
 ---
 type: Oracle Table
 title: S_ORD
-description: Order master table — the ORDERS form's S_ORD block base table.
+description: Order master table — order header, one row per order.
 resource: urn:oracle:summit:table:S_ORD
-tags: [oracle, summit, table, base-table, master, orders]
-timestamp: 2026-06-26
+tags: [oracle, summit, table]
+timestamp: 2026-06-29
 ---
 
 # S_ORD
 
-Order master. Base table of the `S_ORD` block (the master in the
-`S_ORD_S_ITEM` relation). Columns are also in `ORDERS.spec.json` as data-source
-columns; this file adds the **constraints** the spec omits.
+Order master (order header). Parent of `S_ITEM`.
 
 Source: `forms-summit-example/init-summit.sql:1263` (table), `:56906` (constraints),
 `:57001` (FKs).
@@ -36,30 +34,23 @@ CREATE TABLE S_ORD (
 );
 ```
 
-| Column | Type | Null | Notes |
+| Column | Type | Null | Constraint / notes |
 |---|---|---|---|
-| ID | NUMBER(7,0) | NOT NULL | PK; assigned from [S_ORD_ID](../sequences/s_ord_id.md) in PRE-INSERT |
+| ID | NUMBER(7,0) | NOT NULL | PK; values generated from sequence `S_ORD_ID` |
 | CUSTOMER_ID | NUMBER(7,0) | NOT NULL | FK → `S_CUSTOMER.ID` |
-| DATE_ORDERED | DATE | | item init `$$date$$`; calendar LOV |
-| DATE_SHIPPED | DATE | | calendar LOV; WHEN-VALIDATE-RECORD guards `>= DATE_ORDERED` |
-| SALES_REP_ID | NUMBER(7,0) | | FK → `S_EMP.ID`; defaulted from customer |
-| TOTAL | NUMBER(11,2) | | **stored column** — but the form's `TOTAL` item is a non-DB Summary; see note |
-| PAYMENT_TYPE | VARCHAR2(6) | | CHECK `('CASH','CREDIT')` — DB mirror of the radio group (init `CASH`) |
-| ORDER_FILLED | VARCHAR2(1) | | CHECK `('Y','N')` — DB mirror of the checkbox (init `N`) |
+| DATE_ORDERED | DATE | | |
+| DATE_SHIPPED | DATE | | |
+| SALES_REP_ID | NUMBER(7,0) | | FK → `S_EMP.ID` |
+| TOTAL | NUMBER(11,2) | | order total (stored column) |
+| PAYMENT_TYPE | VARCHAR2(6) | | CHECK `('CASH','CREDIT')` |
+| ORDER_FILLED | VARCHAR2(1) | | CHECK `('Y','N')` |
 
-> **Parked-task signal:** the form's `TOTAL` display item is a non-database
-> Summary item (`DatabaseItem="false"`), yet `S_ORD.TOTAL` exists as a real
-> column. So the order total is computed in-memory either way; the only open
-> question (PLAN.md parked task) is whether the commit also *writes* this column.
+## Relationships
 
-## Relations / triggers
-
-- Master of **`S_ORD_S_ITEM`** (`S_ITEM.ORD_ID = S_ORD.ID`, Non Isolated delete →
-  guard master delete while lines exist).
-- Block triggers: PRE-INSERT (seq id), PRE-QUERY / WHEN-CREATE-RECORD
-  (`GLOBAL.customer_id`), POST-QUERY (name lookups), WHEN-VALIDATE-RECORD (date
-  guard), plus the CUSTOMER_ID / PAYMENT_TYPE item triggers. See
-  `ORDERS.spec.json` and `orders-form-spec.md`.
+- PK `ID` ← sequence [S_ORD_ID](../sequences/s_ord_id.md)
+- FK `CUSTOMER_ID` → [S_CUSTOMER](s_customer.md).ID
+- FK `SALES_REP_ID` → [S_EMP](s_emp.md).ID
+- Referenced by [S_ITEM](s_item.md).ORD_ID (child line items)
 
 ## Related
 
