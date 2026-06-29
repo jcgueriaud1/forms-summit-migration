@@ -52,7 +52,7 @@ keys.
   "crud": { "insertAllowed", "updateAllowed", "deleteAllowed", "queryAllowed": bool,
             "injected": bool },   // absent in export => Forms default true; injected:true flags that
   "recordsDisplayed": "n" | null,
-  "derivedMultiRecord": { "value": bool|null, "source": "RecordsDisplayed" | "derived(relation-membership/scrollbar)" },
+  "derivedMultiRecord": { "value": bool|null, "source": "RecordsDisplayCount" | "derived(relation-membership)" },
   "lockingMode": { "value": "Automatic"|..., "injected": bool },
   "dataSourceColumns": [ { "name", "dscType", "precision", "scale", "length", "mandatory" }, ... ],
   "itemCount", "items": [ Item, ... ], "triggers": [ Trigger, ... ]
@@ -132,8 +132,11 @@ drop. See SKILL.md "Dependencies — ask, never silently drop".
   best-effort — a reviewer confirms.
 - **relationRole** — `detail` if the block is any relation's `DetailBlock`; else
   `master` if it is a database block; else `control`. Topology, not `RecordsDisplayed`.
-- **derivedMultiRecord** — uses `RecordsDisplayed` when present; otherwise derives
-  from relation membership (detail) or a block scrollbar. Absent in real exports.
+- **derivedMultiRecord** — uses the block's record-display count when present
+  (`RecordsDisplayCount`, falling back to `RecordsDisplayed`); otherwise the count
+  is absent, meaning Forms shows a single record, and multi is derived purely from
+  relation membership (a `detail` block renders as a grid). A block scrollbar is
+  not used — it navigates records rather than displaying many at once.
 - **lockingMode** — read from the block; if absent, injected as `Automatic`
   (Forms default = pessimistic across think-time) with `injected: true`.
 - **commitStyle** — `COMMIT_FORM` if any trigger body calls it.

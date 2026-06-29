@@ -27,8 +27,8 @@
       },
       "recordsDisplayed": null,
       "derivedMultiRecord": {
-        "value": true,
-        "source": "derived(relation-membership/scrollbar)"
+        "value": false,
+        "source": "derived(relation-membership)"
       },
       "lockingMode": {
         "value": "Automatic",
@@ -617,10 +617,10 @@
         "queryAllowed": true,
         "injected": true
       },
-      "recordsDisplayed": null,
+      "recordsDisplayed": "4",
       "derivedMultiRecord": {
         "value": true,
-        "source": "derived(relation-membership/scrollbar)"
+        "source": "RecordsDisplayCount"
       },
       "lockingMode": {
         "value": "Automatic",
@@ -1191,10 +1191,10 @@
         "queryAllowed": true,
         "injected": true
       },
-      "recordsDisplayed": null,
+      "recordsDisplayed": "4",
       "derivedMultiRecord": {
         "value": true,
-        "source": "derived(relation-membership/scrollbar)"
+        "source": "RecordsDisplayCount"
       },
       "lockingMode": {
         "value": "Automatic",
@@ -1527,8 +1527,8 @@
       },
       "recordsDisplayed": null,
       "derivedMultiRecord": {
-        "value": true,
-        "source": "derived(relation-membership/scrollbar)"
+        "value": false,
+        "source": "derived(relation-membership)"
       },
       "lockingMode": {
         "value": "Automatic",
