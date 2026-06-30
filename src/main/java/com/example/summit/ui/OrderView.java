@@ -4,16 +4,18 @@ import com.example.summit.domain.Order;
 import com.example.summit.domain.OrderLine;
 import com.example.summit.domain.OrderSummary;
 import com.example.summit.presenter.OrderPresenter;
+import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.checkbox.Checkbox;
 import com.vaadin.flow.component.combobox.ComboBox;
 import com.vaadin.flow.component.datepicker.DatePicker;
-import com.vaadin.flow.component.formlayout.FormLayout;
 import com.vaadin.flow.component.grid.Grid;
+import com.vaadin.flow.component.html.H2;
 import com.vaadin.flow.component.html.Paragraph;
 import com.vaadin.flow.component.notification.Notification;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
+import com.vaadin.flow.component.radiobutton.RadioButtonGroup;
 import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
@@ -21,8 +23,8 @@ import com.vaadin.flow.router.Route;
 /**
  * The ORDERS view — the faithful web rendering of Summit's {@code ORDERS} Forms window.
  * A clerk quick-searches by order id / customer / sales rep, picks a suggestion, and that
- * one {@code S_ORD} order loads into a <strong>read-only header {@link FormLayout}</strong>
- * with its {@code S_ITEM} line items below.
+ * one {@code S_ORD} order loads into a <strong>read-only header</strong> with its
+ * {@code S_ITEM} line items below.
  *
  * <h2>Layout topology (PRD #8, Step 1c — {@code migration-rules.yaml})</h2>
  * The view nests in the {@link MainLayout} {@code AppLayout} shell and lays the form's two
@@ -34,17 +36,23 @@ import com.vaadin.flow.router.Route;
  *       search, header and line items ({@code canvas-content}).</li>
  * </ul>
  * The non-database <b>{@code CONTROL}</b> block is a {@code LayoutHost} ({@code block-control}):
- * it is <em>not</em> rendered as a block. Its toolbar-docked push buttons are hoisted straight
- * into the toolbar {@link HorizontalLayout}. Their target behaviours (the {@code S_INVENTORY}
- * stock view, the product image, the help canvas, exit/menu wiring) are out of scope for this
- * PRD, so the buttons are present but deferred — each says where its behaviour lands rather than
- * faking it.
+ * its toolbar-docked push buttons are hoisted straight into the toolbar.
  *
- * <h2>Search UX</h2>
- * Variant A ({@code block-master-single}): Forms' single-record Enter-Query becomes a lookup
- * that loads one record, not a grid of orders. The read-only line-items {@link Grid} renders the
- * {@code S_ORD_S_ITEM} master-detail; header and detail load together and stay coordinated.
- * The advanced-search panel (#14) and the prev/next pager (#13) layer on in their own slices.
+ * <h2>Layout fidelity (ADR-0012 / ADR-0013)</h2>
+ * The header reproduces the Forms screen <em>structurally</em>, from the analyzer's layout
+ * signals — not an invented order:
+ * <ul>
+ *   <li><b>Field order</b> follows the {@code S_ORD} {@code layoutPlan} (Y-then-X): Order Id,
+ *       then the {@code Date Ordered / Customer Id / Customer Name} row, the
+ *       {@code Sales Rep Id / Sales Rep Name} row, the {@code Date Shipped / Order Filled} row,
+ *       then Payment Type — the order the clerk reads them in.</li>
+ *   <li><b>Grouping + title</b>: the Forms frame ({@code RECT59}) that boxes the header becomes
+ *       a titled section ({@code frame-group}), headed by the boilerplate text
+ *       <em>"Order Information"</em> ({@code boilerplate-heading} &rarr; {@link H2}).</li>
+ *   <li><b>Component type</b>: {@code PAYMENT_TYPE} is a Forms Radio Group, so it renders as a
+ *       {@link RadioButtonGroup} ({@code Cash} / {@code Credit}) — read-only here, not collapsed
+ *       to a text field. Read-only is a <em>state</em>, not a type (ADR-0013).</li>
+ * </ul>
  *
  * <p>The view holds no SQL — it talks only to the {@link OrderPresenter}
  * (View &larr; Presenter &larr; Service &larr; Data).
@@ -62,10 +70,11 @@ public class OrderView extends VerticalLayout {
     private final DatePicker dateShipped = new DatePicker("Date Shipped");
     private final TextField salesRepId = new TextField("Sales Rep Id");
     private final TextField salesRepName = new TextField("Sales Rep Name");
-    private final TextField paymentType = new TextField("Payment Type");
+    private final RadioButtonGroup<String> paymentType = new RadioButtonGroup<>("Payment Type");
     private final Checkbox orderFilled = new Checkbox("Order Filled");
 
-    private final FormLayout header = new FormLayout();
+    private final H2 orderInfoHeading = new H2("Order Information");
+    private final VerticalLayout headerSection = new VerticalLayout();
     private final Grid<OrderLine> lineItems = new Grid<>();
     private final Paragraph emptyHint = new Paragraph("Search for an order to load its header.");
 
@@ -74,7 +83,7 @@ public class OrderView extends VerticalLayout {
 
         buildHeader();
         buildLineItems();
-        header.setVisible(false);
+        headerSection.setVisible(false);
         lineItems.setVisible(false);
 
         setSizeFull();
@@ -91,9 +100,6 @@ public class OrderView extends VerticalLayout {
         HorizontalLayout toolbar = new HorizontalLayout();
         toolbar.setWidthFull();
         toolbar.setPadding(false);
-        // Hoisted CONTROL buttons. Their behaviours are deferred to later slices / a follow-up
-        // PRD (see this class's Javadoc and prd-orders-view.md "Out of Scope"); they are rendered
-        // to make the dissolved-CONTROL topology visible, not to fake the deferred behaviour.
         toolbar.add(
                 deferredButton("Stock",
                         "Stock view for the current line's product (S_INVENTORY) — deferred to its own follow-up PRD."),
@@ -120,13 +126,13 @@ public class OrderView extends VerticalLayout {
 
     /**
      * The {@code CV_ORDER} Content canvas ({@code canvas-content} &rarr; {@link VerticalLayout}):
-     * the Variant A lookup, the read-only {@code S_ORD} header {@link FormLayout}, and the
-     * {@code S_ITEM} line-items {@link Grid}.
+     * the Variant A lookup, the read-only {@code S_ORD} header section, and the {@code S_ITEM}
+     * line-items {@link Grid}.
      */
     private VerticalLayout buildContent() {
         VerticalLayout content = new VerticalLayout();
         content.setPadding(false);
-        content.add(buildSearch(), emptyHint, header, lineItems);
+        content.add(buildSearch(), emptyHint, headerSection, lineItems);
         return content;
     }
 
@@ -136,9 +142,6 @@ public class OrderView extends VerticalLayout {
         search.setPlaceholder("Order id, customer, or sales rep");
         search.setItemLabelGenerator(OrderView::suggestionLabel);
         // Server-side autocomplete: each keystroke runs the quick search through the presenter.
-        // The fetch must honor the ComboBox's lazy-loading window (offset/limit) or Vaadin
-        // rejects the result; the quick search is already capped at 50, so the first page
-        // holds every suggestion and later pages are empty.
         search.setItems(query -> presenter.suggest(query.getFilter().orElse("")).stream()
                 .skip(query.getOffset())
                 .limit(query.getLimit()));
@@ -158,6 +161,13 @@ public class OrderView extends VerticalLayout {
         return "#" + s.id() + " — " + s.customerName() + " (" + rep + ")";
     }
 
+    /**
+     * Builds the read-only "Order Information" section — the Forms frame ({@code RECT59})
+     * rendered as a titled grouping section ({@code frame-group}, ADR-0012). The header fields
+     * are placed in the {@code S_ORD} {@code layoutPlan} order and grouped into the rows the
+     * clerk reads them in. {@code PAYMENT_TYPE} stays a {@link RadioButtonGroup} (its Forms
+     * type), read-only via state, not flattened to a text field (ADR-0013).
+     */
     private void buildHeader() {
         orderId.setReadOnly(true);
         customerId.setReadOnly(true);
@@ -166,20 +176,36 @@ public class OrderView extends VerticalLayout {
         dateShipped.setReadOnly(true);
         salesRepId.setReadOnly(true);
         salesRepName.setReadOnly(true);
-        paymentType.setReadOnly(true);
         orderFilled.setReadOnly(true);
 
-        header.add(orderId, customerId, customerName,
-                dateOrdered, dateShipped,
-                salesRepId, salesRepName,
-                paymentType, orderFilled);
+        // Forms Radio Group → RadioButtonGroup (radio-group rule); options Cash=CASH, Credit=CREDIT.
+        paymentType.setItems("CASH", "CREDIT");
+        paymentType.setItemLabelGenerator(value -> "CASH".equals(value) ? "Cash" : "Credit");
+        paymentType.setReadOnly(true);
+
+        headerSection.setId("order-information");
+        headerSection.setPadding(false);
+        headerSection.setSpacing(false);
+        headerSection.add(
+                orderInfoHeading,
+                fieldRow(orderId),
+                fieldRow(dateOrdered, customerId, customerName),
+                fieldRow(salesRepId, salesRepName),
+                fieldRow(dateShipped, orderFilled),
+                fieldRow(paymentType));
+    }
+
+    /** One {@code layoutPlan} row (Forms reads fields left→right within a row). */
+    private HorizontalLayout fieldRow(Component... fields) {
+        HorizontalLayout row = new HorizontalLayout(fields);
+        row.setWidthFull();
+        return row;
     }
 
     /**
-     * The read-only detail grid over the order's {@code S_ITEM} lines. A plain {@link Grid}
-     * with explicit columns (no editor) — read-only by construction, matching the Step 1b
-     * scope. {@code Description} is the joined product name and {@code Item Total} is the
-     * domain {@link OrderLine#itemTotal()} formula ({@code quantity_shipped * price}).
+     * The read-only detail grid over the order's {@code S_ITEM} lines. {@code Description} is the
+     * joined product name and {@code Item Total} is the domain {@link OrderLine#itemTotal()}
+     * formula ({@code quantity_shipped * price}).
      */
     private void buildLineItems() {
         lineItems.addColumn(OrderLine::itemId).setHeader("Item").setAutoWidth(true);
@@ -200,20 +226,24 @@ public class OrderView extends VerticalLayout {
         dateShipped.setValue(order.dateShipped());
         salesRepId.setValue(order.salesRepId() == null ? "" : String.valueOf(order.salesRepId()));
         salesRepName.setValue(nullSafe(order.salesRepName()));
-        paymentType.setValue(nullSafe(order.paymentType()));
+        String pt = order.paymentType();
+        if ("CASH".equals(pt) || "CREDIT".equals(pt)) {
+            paymentType.setValue(pt);
+        } else {
+            paymentType.clear();
+        }
         orderFilled.setValue(order.orderFilled());
 
-        // S_ORD_S_ITEM coordination: the detail grid is reloaded with the picked order's
-        // lines, so switching orders replaces the contents (header and detail stay in sync).
+        // S_ORD_S_ITEM coordination: the detail grid is reloaded with the picked order's lines.
         lineItems.setItems(order.lines());
 
         emptyHint.setVisible(false);
-        header.setVisible(true);
+        headerSection.setVisible(true);
         lineItems.setVisible(true);
     }
 
     private void clearHeader() {
-        header.setVisible(false);
+        headerSection.setVisible(false);
         lineItems.setVisible(false);
         lineItems.setItems(java.util.Collections.emptyList());
         emptyHint.setVisible(true);

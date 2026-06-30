@@ -9,7 +9,10 @@ import org.vaadin.addons.dramafinder.element.ComboBoxElement;
 import org.vaadin.addons.dramafinder.element.DatePickerElement;
 import org.vaadin.addons.dramafinder.element.GridElement;
 import org.vaadin.addons.dramafinder.element.NotificationElement;
+import org.vaadin.addons.dramafinder.element.RadioButtonGroupElement;
 import org.vaadin.addons.dramafinder.element.TextFieldElement;
+
+import com.microsoft.playwright.options.AriaRole;
 
 import java.nio.file.Paths;
 import java.time.LocalDate;
@@ -74,7 +77,9 @@ public class OrderViewIT extends OracleSpringPlaywrightIT {
         TextFieldElement.getByLabel(page, "Customer Name").assertValue("Unisports");
         TextFieldElement.getByLabel(page, "Sales Rep Id").assertValue("1");
         TextFieldElement.getByLabel(page, "Sales Rep Name").assertValue("Magee");
-        TextFieldElement.getByLabel(page, "Payment Type").assertValue("CASH");
+        // PAYMENT_TYPE is a Forms Radio Group → RadioButtonGroup, read-only (ADR-0012/0013):
+        // its selected value is CASH, not a text field reading "CASH".
+        RadioButtonGroupElement.getByLabel(page, "Payment Type").assertValue("CASH");
         DatePickerElement.getByLabel(page, "Date Ordered").assertValue(LocalDate.of(1992, 8, 31));
         CheckboxElement.getByLabel(page, "Order Filled").assertChecked();
 
@@ -117,5 +122,58 @@ public class OrderViewIT extends OracleSpringPlaywrightIT {
         TextFieldElement.getByLabel(page, "Order Id").assertValue("50003");
         TextFieldElement.getByLabel(page, "Sales Rep Name").assertValue("");
         CheckboxElement.getByLabel(page, "Order Filled").assertNotChecked();
+    }
+
+    // ---- Layout-fidelity gate (ADR-0012) -------------------------------------------------
+    // The build-output completeness check, counterpart to the spec's form-object grain: every
+    // in-scope field, frame, and heading must render — in the form's order, as its mapped
+    // component type. These are the assertions that would have caught the four regressions a
+    // behaviour-only test sailed past (dropped title, flattened radio, reordered fields).
+
+    private void loadOrder() {
+        ComboBoxElement.getByLabel(page, "Find order")
+                .filterAndSelectItem("50001", "#50001 — Unisports (Magee)");
+    }
+
+    @Test
+    public void testOrderInformationHeadingIsPresent() {
+        // The "Order Information" boilerplate text (TEXT91) is a heading (boilerplate-heading
+        // → H2), not a dropped label — it titles the frame's grouping section.
+        loadOrder();
+        assertThat(page.getByRole(AriaRole.HEADING,
+                new Page.GetByRoleOptions().setName("Order Information"))).isVisible();
+    }
+
+    @Test
+    public void testPaymentTypeRendersAsARadioGroupNotATextField() {
+        loadOrder();
+        // Mapped component type is preserved: Payment Type is a radio group...
+        RadioButtonGroupElement payment = RadioButtonGroupElement.getByLabel(page, "Payment Type");
+        payment.assertValue("CASH");
+        // ...and is NOT a text field flattened from the radio (the original defect).
+        assertEquals(0, page.locator("vaadin-text-field")
+                .filter(new com.microsoft.playwright.Locator.FilterOptions().setHasText("Payment Type"))
+                .count());
+    }
+
+    @Test
+    public void testHeaderFieldOrderMatchesTheForm() {
+        // Field order is the form's order (S_ORD layoutPlan, Y-then-X), not an invented order.
+        // Read each header field's label in DOM document order (the search ComboBox and the Grid
+        // are not field hosts, so they are excluded by the selector).
+        loadOrder();
+        // Wait for the loaded header to render, then read labels scoped to the section (so the
+        // search ComboBox and the dev-tools banner are excluded).
+        page.locator("#order-information").waitFor();
+        @SuppressWarnings("unchecked")
+        List<Object> raw = (List<Object>) page.locator(
+                        "#order-information vaadin-text-field, #order-information vaadin-date-picker, "
+                                + "#order-information vaadin-radio-group, #order-information vaadin-checkbox")
+                .evaluateAll("els => els.map(e => e.label ?? null)");
+        List<String> order = raw.stream().map(o -> (String) o).toList();
+        assertEquals(List.of(
+                "Order Id", "Date Ordered", "Customer Id", "Customer Name",
+                "Sales Rep Id", "Sales Rep Name", "Date Shipped", "Order Filled", "Payment Type"),
+                order);
     }
 }
