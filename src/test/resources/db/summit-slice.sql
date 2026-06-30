@@ -6,7 +6,9 @@
 -- repository runs in production resolves against these tables here.
 --
 -- Out-of-slice FKs (S_EMP -> DEPT/TITLE/self, S_CUSTOMER -> REGION) are dropped so the
--- seed is FK-closed within the slice. Later slices extend this file (S_PRODUCT, S_ITEM).
+-- seed is FK-closed within the slice. S_PRODUCT / S_ITEM extend the spine for the
+-- read-only line-items grid (issue #11); S_PRODUCT out-of-slice FKs (LONGTEXT, IMAGE)
+-- are likewise dropped.
 
 CREATE TABLE s_emp (
   id         NUMBER(7,0)  NOT NULL,
@@ -52,4 +54,38 @@ INSERT INTO s_ord (id, customer_id, date_ordered, date_shipped, sales_rep_id, to
 INSERT INTO s_ord (id, customer_id, date_ordered, date_shipped, sales_rep_id, total, payment_type, order_filled)
   VALUES (50002, 202, DATE '1992-09-01', NULL, 2, 8056.60, 'CREDIT', 'N');
 INSERT INTO s_ord (id, customer_id, date_ordered, date_shipped, sales_rep_id, total, payment_type, order_filled)
-  VALUES (50003, 201, DATE '1992-09-02', NULL, NULL, 0.00, 'CASH', 'N')
+  VALUES (50003, 201, DATE '1992-09-02', NULL, NULL, 0.00, 'CASH', 'N');
+
+CREATE TABLE s_product (
+  id                    NUMBER(7,0)  NOT NULL,
+  name                  VARCHAR2(50) NOT NULL,
+  short_desc            VARCHAR2(255),
+  suggested_whlsl_price NUMBER(11,2),
+  CONSTRAINT s_product_id_pk PRIMARY KEY (id),
+  CONSTRAINT s_product_name_uk UNIQUE (name)
+);
+
+CREATE TABLE s_item (
+  ord_id           NUMBER(7,0) NOT NULL,
+  item_id          NUMBER(7,0) NOT NULL,
+  product_id       NUMBER(7,0) NOT NULL,
+  price            NUMBER(11,2),
+  quantity         NUMBER(9,0),
+  quantity_shipped NUMBER(9,0),
+  CONSTRAINT s_item_pk            PRIMARY KEY (ord_id, item_id),
+  CONSTRAINT s_item_ord_product_uk UNIQUE (ord_id, product_id),
+  CONSTRAINT s_item_ord_id_fk     FOREIGN KEY (ord_id)     REFERENCES s_ord(id),
+  CONSTRAINT s_item_product_id_fk FOREIGN KEY (product_id) REFERENCES s_product(id)
+);
+
+INSERT INTO s_product (id, name, short_desc, suggested_whlsl_price) VALUES (10011, 'Bunny Boot', 'Beginner ski boot', 56.60);
+INSERT INTO s_product (id, name, short_desc, suggested_whlsl_price) VALUES (20108, 'Ski Pole', 'Aluminium ski pole', 13.00);
+INSERT INTO s_product (id, name, short_desc, suggested_whlsl_price) VALUES (30421, 'Pro Ski Boot', 'Competition ski boot', 1000.00);
+INSERT INTO s_product (id, name, short_desc, suggested_whlsl_price) VALUES (41010, 'Ski Boots', 'All-mountain ski boot', 50.00);
+
+-- Line items. item_total = quantity_shipped * price (per orders-form-spec.md), so each
+-- order's lines sum to its S_ORD.total: 50001 -> 601.00, 50002 -> 8056.60, 50003 -> none.
+INSERT INTO s_item (ord_id, item_id, product_id, price, quantity, quantity_shipped) VALUES (50001, 1, 41010,   50.00,  5,  5);
+INSERT INTO s_item (ord_id, item_id, product_id, price, quantity, quantity_shipped) VALUES (50001, 2, 20108,   13.00, 27, 27);
+INSERT INTO s_item (ord_id, item_id, product_id, price, quantity, quantity_shipped) VALUES (50002, 1, 30421, 1000.00,  8,  8);
+INSERT INTO s_item (ord_id, item_id, product_id, price, quantity, quantity_shipped) VALUES (50002, 2, 10011,   56.60,  1,  1)

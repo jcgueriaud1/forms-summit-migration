@@ -6,12 +6,15 @@ import org.junit.jupiter.api.Test;
 import org.vaadin.addons.dramafinder.element.CheckboxElement;
 import org.vaadin.addons.dramafinder.element.ComboBoxElement;
 import org.vaadin.addons.dramafinder.element.DatePickerElement;
+import org.vaadin.addons.dramafinder.element.GridElement;
 import org.vaadin.addons.dramafinder.element.TextFieldElement;
 
 import java.nio.file.Paths;
 import java.time.LocalDate;
+import java.util.List;
 
 import static com.microsoft.playwright.assertions.PlaywrightAssertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
  * UI integration test for {@link OrderView} — the first real form migration (PRD #8,
@@ -62,6 +65,30 @@ public class OrderViewIT extends OracleSpringPlaywrightIT {
         page.screenshot(new Page.ScreenshotOptions()
                 .setPath(Paths.get("target/orders-view.png"))
                 .setFullPage(true));
+    }
+
+    @Test
+    public void testLoadingAnOrderShowsItsLineItemsAndSwitchingReplacesThem() {
+        ComboBoxElement search = ComboBoxElement.getByLabel(page, "Find order");
+        search.filterAndSelectItem("50001", "#50001 — Unisports (Magee)");
+
+        GridElement grid = GridElement.get(page);
+        grid.waitForGridToStopLoading();
+
+        // The columns the clerk recognizes from the Forms S_ITEM block.
+        assertEquals(List.of("Item", "Product", "Description", "Price", "Qty", "Qty Shipped", "Item Total"),
+                grid.getHeaderCellContents());
+
+        // 50001 has two lines, ordered by item_id, the product description joined onto the row.
+        assertEquals(2, grid.getTotalRowCount());
+        assertThat(grid.findRow(0).orElseThrow().getCell(2).getCellContentLocator()).hasText("Ski Boots");
+        assertThat(grid.findRow(1).orElseThrow().getCell(2).getCellContentLocator()).hasText("Ski Pole");
+
+        // S_ORD_S_ITEM coordination: picking another order replaces the grid contents.
+        search.filterAndSelectItem("50002", "#50002 — Womansport (Giljum)");
+        grid.waitForGridToStopLoading();
+        assertEquals(2, grid.getTotalRowCount());
+        assertThat(grid.findRow(0).orElseThrow().getCell(2).getCellContentLocator()).hasText("Pro Ski Boot");
     }
 
     @Test

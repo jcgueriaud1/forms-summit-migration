@@ -1,11 +1,13 @@
 package com.example.summit.data;
 
 import com.example.summit.domain.Order;
+import com.example.summit.domain.OrderLine;
 import com.example.summit.domain.OrderSearchCriteria;
 import com.example.summit.domain.OrderSummary;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -29,13 +31,17 @@ public class OrderRepository {
     }
 
     /**
-     * Loads one order's header with its customer and sales-rep <em>display names</em>
-     * resolved in a single round-trip — the join dissolves the two Forms POST-QUERY
-     * lookups ({@code customer_name}, {@code sales_rep_name}) with no N+1.
+     * Loads the whole order graph — header <em>and</em> its {@code S_ITEM} line items — on a
+     * single query path. The joins dissolve every Forms POST-QUERY lookup with no N+1:
+     * {@code customer_name} / {@code sales_rep_name} on the header, and each line's product
+     * {@code description} ({@code S_PRODUCT.name}) arrives on its own row.
      *
-     * <p>{@code S_CUSTOMER} is an inner join ({@code CUSTOMER_ID} is mandatory);
-     * {@code S_EMP} is a left join because {@code SALES_REP_ID} is nullable — an order
-     * with no sales rep still loads, with a {@code null} sales-rep name.
+     * <p>{@code S_CUSTOMER} is an inner join ({@code CUSTOMER_ID} is mandatory); the others are
+     * left joins: {@code S_EMP} because {@code SALES_REP_ID} is nullable (an order with no sales
+     * rep still loads), and {@code S_ITEM}/{@code S_PRODUCT} so an order with no line items still
+     * returns its header (with an empty {@link Order#lines()} list). One header row is repeated
+     * per line; a {@code ResultSetExtractor} folds the rows back into one aggregate, ordered by
+     * {@code item_id} so the detail grid mirrors the Forms block order.
      */
     public Optional<Order> loadGraph(long orderId) {
         return jdbcClient
@@ -43,24 +49,53 @@ public class OrderRepository {
                         SELECT o.id, o.customer_id, c.name AS customer_name,
                                o.date_ordered, o.date_shipped,
                                o.sales_rep_id, e.last_name AS sales_rep_name,
-                               o.payment_type, o.order_filled
+                               o.payment_type, o.order_filled,
+                               i.item_id, i.product_id, p.name AS product_name,
+                               i.price, i.quantity, i.quantity_shipped
                         FROM s_ord o
                         JOIN s_customer c ON c.id = o.customer_id
                         LEFT JOIN s_emp e ON e.id = o.sales_rep_id
+                        LEFT JOIN s_item i ON i.ord_id = o.id
+                        LEFT JOIN s_product p ON p.id = i.product_id
                         WHERE o.id = :id
+                        ORDER BY i.item_id
                         """)
                 .param("id", orderId)
-                .query((rs, rowNum) -> new Order(
-                        rs.getLong("id"),
-                        rs.getLong("customer_id"),
-                        rs.getString("customer_name"),
-                        rs.getObject("date_ordered", java.time.LocalDate.class),
-                        rs.getObject("date_shipped", java.time.LocalDate.class),
-                        rs.getObject("sales_rep_id", Long.class),
-                        rs.getString("sales_rep_name"),
-                        rs.getString("payment_type"),
-                        "Y".equals(rs.getString("order_filled"))))
-                .optional();
+                .query(rs -> {
+                    if (!rs.next()) {
+                        return Optional.<Order>empty();
+                    }
+                    // Header facts are identical on every row — read them once from the first.
+                    long id = rs.getLong("id");
+                    long customerId = rs.getLong("customer_id");
+                    String customerName = rs.getString("customer_name");
+                    LocalDate dateOrdered = rs.getObject("date_ordered", LocalDate.class);
+                    LocalDate dateShipped = rs.getObject("date_shipped", LocalDate.class);
+                    Long salesRepId = rs.getObject("sales_rep_id", Long.class);
+                    String salesRepName = rs.getString("sales_rep_name");
+                    String paymentType = rs.getString("payment_type");
+                    boolean orderFilled = "Y".equals(rs.getString("order_filled"));
+
+                    List<OrderLine> lines = new ArrayList<>();
+                    do {
+                        // A header with no lines still produces one row (left join), whose
+                        // item_id is null — skip it so the line list stays empty.
+                        Long itemId = rs.getObject("item_id", Long.class);
+                        if (itemId != null) {
+                            lines.add(new OrderLine(
+                                    itemId,
+                                    rs.getLong("product_id"),
+                                    rs.getString("product_name"),
+                                    rs.getBigDecimal("price"),
+                                    rs.getLong("quantity"),
+                                    rs.getLong("quantity_shipped")));
+                        }
+                    } while (rs.next());
+
+                    return Optional.of(new Order(
+                            id, customerId, customerName, dateOrdered, dateShipped,
+                            salesRepId, salesRepName, paymentType, orderFilled, List.copyOf(lines)));
+                });
     }
 
     /**
