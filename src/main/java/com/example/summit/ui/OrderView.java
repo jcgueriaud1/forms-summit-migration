@@ -4,29 +4,49 @@ import com.example.summit.domain.Order;
 import com.example.summit.domain.OrderLine;
 import com.example.summit.domain.OrderSummary;
 import com.example.summit.presenter.OrderPresenter;
+import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.checkbox.Checkbox;
 import com.vaadin.flow.component.combobox.ComboBox;
 import com.vaadin.flow.component.datepicker.DatePicker;
 import com.vaadin.flow.component.formlayout.FormLayout;
 import com.vaadin.flow.component.grid.Grid;
 import com.vaadin.flow.component.html.Paragraph;
+import com.vaadin.flow.component.notification.Notification;
+import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
 
 /**
- * The ORDERS view — the first real form migration (PRD #8, Step 1a). A clerk quick-
- * searches by order id / customer / sales rep, picks a suggestion, and that one
- * {@code S_ORD} order loads into a <strong>read-only header {@link FormLayout}</strong>.
+ * The ORDERS view — the faithful web rendering of Summit's {@code ORDERS} Forms window.
+ * A clerk quick-searches by order id / customer / sales rep, picks a suggestion, and that
+ * one {@code S_ORD} order loads into a <strong>read-only header {@link FormLayout}</strong>
+ * with its {@code S_ITEM} line items below.
  *
- * <p>This is the faithful web rendering of Forms' single-record Enter-Query on the
- * {@code S_ORD} master (Variant A, {@code block-master-single}): a lookup that loads
- * one record, not a grid of orders. Below the header, a <strong>read-only line-items
- * {@link Grid}</strong> renders the order's {@code S_ITEM} rows — the {@code S_ORD_S_ITEM}
- * master-detail. Header and detail load together and stay coordinated: picking another
- * order replaces both. Editing, totals, the pager and commit arrive in later slices. The
- * view holds no SQL — it talks only to the {@link OrderPresenter}
+ * <h2>Layout topology (PRD #8, Step 1c — {@code migration-rules.yaml})</h2>
+ * The view nests in the {@link MainLayout} {@code AppLayout} shell and lays the form's two
+ * in-scope canvases out as the ruleset prescribes:
+ * <ul>
+ *   <li><b>{@code TOOLBAR}</b> (Horizontal Toolbar canvas) &rarr; a {@link HorizontalLayout}
+ *       docked at the top ({@code canvas-horizontal-toolbar}).</li>
+ *   <li><b>{@code CV_ORDER}</b> (Content canvas) &rarr; a {@link VerticalLayout} holding the
+ *       search, header and line items ({@code canvas-content}).</li>
+ * </ul>
+ * The non-database <b>{@code CONTROL}</b> block is a {@code LayoutHost} ({@code block-control}):
+ * it is <em>not</em> rendered as a block. Its toolbar-docked push buttons are hoisted straight
+ * into the toolbar {@link HorizontalLayout}. Their target behaviours (the {@code S_INVENTORY}
+ * stock view, the product image, the help canvas, exit/menu wiring) are out of scope for this
+ * PRD, so the buttons are present but deferred — each says where its behaviour lands rather than
+ * faking it.
+ *
+ * <h2>Search UX</h2>
+ * Variant A ({@code block-master-single}): Forms' single-record Enter-Query becomes a lookup
+ * that loads one record, not a grid of orders. The read-only line-items {@link Grid} renders the
+ * {@code S_ORD_S_ITEM} master-detail; header and detail load together and stay coordinated.
+ * The advanced-search panel (#14) and the prev/next pager (#13) layer on in their own slices.
+ *
+ * <p>The view holds no SQL — it talks only to the {@link OrderPresenter}
  * (View &larr; Presenter &larr; Service &larr; Data).
  */
 @Route(value = "orders", layout = MainLayout.class)
@@ -52,11 +72,62 @@ public class OrderView extends VerticalLayout {
     public OrderView(OrderPresenter presenter) {
         this.presenter = presenter;
 
-        add(buildSearch(), emptyHint, header, lineItems);
         buildHeader();
         buildLineItems();
         header.setVisible(false);
         lineItems.setVisible(false);
+
+        setSizeFull();
+        add(buildToolbar(), buildContent());
+    }
+
+    /**
+     * The {@code TOOLBAR} canvas (Horizontal Toolbar &rarr; {@link HorizontalLayout}), docked at
+     * the top of the view. The {@code CONTROL} block dissolves here ({@code block-control}
+     * &rarr; {@code LayoutHost}): its toolbar-docked push buttons are hoisted directly into this
+     * row rather than wrapped in any block container.
+     */
+    private HorizontalLayout buildToolbar() {
+        HorizontalLayout toolbar = new HorizontalLayout();
+        toolbar.setWidthFull();
+        toolbar.setPadding(false);
+        // Hoisted CONTROL buttons. Their behaviours are deferred to later slices / a follow-up
+        // PRD (see this class's Javadoc and prd-orders-view.md "Out of Scope"); they are rendered
+        // to make the dissolved-CONTROL topology visible, not to fake the deferred behaviour.
+        toolbar.add(
+                deferredButton("Stock",
+                        "Stock view for the current line's product (S_INVENTORY) — deferred to its own follow-up PRD."),
+                deferredButton("Image On",
+                        "Product image (filesystem TIFF, default-hidden) — deferred; needs TIFF→PNG/JPEG conversion."),
+                deferredButton("Help",
+                        "Help canvas (CV_HELP) — out of scope for this PRD."),
+                deferredButton("Exit",
+                        "Exit / menu wiring — out of scope for this PRD."));
+        return toolbar;
+    }
+
+    /**
+     * A hoisted {@code CONTROL} toolbar button whose Forms behaviour is out of scope for this PRD.
+     * The button keeps its Forms label and explains, on click and via its tooltip, where the
+     * behaviour lands — an honest deferral rather than a dead control.
+     */
+    private Button deferredButton(String label, String deferredReason) {
+        Button button = new Button(label);
+        button.setTooltipText(deferredReason);
+        button.addClickListener(event -> Notification.show(label + " — not part of this slice. " + deferredReason));
+        return button;
+    }
+
+    /**
+     * The {@code CV_ORDER} Content canvas ({@code canvas-content} &rarr; {@link VerticalLayout}):
+     * the Variant A lookup, the read-only {@code S_ORD} header {@link FormLayout}, and the
+     * {@code S_ITEM} line-items {@link Grid}.
+     */
+    private VerticalLayout buildContent() {
+        VerticalLayout content = new VerticalLayout();
+        content.setPadding(false);
+        content.add(buildSearch(), emptyHint, header, lineItems);
+        return content;
     }
 
     private ComboBox<OrderSummary> buildSearch() {

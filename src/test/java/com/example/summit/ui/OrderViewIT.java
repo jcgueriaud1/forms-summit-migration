@@ -3,10 +3,12 @@ package com.example.summit.ui;
 import com.example.summit.it.support.OracleSpringPlaywrightIT;
 import com.microsoft.playwright.Page;
 import org.junit.jupiter.api.Test;
+import org.vaadin.addons.dramafinder.element.ButtonElement;
 import org.vaadin.addons.dramafinder.element.CheckboxElement;
 import org.vaadin.addons.dramafinder.element.ComboBoxElement;
 import org.vaadin.addons.dramafinder.element.DatePickerElement;
 import org.vaadin.addons.dramafinder.element.GridElement;
+import org.vaadin.addons.dramafinder.element.NotificationElement;
 import org.vaadin.addons.dramafinder.element.TextFieldElement;
 
 import java.nio.file.Paths;
@@ -35,6 +37,21 @@ public class OrderViewIT extends OracleSpringPlaywrightIT {
     @Test
     public void testTitle() {
         assertThat(page).hasTitle("Orders | Summit Migration POC");
+    }
+
+    @Test
+    public void testControlBlockButtonsAreHoistedIntoTheToolbar() {
+        // The CONTROL block dissolves (block-control → LayoutHost): its toolbar-docked buttons
+        // are hoisted into the surrounding layout, keeping their Forms labels.
+        ButtonElement.getByText(page, "Stock").assertVisible();
+        ButtonElement.getByText(page, "Image On").assertVisible();
+        ButtonElement.getByText(page, "Help").assertVisible();
+        ButtonElement exit = ButtonElement.getByText(page, "Exit");
+        exit.assertVisible();
+
+        // Their behaviours are deferred to later slices, surfaced honestly rather than faked.
+        exit.click();
+        NotificationElement.getByText(page, "Exit — not part of this slice.").assertOpen();
     }
 
     @Test
