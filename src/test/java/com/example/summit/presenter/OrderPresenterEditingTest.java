@@ -5,6 +5,7 @@ import com.example.summit.domain.OrderLine;
 import com.example.summit.domain.OrderSearchCriteria;
 import com.example.summit.domain.OrderSummary;
 import com.example.summit.service.OrderService;
+import com.example.summit.service.ProductService;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
@@ -46,7 +47,9 @@ class OrderPresenterEditingTest {
                 return Optional.of(ORDER);
             }
         };
-        OrderPresenter presenter = new OrderPresenter(service);
+        // This slice exercises only the line working-set; the product LOV/defaulter (issue #17) has
+        // its own test, so a null ProductService is enough — none of these tests reach it.
+        OrderPresenter presenter = new OrderPresenter(service, null);
         presenter.search(new OrderSearchCriteria("Unisports"));
         return presenter;
     }

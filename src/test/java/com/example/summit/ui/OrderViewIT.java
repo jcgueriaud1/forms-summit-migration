@@ -17,6 +17,7 @@ import org.vaadin.addons.dramafinder.element.TextFieldElement;
 
 import com.microsoft.playwright.options.AriaRole;
 
+import java.math.BigDecimal;
 import java.nio.file.Paths;
 import java.time.LocalDate;
 import java.util.List;
@@ -391,6 +392,80 @@ public class OrderViewIT extends OracleSpringPlaywrightIT {
         // listeners re-total live, so the footer reflects the new sum 5 * 60 + 27 * 13 = 651.
         new BigDecimalFieldElement(priceFieldLocator).setValue("60");
         assertThat(page.getByText("651", new Page.GetByTextOptions().setExact(true))).isVisible();
+    }
+
+    // ---- Product LOV + WHEN-VALIDATE-ITEM defaulter (issue #17) ------------------------------
+    // The Product column's editor is the PRODUCTS_LOV: a ComboBox showing "id — name" that writes
+    // back only the id, with the line's description and price re-defaulted from the chosen product
+    // on any product_id change — picked from the LOV or typed directly. An invalid id is rejected.
+
+    /** Loads order 50001 and opens the inline editor on its first line (the Product cell, column 1). */
+    private GridElement openFirstLineEditor() {
+        ComboBoxElement.getByLabel(page, "Find order")
+                .filterAndSelectItem("50001", "#50001 — Unisports (Magee)");
+        GridElement grid = GridElement.get(page);
+        grid.waitForGridToStopLoading();
+        // Wait until the first row has actually rendered before reaching into it (the rendered row
+        // range lags the load-stopped signal, otherwise findRow can NPE on an empty range).
+        page.waitForCondition(() -> grid.findRow(0).isPresent());
+        grid.findRow(0).orElseThrow().getCell(1).getCellContentLocator().dblclick();
+        return grid;
+    }
+
+    @Test
+    public void testProductLovShowsIdAndNameAndHoldsTheCurrentProduct() {
+        openFirstLineEditor();
+        // The LOV displays id + name, and on open holds the line's current product (41010 Ski Boots).
+        ComboBoxElement lov = new ComboBoxElement(page.locator("#line-product"));
+        lov.assertValue("41010 — Ski Boots");
+    }
+
+    @Test
+    public void testPickingAProductFromTheLovReDefaultsDescriptionAndPrice() {
+        openFirstLineEditor();
+
+        // Pick a different product: the WHEN-VALIDATE-ITEM defaulter re-defaults the line's
+        // description (S_PRODUCT.name) and price (suggested_whlsl_price) from the chosen product.
+        new ComboBoxElement(page.locator("#line-product")).selectItem("10011 — Bunny Boot");
+
+        // Description re-defaults to the product name, shown live in the open editor...
+        assertThat(page.locator("#line-description")).hasText("Bunny Boot");
+        // ...and the price re-defaults to Bunny Boot's suggested wholesale price (56.60). Compared
+        // numerically since the field renders the value at the NUMBER's natural scale ("56.6").
+        assertEquals(0, new BigDecimal("56.60").compareTo(new BigDecimal(editedPrice())));
+    }
+
+    @Test
+    public void testTypingAProductIdDirectlyReDefaultsTheLine() {
+        openFirstLineEditor();
+
+        // Direct entry (not a LOV pick): typing a valid product id re-defaults the line just the
+        // same — the defaulter fires on any product_id change. 20108 is the Ski Pole (13.00).
+        Locator lovInput = new ComboBoxElement(page.locator("#line-product")).getInputLocator();
+        lovInput.fill("20108");
+        lovInput.press("Enter");
+
+        assertThat(page.locator("#line-description")).hasText("Ski Pole");
+        assertEquals(0, new BigDecimal("13.00").compareTo(new BigDecimal(editedPrice())));
+    }
+
+    /** The current text in the open editor's price field (rendered at the NUMBER's natural scale). */
+    private String editedPrice() {
+        return new BigDecimalFieldElement(page.locator("vaadin-big-decimal-field")).getValue();
+    }
+
+    @Test
+    public void testTypingAnUnknownProductIdIsRejected() {
+        openFirstLineEditor();
+
+        // An invalid (non-existent) product id is the Forms NO_DATA_FOUND reject: cleared, with a
+        // clear message, and the line keeps its original product (Ski Boots) untouched.
+        Locator lovInput = new ComboBoxElement(page.locator("#line-product")).getInputLocator();
+        lovInput.fill("99999");
+        lovInput.press("Enter");
+
+        NotificationElement.getByText(page, "No product with id 99999.").assertOpen();
+        assertThat(page.locator("#line-description")).hasText("Ski Boots");
     }
 
     @Test
