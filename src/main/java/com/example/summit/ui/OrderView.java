@@ -1,9 +1,9 @@
 package com.example.summit.ui;
 
 import com.example.summit.domain.Order;
-import com.example.summit.domain.OrderLine;
 import com.example.summit.domain.OrderSearchCriteria;
 import com.example.summit.domain.OrderSummary;
+import com.example.summit.presenter.EditableLine;
 import com.example.summit.presenter.OrderPresenter;
 import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.button.Button;
@@ -13,6 +13,7 @@ import com.vaadin.flow.component.datepicker.DatePicker;
 import com.vaadin.flow.component.details.Details;
 import com.vaadin.flow.component.formlayout.FormLayout;
 import com.vaadin.flow.component.grid.Grid;
+import com.vaadin.flow.component.grid.editor.Editor;
 import com.vaadin.flow.component.html.H2;
 import com.vaadin.flow.component.html.Paragraph;
 import com.vaadin.flow.component.html.Span;
@@ -20,7 +21,10 @@ import com.vaadin.flow.component.notification.Notification;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.radiobutton.RadioButtonGroup;
+import com.vaadin.flow.component.textfield.BigDecimalField;
+import com.vaadin.flow.component.textfield.IntegerField;
 import com.vaadin.flow.component.textfield.TextField;
+import com.vaadin.flow.data.binder.Binder;
 import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
 
@@ -82,10 +86,20 @@ public class OrderView extends VerticalLayout {
 
     private final H2 orderInfoHeading = new H2("Order Information");
     private final VerticalLayout headerSection = new VerticalLayout();
-    private final Grid<OrderLine> lineItems = new Grid<>();
-    private Grid.Column<OrderLine> descriptionColumn;
-    private Grid.Column<OrderLine> itemTotalColumn;
+    private final Grid<EditableLine> lineItems = new Grid<>();
+    private Grid.Column<EditableLine> descriptionColumn;
+    private Grid.Column<EditableLine> itemTotalColumn;
+    // Read-only display of the edited row's ITEM_TOTAL, shown while its editor is open so the row
+    // total recomputes live without re-rendering (and closing) the editor.
+    private final Span itemTotalEditor = new Span();
     private final Paragraph emptyHint = new Paragraph(NO_ORDER_HINT);
+
+    // The detail-block editing controls (issue #16). Add appends a line with the next per-order
+    // item id and opens its editor; Remove deletes the selected line. They sit under the grid and
+    // share its visibility.
+    private final Button addLine = new Button("Add line");
+    private final Button removeLine = new Button("Remove line");
+    private final HorizontalLayout lineActions = new HorizontalLayout(addLine, removeLine);
 
     // Quick search (autocomplete picker) — by order id / customer / sales rep.
     private final ComboBox<OrderSummary> quickSearch = new ComboBox<>("Find order");
@@ -119,6 +133,7 @@ public class OrderView extends VerticalLayout {
         buildPager();
         headerSection.setVisible(false);
         lineItems.setVisible(false);
+        lineActions.setVisible(false);
         pager.setVisible(false);
 
         setSizeFull();
@@ -167,7 +182,7 @@ public class OrderView extends VerticalLayout {
     private VerticalLayout buildContent() {
         VerticalLayout content = new VerticalLayout();
         content.setPadding(false);
-        content.add(buildSearch(), buildAdvancedPanel(), pager, emptyHint, headerSection, lineItems);
+        content.add(buildSearch(), buildAdvancedPanel(), pager, emptyHint, headerSection, lineItems, lineActions);
         return content;
     }
 
@@ -319,19 +334,131 @@ public class OrderView extends VerticalLayout {
     }
 
     /**
-     * The read-only detail grid over the order's {@code S_ITEM} lines. {@code Description} is the
-     * joined product name and {@code Item Total} is the domain {@link OrderLine#itemTotal()}
-     * formula ({@code quantity_shipped * price}).
+     * The editable detail grid over the order's {@code S_ITEM} lines (issue #16). {@code Description}
+     * is the joined product name and {@code Item Total} is the domain {@link EditableLine#itemTotal()}
+     * formula ({@code quantity_shipped * price}). The clerk edits {@code Price}, {@code Qty} and
+     * {@code Qty Shipped} in place through the standard {@link Grid} editor; a double-click opens the
+     * row. Editing is unbuffered and bound through a {@link Binder} (ADR-0002, no Signals): each
+     * field's value-change listener writes the edit into the line and recomputes the row's item total
+     * and the order {@code TOTAL} footer live (the recompute runs through {@link OrderPresenter}).
      */
     private void buildLineItems() {
-        lineItems.addColumn(OrderLine::itemId).setHeader("Item").setAutoWidth(true);
-        lineItems.addColumn(OrderLine::productId).setHeader("Product").setAutoWidth(true);
-        descriptionColumn = lineItems.addColumn(OrderLine::productName).setHeader("Description").setFlexGrow(1);
-        lineItems.addColumn(OrderLine::price).setHeader("Price").setAutoWidth(true);
-        lineItems.addColumn(OrderLine::quantity).setHeader("Qty").setAutoWidth(true);
-        lineItems.addColumn(OrderLine::quantityShipped).setHeader("Qty Shipped").setAutoWidth(true);
-        itemTotalColumn = lineItems.addColumn(OrderLine::itemTotal).setHeader("Item Total").setAutoWidth(true);
+        lineItems.addColumn(EditableLine::getItemId).setHeader("Item").setAutoWidth(true);
+        lineItems.addColumn(EditableLine::getProductId).setHeader("Product").setAutoWidth(true);
+        descriptionColumn = lineItems.addColumn(EditableLine::getProductName).setHeader("Description").setFlexGrow(1);
+        Grid.Column<EditableLine> priceColumn =
+                lineItems.addColumn(EditableLine::getPrice).setHeader("Price").setAutoWidth(true);
+        Grid.Column<EditableLine> quantityColumn =
+                lineItems.addColumn(EditableLine::getQuantity).setHeader("Qty").setAutoWidth(true);
+        Grid.Column<EditableLine> quantityShippedColumn =
+                lineItems.addColumn(EditableLine::getQuantityShipped).setHeader("Qty Shipped").setAutoWidth(true);
+        itemTotalColumn = lineItems.addColumn(EditableLine::itemTotal).setHeader("Item Total").setAutoWidth(true);
         lineItems.setAllRowsVisible(true);
+        lineItems.setSelectionMode(Grid.SelectionMode.SINGLE);
+
+        // Unbuffered editor (ADR-0002): the Binder writes each field straight into the line as the
+        // clerk leaves it — no Save/Cancel step. quantity_shipped and price drive ITEM_TOTAL.
+        Editor<EditableLine> editor = lineItems.getEditor();
+        Binder<EditableLine> binder = new Binder<>(EditableLine.class);
+        editor.setBinder(binder);
+        editor.setBuffered(false);
+
+        BigDecimalField priceField = new BigDecimalField();
+        IntegerField quantityField = new IntegerField();
+        IntegerField quantityShippedField = new IntegerField();
+
+        binder.forField(priceField).bind(EditableLine::getPrice, EditableLine::setPrice);
+        // Quantities are domain longs; the IntegerField presents them and converts back, treating a
+        // cleared field as zero so the line stays summable.
+        binder.forField(quantityField)
+                .withConverter(value -> value == null ? 0L : value.longValue(), Long::intValue)
+                .bind(EditableLine::getQuantity, EditableLine::setQuantity);
+        binder.forField(quantityShippedField)
+                .withConverter(value -> value == null ? 0L : value.longValue(), Long::intValue)
+                .bind(EditableLine::getQuantityShipped, EditableLine::setQuantityShipped);
+
+        priceColumn.setEditorComponent(priceField);
+        quantityColumn.setEditorComponent(quantityField);
+        quantityShippedColumn.setEditorComponent(quantityShippedField);
+        // ITEM_TOTAL is computed, never typed — but in the editor it gets a read-only display so the
+        // row's item total visibly recomputes live as the clerk edits, without re-rendering (and
+        // tearing down) the open editor.
+        itemTotalColumn.setEditorComponent(itemTotalEditor);
+
+        // Live recompute: registered after bind() so the Binder's unbuffered write runs first and
+        // the bean already carries the new value when we re-total (ADR-0002 — listeners, not Signals).
+        priceField.addValueChangeListener(event -> onLineEdited());
+        quantityShippedField.addValueChangeListener(event -> onLineEdited());
+        quantityField.addValueChangeListener(event -> onLineEdited());
+
+        // Seed the live item-total display when the editor opens, and fold the final value back into
+        // the static cell when it closes (a refresh while editing would close the open editor).
+        editor.addOpenListener(event -> itemTotalEditor.setText(itemTotalText(event.getItem())));
+        editor.addCloseListener(event -> {
+            lineItems.getDataProvider().refreshItem(event.getItem());
+            refreshOrderTotal();
+        });
+
+        lineItems.addItemDoubleClickListener(event -> editor.editItem(event.getItem()));
+
+        addLine.setId("order-add-line");
+        addLine.addClickListener(event -> addLineItem());
+        removeLine.setId("order-remove-line");
+        removeLine.setEnabled(false);
+        removeLine.addClickListener(event -> removeSelectedLineItem());
+        lineItems.asSingleSelect().addValueChangeListener(
+                event -> removeLine.setEnabled(event.getValue() != null));
+        lineActions.setPadding(false);
+    }
+
+    /**
+     * Recomputes live as the clerk edits (the Binder has already written the field into the line):
+     * the edited row's item-total display and the order {@code TOTAL} footer. It deliberately does
+     * <em>not</em> refresh the grid row — doing so mid-edit re-renders and closes the open editor;
+     * the static row cell is reconciled instead when the editor closes.
+     */
+    private void onLineEdited() {
+        EditableLine edited = lineItems.getEditor().getItem();
+        if (edited != null) {
+            itemTotalEditor.setText(itemTotalText(edited));
+        }
+        refreshOrderTotal();
+    }
+
+    private static String itemTotalText(EditableLine line) {
+        return line.itemTotal().toPlainString();
+    }
+
+    /** Appends a new line (next per-order item id) and opens its editor for the clerk to fill. */
+    private void addLineItem() {
+        EditableLine line = presenter.addLine();
+        lineItems.getDataProvider().refreshAll();
+        refreshOrderTotal();
+        lineItems.getEditor().editItem(line);
+    }
+
+    /** Deletes the selected line (the in-memory detail delete), then re-totals. */
+    private void removeSelectedLineItem() {
+        EditableLine selected = lineItems.asSingleSelect().getValue();
+        if (selected == null) {
+            return;
+        }
+        if (lineItems.getEditor().isOpen()) {
+            lineItems.getEditor().closeEditor();
+        }
+        presenter.removeLine(selected);
+        lineItems.deselectAll();
+        lineItems.getDataProvider().refreshAll();
+        refreshOrderTotal();
+    }
+
+    /**
+     * Refreshes the {@code TOTAL} footer from {@link OrderPresenter#currentTotal()} — the {@code Sum}
+     * over the working lines' {@code ITEM_TOTAL}, recomputed live on every edit, add and delete.
+     */
+    private void refreshOrderTotal() {
+        descriptionColumn.setFooter("Total");
+        itemTotalColumn.setFooter(presenter.currentTotal().toPlainString());
     }
 
     private void showOrder(Order order) {
@@ -350,17 +477,19 @@ public class OrderView extends VerticalLayout {
         }
         orderFilled.setValue(order.orderFilled());
 
-        // S_ORD_S_ITEM coordination: the detail grid is reloaded with the picked order's lines.
-        lineItems.setItems(order.lines());
+        // S_ORD_S_ITEM coordination: the editable grid is reloaded with the picked order's working
+        // lines (the presenter seeded a fresh working set on load).
+        lineItems.getEditor().closeEditor();
+        lineItems.setItems(presenter.editableLines());
 
-        // Forms TOTAL (Summary=Sum over ITEM_TOTAL) → a read-only footer under the Item Total
-        // column, fed straight from the domain Order.total() (ADR-0001).
-        descriptionColumn.setFooter("Total");
-        itemTotalColumn.setFooter(order.total().toPlainString());
+        // Forms TOTAL (Summary=Sum over ITEM_TOTAL) → a footer under the Item Total column, fed from
+        // the presenter's live total so it tracks the working lines as they are edited (ADR-0001).
+        refreshOrderTotal();
 
         emptyHint.setVisible(false);
         headerSection.setVisible(true);
         lineItems.setVisible(true);
+        lineActions.setVisible(true);
         refreshPager();
     }
 
@@ -368,6 +497,8 @@ public class OrderView extends VerticalLayout {
         presenter.clear();
         headerSection.setVisible(false);
         lineItems.setVisible(false);
+        lineActions.setVisible(false);
+        lineItems.getEditor().closeEditor();
         lineItems.setItems(java.util.Collections.emptyList());
         emptyHint.setText(NO_ORDER_HINT);
         emptyHint.setVisible(true);
@@ -381,6 +512,8 @@ public class OrderView extends VerticalLayout {
     private void showNoMatches() {
         headerSection.setVisible(false);
         lineItems.setVisible(false);
+        lineActions.setVisible(false);
+        lineItems.getEditor().closeEditor();
         lineItems.setItems(java.util.Collections.emptyList());
         emptyHint.setText(NO_MATCH_HINT);
         emptyHint.setVisible(true);

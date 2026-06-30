@@ -108,6 +108,20 @@ class OrderRepositoryIT extends SummitDbIT {
         assertTrue(missing.isEmpty());
     }
 
+    // ---- nextItemId: the S_ITEM PRE-INSERT rule, proven per order against real data (issue #16) --
+
+    @Test
+    void nextItemIdIsMaxPlusOnePerOrder() {
+        // 50001 has items 1 and 2 -> next is 3, scoped to that order's own line set.
+        assertEquals(3L, repository.loadGraph(50001).orElseThrow().nextItemId());
+    }
+
+    @Test
+    void nextItemIdOfAnOrderWithNoLinesIsOne() {
+        // 50003 has no S_ITEM rows -> NVL(MAX(item_id),0)+1 = 1, the first line of the order.
+        assertEquals(1L, repository.loadGraph(50003).orElseThrow().nextItemId());
+    }
+
     @Test
     void findByCriteriaMatchesCustomerName() {
         List<OrderSummary> matches = repository.findByCriteria(new OrderSearchCriteria("womansport"));

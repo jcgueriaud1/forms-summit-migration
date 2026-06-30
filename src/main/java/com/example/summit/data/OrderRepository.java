@@ -175,4 +175,16 @@ public class OrderRepository {
                         rs.getObject("date_ordered", java.time.LocalDate.class)))
                 .list();
     }
+
+    /**
+     * Deletes the {@code S_ORD} master row, returning the number of rows removed (0 if the id was
+     * unknown). This is the bare master delete: the {@code S_ORD_S_ITEM} Non-Isolated guard that
+     * vetoes it while line items exist lives one layer up, in {@code OrderService.delete}
+     * ({@code delete-cascade-guard}) — the repository carries no policy, only SQL.
+     */
+    public int deleteOrder(long orderId) {
+        return jdbcClient.sql("DELETE FROM s_ord WHERE id = :id")
+                .param("id", orderId)
+                .update();
+    }
 }

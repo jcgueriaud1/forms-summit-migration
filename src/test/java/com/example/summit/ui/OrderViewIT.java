@@ -4,6 +4,7 @@ import com.example.summit.it.support.OracleSpringPlaywrightIT;
 import com.microsoft.playwright.Locator;
 import com.microsoft.playwright.Page;
 import org.junit.jupiter.api.Test;
+import org.vaadin.addons.dramafinder.element.BigDecimalFieldElement;
 import org.vaadin.addons.dramafinder.element.ButtonElement;
 import org.vaadin.addons.dramafinder.element.CheckboxElement;
 import org.vaadin.addons.dramafinder.element.ComboBoxElement;
@@ -332,6 +333,64 @@ public class OrderViewIT extends OracleSpringPlaywrightIT {
         TextFieldElement.getByLabel(page, "Order Id").assertValue("50001");
         assertThat(page.getByText("Record 1 of 2")).isVisible();
         previousRecord().assertDisabled();
+    }
+
+    // ---- Inline line-item editing + add / delete + live totals (issue #16) ------------------
+    // The S_ITEM detail block becomes editable: the clerk edits price/qty in place, adds a line
+    // (assigned MAX(item_id)+1), and removes one — with the order TOTAL footer recomputing live.
+
+    @Test
+    public void testAddingALineAssignsTheNextItemIdForThatOrder() {
+        ComboBoxElement search = ComboBoxElement.getByLabel(page, "Find order");
+        search.filterAndSelectItem("50001", "#50001 — Unisports (Magee)");
+
+        GridElement grid = GridElement.get(page);
+        grid.waitForGridToStopLoading();
+        assertEquals(2, grid.getTotalRowCount());
+
+        // Add line: 50001 has items 1 and 2, so the new line is item 3 (per-order MAX+1).
+        ButtonElement.getByText(page, "Add line").click();
+        // The click round-trips to the server (addLine + grid refresh) before the row count updates.
+        page.waitForCondition(() -> grid.getTotalRowCount() == 3);
+        assertThat(grid.findRow(2).orElseThrow().getCell(0).getCellContentLocator()).hasText("3");
+    }
+
+    @Test
+    public void testRemovingALineDropsItFromTheGrid() {
+        ComboBoxElement search = ComboBoxElement.getByLabel(page, "Find order");
+        search.filterAndSelectItem("50001", "#50001 — Unisports (Magee)");
+
+        GridElement grid = GridElement.get(page);
+        grid.waitForGridToStopLoading();
+        assertEquals(2, grid.getTotalRowCount());
+
+        // Select the first line and remove it — the detail in-memory delete.
+        grid.select(0);
+        ButtonElement.getByText(page, "Remove line").click();
+        page.waitForCondition(() -> grid.getTotalRowCount() == 1);
+    }
+
+    @Test
+    public void testEditingAPriceRecomputesTheOrderTotalLive() {
+        ComboBoxElement search = ComboBoxElement.getByLabel(page, "Find order");
+        search.filterAndSelectItem("50001", "#50001 — Unisports (Magee)");
+
+        GridElement grid = GridElement.get(page);
+        grid.waitForGridToStopLoading();
+        // On load: 5 * 50 + 27 * 13 = 601.
+        assertThat(page.getByText("601", new Page.GetByTextOptions().setExact(true))).isVisible();
+
+        // Double-click the first line's Price cell (column 3) to open the inline editor on the row.
+        grid.findRow(0).orElseThrow().getCell(3).getCellContentLocator().dblclick();
+
+        // The unbuffered editor's price field appears (the only big-decimal field on the page).
+        Locator priceFieldLocator = page.locator("vaadin-big-decimal-field");
+        assertThat(priceFieldLocator).isVisible();
+
+        // Re-price the boots at 60: the bound field writes the edit (unbuffered) and the value-change
+        // listeners re-total live, so the footer reflects the new sum 5 * 60 + 27 * 13 = 651.
+        new BigDecimalFieldElement(priceFieldLocator).setValue("60");
+        assertThat(page.getByText("651", new Page.GetByTextOptions().setExact(true))).isVisible();
     }
 
     @Test

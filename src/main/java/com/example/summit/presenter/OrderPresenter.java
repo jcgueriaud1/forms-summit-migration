@@ -8,6 +8,8 @@ import org.springframework.beans.factory.config.ConfigurableBeanFactory;
 import org.springframework.context.annotation.Scope;
 import org.springframework.stereotype.Component;
 
+import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -41,6 +43,13 @@ public class OrderPresenter {
 
     /** Zero-based cursor into {@link #resultSet}; {@code -1} when nothing is loaded. */
     private int position = -1;
+
+    /**
+     * The mutable working copies of the loaded order's lines — the editable grid's items and the
+     * source the live order {@link #currentTotal() total} is summed over (issue #16). Editing is
+     * in-memory this slice; persisting the working set is the commit slice's job.
+     */
+    private List<EditableLine> workingLines = new ArrayList<>();
 
     public OrderPresenter(OrderService orderService) {
         this.orderService = orderService;
@@ -130,13 +139,57 @@ public class OrderPresenter {
     public void clear() {
         this.resultSet = List.of();
         this.position = -1;
+        this.workingLines = new ArrayList<>();
+    }
+
+    // ---- In-memory line editing (issue #16) ---------------------------------------------------
+    // Loading an order seeds a fresh working set; the editable grid binds to it and the order
+    // total is summed over it live as the clerk edits, adds, or removes lines. ADR-0002: the
+    // presenter orchestrates the recompute (the view's Binder listeners call back in), no Signals.
+
+    /** The working lines of the loaded order — the editable grid's items. */
+    public List<EditableLine> editableLines() {
+        return workingLines;
+    }
+
+    /**
+     * Appends a new line with its assigned {@code item_id} — {@code NVL(MAX(item_id),0)+1} over the
+     * <em>working</em> lines, so an id added after other new lines still follows the per-order
+     * Forms {@code PRE-INSERT} rule ({@link Order#nextItemId(java.util.stream.LongStream)}). Returns
+     * the new line so the view can open the editor on it.
+     */
+    public EditableLine addLine() {
+        long itemId = Order.nextItemId(workingLines.stream().mapToLong(EditableLine::getItemId));
+        EditableLine line = EditableLine.blank(itemId);
+        workingLines.add(line);
+        return line;
+    }
+
+    /** Removes a line from the working set (the in-memory detail delete). */
+    public void removeLine(EditableLine line) {
+        workingLines.remove(line);
+    }
+
+    /**
+     * The live order {@code TOTAL} — the {@code Sum} over the working lines' {@code ITEM_TOTAL},
+     * recomputed from the current edits via the authoritative domain formula
+     * ({@link Order#total(List)}, ADR-0001). The view calls this to refresh the footer on every
+     * edit, add, and delete.
+     */
+    public BigDecimal currentTotal() {
+        return Order.total(workingLines.stream().map(EditableLine::toOrderLine).toList());
     }
 
     private Optional<Order> loadCurrent() {
         if (position < 0 || position >= resultSet.size()) {
             return Optional.empty();
         }
-        return orderService.load(resultSet.get(position).id());
+        Optional<Order> loaded = orderService.load(resultSet.get(position).id());
+        // A freshly loaded order seeds a fresh working set; a failed load leaves none.
+        this.workingLines = loaded
+                .map(order -> new ArrayList<>(order.lines().stream().map(EditableLine::new).toList()))
+                .orElseGet(ArrayList::new);
+        return loaded;
     }
 
     private int indexOf(long orderId) {

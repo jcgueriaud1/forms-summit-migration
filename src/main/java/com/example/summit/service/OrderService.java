@@ -1,6 +1,7 @@
 package com.example.summit.service;
 
 import com.example.summit.data.OrderRepository;
+import com.example.summit.domain.CascadeDeleteBlockedException;
 import com.example.summit.domain.Order;
 import com.example.summit.domain.OrderSearchCriteria;
 import com.example.summit.domain.OrderSummary;
@@ -34,5 +35,27 @@ public class OrderService {
     @Transactional(readOnly = true)
     public Optional<Order> load(long orderId) {
         return orderRepository.loadGraph(orderId);
+    }
+
+    /**
+     * Deletes an order, enforcing the {@code S_ORD_S_ITEM} <strong>Non-Isolated</strong>
+     * cascade-delete guard ({@code delete-cascade-guard}, issue #16): the order is loaded first,
+     * and if it still {@link Order#hasLineItems() has line items} the delete is vetoed with a
+     * {@link CascadeDeleteBlockedException} — so {@code S_ITEM} detail rows are never orphaned, the
+     * web counterpart of Forms' {@code ON-CHECK-DELETE-MASTER}. The guard decision is the domain's
+     * ({@code Order.hasLineItems}, ADR-0001); this Service method is the gate that acts on it.
+     * Deleting an unknown order is a no-op.
+     */
+    @Transactional
+    public void delete(long orderId) {
+        Optional<Order> order = orderRepository.loadGraph(orderId);
+        if (order.isEmpty()) {
+            return;
+        }
+        if (order.get().hasLineItems()) {
+            throw new CascadeDeleteBlockedException(
+                    "Cannot delete order #" + orderId + " while it still has line items.");
+        }
+        orderRepository.deleteOrder(orderId);
     }
 }
