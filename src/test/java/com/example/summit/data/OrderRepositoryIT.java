@@ -141,4 +141,53 @@ class OrderRepositoryIT extends SummitDbIT {
 
         assertEquals(List.of(50001L, 50002L, 50003L), matches.stream().map(OrderSummary::id).toList());
     }
+
+    // ---- Advanced search (issue #14): the QBE multi-field filter combines by AND -------------
+
+    @Test
+    void advancedFiltersCombineWithEachOtherByAnd() {
+        // Customer "Unisports" AND payment type CASH → the two Unisports CASH orders (50001, 50003);
+        // Womansport's CREDIT order (50002) is excluded because both clauses must hold.
+        List<OrderSummary> matches = repository.findByCriteria(new OrderSearchCriteria(
+                "", "Unisports", null, "CASH", null, null, null));
+
+        assertEquals(List.of(50001L, 50003L), matches.stream().map(OrderSummary::id).toList());
+    }
+
+    @Test
+    void advancedFiltersNarrowTheQuickTermByAnd() {
+        // Quick "Unisports" alone matches 50001 + 50003; AND order-filled = true narrows to 50001
+        // (50003 is not filled). Advanced criteria narrow the quick term, never widen it.
+        List<OrderSummary> matches = repository.findByCriteria(new OrderSearchCriteria(
+                "Unisports", null, null, null, null, null, Boolean.TRUE));
+
+        assertEquals(List.of(50001L), matches.stream().map(OrderSummary::id).toList());
+    }
+
+    @Test
+    void paymentTypeFilterMatchesExactly() {
+        List<OrderSummary> matches = repository.findByCriteria(new OrderSearchCriteria(
+                "", null, null, "CREDIT", null, null, null));
+
+        assertEquals(List.of(50002L), matches.stream().map(OrderSummary::id).toList());
+    }
+
+    @Test
+    void orderedDateRangeIsInclusiveOnBothBounds() {
+        // 50001 ordered 08-31, 50002 09-01, 50003 09-02. A 09-01..09-02 range includes both bounds
+        // (50002, 50003) and excludes 50001 just below the lower bound.
+        List<OrderSummary> matches = repository.findByCriteria(new OrderSearchCriteria(
+                "", null, null, null,
+                LocalDate.of(1992, 9, 1), LocalDate.of(1992, 9, 2), null));
+
+        assertEquals(List.of(50002L, 50003L), matches.stream().map(OrderSummary::id).toList());
+    }
+
+    @Test
+    void statusFilterMatchesUnfilledOrders() {
+        List<OrderSummary> matches = repository.findByCriteria(new OrderSearchCriteria(
+                "", null, null, null, null, null, Boolean.FALSE));
+
+        assertEquals(List.of(50002L, 50003L), matches.stream().map(OrderSummary::id).toList());
+    }
 }

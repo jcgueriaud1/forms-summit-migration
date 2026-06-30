@@ -2,6 +2,7 @@ package com.example.summit.ui;
 
 import com.example.summit.domain.Order;
 import com.example.summit.domain.OrderLine;
+import com.example.summit.domain.OrderSearchCriteria;
 import com.example.summit.domain.OrderSummary;
 import com.example.summit.presenter.OrderPresenter;
 import com.vaadin.flow.component.Component;
@@ -9,6 +10,8 @@ import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.checkbox.Checkbox;
 import com.vaadin.flow.component.combobox.ComboBox;
 import com.vaadin.flow.component.datepicker.DatePicker;
+import com.vaadin.flow.component.details.Details;
+import com.vaadin.flow.component.formlayout.FormLayout;
 import com.vaadin.flow.component.grid.Grid;
 import com.vaadin.flow.component.html.H2;
 import com.vaadin.flow.component.html.Paragraph;
@@ -62,6 +65,9 @@ import com.vaadin.flow.router.Route;
 @PageTitle("Orders | Summit Migration POC")
 public class OrderView extends VerticalLayout {
 
+    private static final String NO_ORDER_HINT = "Search for an order to load its header.";
+    private static final String NO_MATCH_HINT = "No orders match your search.";
+
     private final OrderPresenter presenter;
 
     private final TextField orderId = new TextField("Order Id");
@@ -77,7 +83,21 @@ public class OrderView extends VerticalLayout {
     private final H2 orderInfoHeading = new H2("Order Information");
     private final VerticalLayout headerSection = new VerticalLayout();
     private final Grid<OrderLine> lineItems = new Grid<>();
-    private final Paragraph emptyHint = new Paragraph("Search for an order to load its header.");
+    private final Paragraph emptyHint = new Paragraph(NO_ORDER_HINT);
+
+    // Quick search (autocomplete picker) — by order id / customer / sales rep.
+    private final ComboBox<OrderSummary> quickSearch = new ComboBox<>("Find order");
+
+    // Advanced search (the QBE replacement): each field AND-narrows the quick term. A blank
+    // field is "not set" and contributes no predicate; Clear resets every field at once.
+    private final TextField customerFilter = new TextField("Customer");
+    private final TextField salesRepFilter = new TextField("Sales Rep");
+    private final ComboBox<String> paymentTypeFilter = new ComboBox<>("Payment Type");
+    private final DatePicker orderedFromFilter = new DatePicker("Ordered from");
+    private final DatePicker orderedToFilter = new DatePicker("Ordered to");
+    private final ComboBox<String> statusFilter = new ComboBox<>("Status");
+    private final Button searchButton = new Button("Search");
+    private final Button clearButton = new Button("Clear");
 
     // The replacement for Forms' record scrollbar: prev/next step through the result set, with a
     // "record N of M" indicator. The position lives in the presenter (issue #13); this is its view.
@@ -145,7 +165,7 @@ public class OrderView extends VerticalLayout {
     private VerticalLayout buildContent() {
         VerticalLayout content = new VerticalLayout();
         content.setPadding(false);
-        content.add(buildSearch(), pager, emptyHint, headerSection, lineItems);
+        content.add(buildSearch(), buildAdvancedPanel(), pager, emptyHint, headerSection, lineItems);
         return content;
     }
 
@@ -174,27 +194,80 @@ public class OrderView extends VerticalLayout {
     }
 
     private ComboBox<OrderSummary> buildSearch() {
-        ComboBox<OrderSummary> search = new ComboBox<>("Find order");
-        search.setWidth("420px");
-        search.setPlaceholder("Order id, customer, or sales rep");
-        search.setItemLabelGenerator(OrderView::suggestionLabel);
-        // Server-side autocomplete: each keystroke runs the quick search through the presenter.
-        // We remember the term so picking a suggestion opens the matching result set the pager steps.
-        search.setItems(query -> {
+        quickSearch.setWidth("420px");
+        quickSearch.setPlaceholder("Order id, customer, or sales rep");
+        quickSearch.setItemLabelGenerator(OrderView::suggestionLabel);
+        // Server-side autocomplete: each keystroke runs the search through the presenter, with
+        // the advanced filters AND-ed in, so the suggestions already reflect the narrowed set.
+        // We remember the typed term so picking a suggestion opens that same combined result set.
+        quickSearch.setItems(query -> {
             lastSearchTerm = query.getFilter().orElse("");
-            return presenter.suggest(lastSearchTerm).stream()
+            return presenter.suggest(currentCriteria()).stream()
                     .skip(query.getOffset())
                     .limit(query.getLimit());
         });
-        search.addValueChangeListener(event -> {
+        quickSearch.addValueChangeListener(event -> {
             OrderSummary picked = event.getValue();
             if (picked == null) {
                 clearHeader();
             } else {
-                presenter.open(lastSearchTerm, picked).ifPresent(this::showOrder);
+                presenter.open(currentCriteria(), picked).ifPresent(this::showOrder);
             }
         });
-        return search;
+        return quickSearch;
+    }
+
+    /**
+     * The advanced search panel — the QBE (Enter-Query) replacement (issue #14). A collapsible
+     * {@link Details} exposes the multi-field filters; each one combines with the quick term and
+     * with the others by <strong>AND</strong>, so a clerk can narrow precisely. <em>Search</em>
+     * runs the combined criteria and loads the result set positioned at its first record (the
+     * pager then reflects the search exactly — one match is "record 1 of 1"); <em>Clear</em>
+     * resets every criterion, quick and advanced, for a fresh lookup.
+     */
+    private Details buildAdvancedPanel() {
+        // "Any" is the unset state for the fixed-choice filters (cleared → no predicate).
+        paymentTypeFilter.setItems("CASH", "CREDIT");
+        paymentTypeFilter.setItemLabelGenerator(value -> "CASH".equals(value) ? "Cash" : "Credit");
+        paymentTypeFilter.setPlaceholder("Any");
+        statusFilter.setItems("Filled", "Not filled");
+        statusFilter.setPlaceholder("Any");
+
+        FormLayout filters = new FormLayout(
+                customerFilter, salesRepFilter, paymentTypeFilter,
+                orderedFromFilter, orderedToFilter, statusFilter);
+
+        searchButton.setId("order-search");
+        searchButton.addClickListener(event ->
+                presenter.search(currentCriteria()).ifPresentOrElse(this::showOrder, this::showNoMatches));
+        clearButton.setId("order-clear");
+        clearButton.addClickListener(event -> clearSearch());
+        HorizontalLayout actions = new HorizontalLayout(searchButton, clearButton);
+
+        VerticalLayout body = new VerticalLayout(filters, actions);
+        body.setPadding(false);
+        Details panel = new Details("Advanced search", body);
+        panel.setId("advanced-search");
+        return panel;
+    }
+
+    /**
+     * The clerk's current search as a single immutable criteria — the quick term last typed into
+     * {@link #quickSearch} AND every advanced filter that is set. A cleared advanced field is
+     * passed as {@code null}/blank, which the value object normalises away to "no predicate".
+     */
+    private OrderSearchCriteria currentCriteria() {
+        Boolean orderFilled = statusFilter.getValue() == null
+                ? null
+                : "Filled".equals(statusFilter.getValue());
+        return new OrderSearchCriteria(
+                lastSearchTerm,
+                customerFilter.getValue(),
+                salesRepFilter.getValue(),
+                paymentTypeFilter.getValue(),
+                orderedFromFilter.getValue(),
+                orderedToFilter.getValue(),
+                orderFilled);
     }
 
     private static String suggestionLabel(OrderSummary s) {
@@ -289,8 +362,35 @@ public class OrderView extends VerticalLayout {
         headerSection.setVisible(false);
         lineItems.setVisible(false);
         lineItems.setItems(java.util.Collections.emptyList());
+        emptyHint.setText(NO_ORDER_HINT);
         emptyHint.setVisible(true);
         refreshPager();
+    }
+
+    /**
+     * An advanced search that matched nothing — the cursor is already cleared by the presenter,
+     * so the pager hides; the hint explains the empty result rather than leaving a stale header.
+     */
+    private void showNoMatches() {
+        headerSection.setVisible(false);
+        lineItems.setVisible(false);
+        lineItems.setItems(java.util.Collections.emptyList());
+        emptyHint.setText(NO_MATCH_HINT);
+        emptyHint.setVisible(true);
+        refreshPager();
+    }
+
+    /** Clear (issue #14): resets every criterion — quick and advanced — and the navigation. */
+    private void clearSearch() {
+        customerFilter.clear();
+        salesRepFilter.clear();
+        paymentTypeFilter.clear();
+        orderedFromFilter.clear();
+        orderedToFilter.clear();
+        statusFilter.clear();
+        lastSearchTerm = "";
+        quickSearch.clear();
+        clearHeader();
     }
 
     private static String nullSafe(String value) {
