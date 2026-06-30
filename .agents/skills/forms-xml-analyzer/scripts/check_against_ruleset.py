@@ -111,6 +111,16 @@ def main(argv=None):
         ("GET_PRODUCT_IMAGE surfaced as a DB-callable candidate",
          any(r["name"].upper() == "GET_PRODUCT_IMAGE" for r in spec["referencedDbObjects"]),
          "db-call-direct"),
+        # ---- layout fidelity (ADR 0012) ----
+        ("a frame encloses the S_ORD header fields (grouping section)",
+         any(f.get("graphicsType") == "Frame" and f.get("enclosesItems")
+             and any(q == "S_ORD.CUSTOMER_ID" for q in f.get("enclosedItems", []))
+             for f in spec.get("frames", [])), "frame-group"),
+        ("'Order Information' static text is a heading",
+         any(s.get("text") == "Order Information" and s.get("role") == "heading"
+             for s in spec.get("staticText", [])), "boilerplate-heading"),
+        ("S_ORD has a layoutPlan (field order is the form's order)",
+         bool((find_block(spec, "S_ORD") or {}).get("layoutPlan")), "block-master-single"),
     ]
 
     failures = 0

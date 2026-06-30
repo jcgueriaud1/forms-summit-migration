@@ -1,5 +1,5 @@
 {
-  "source": "../../../forms-summit-example/ORDERS_fmb.xml",
+  "source": "forms-summit-example/ORDERS_fmb.xml",
   "grain": "form-object",
   "decisionFree": true,
   "form": {
@@ -599,6 +599,42 @@
           "bodyShape": "other",
           "body": "DECLARE&#10;  filename VARCHAR2(20);&#10;BEGIN&#10;  IF  GET_ITEM_PROPERTY('S_ITEM.product_image',VISIBLE)='TRUE' THEN&#10;    filename := GET_PRODUCT_IMAGE(:S_ITEM.product_id); &#10;    IF filename = 'No file' THEN  &#10;       null;&#10;    ELSE  &#10;      READ_IMAGE_FILE(filename,'tiff','S_ITEM.product_image');&#10;    END IF;&#10;  END IF;&#10;END;"
         }
+      ],
+      "layoutPlan": [
+        {
+          "fields": [
+            "ID"
+          ],
+          "section": null
+        },
+        {
+          "fields": [
+            "DATE_ORDERED",
+            "CUSTOMER_ID",
+            "CUSTOMER_NAME"
+          ],
+          "section": "RECT59"
+        },
+        {
+          "fields": [
+            "SALES_REP_ID",
+            "SALES_REP_NAME"
+          ],
+          "section": "RECT59"
+        },
+        {
+          "fields": [
+            "DATE_SHIPPED",
+            "ORDER_FILLED"
+          ],
+          "section": "RECT59"
+        },
+        {
+          "fields": [
+            "PAYMENT_TYPE"
+          ],
+          "section": "RECT60"
+        }
       ]
     },
     {
@@ -1173,6 +1209,44 @@
           "bodyShape": "other",
           "body": "COMMIT_FORM;"
         }
+      ],
+      "layoutPlan": [
+        {
+          "fields": [
+            "PRODUCT_IMAGE"
+          ],
+          "section": null
+        },
+        {
+          "fields": [
+            "IMAGE_DESCRIPTION"
+          ],
+          "section": null
+        },
+        {
+          "fields": [
+            "ORD_ID"
+          ],
+          "section": "RECT59"
+        },
+        {
+          "fields": [
+            "ITEM_ID",
+            "PRODUCT_ID",
+            "DESCRIPTION",
+            "PRICE",
+            "QUANTITY",
+            "QUANTITY_SHIPPED",
+            "ITEM_TOTAL"
+          ],
+          "section": "RECT60"
+        },
+        {
+          "fields": [
+            "TOTAL"
+          ],
+          "section": "RECT60"
+        }
       ]
     },
     {
@@ -1507,7 +1581,25 @@
           "triggers": []
         }
       ],
-      "triggers": []
+      "triggers": [],
+      "layoutPlan": [
+        {
+          "fields": [
+            "PRODUCT_ID"
+          ],
+          "section": null
+        },
+        {
+          "fields": [
+            "WAREHOUSE_ID",
+            "AMOUNT_IN_STOCK",
+            "REORDER_POINT",
+            "MAX_IN_STOCK",
+            "RESTOCK_DATE"
+          ],
+          "section": "RECT61"
+        }
+      ]
     },
     {
       "name": "CONTROL",
@@ -1914,7 +2006,37 @@
           ]
         }
       ],
-      "triggers": []
+      "triggers": [],
+      "layoutPlan": [
+        {
+          "fields": [
+            "IMMEDIATE",
+            "STOCK_BUTTON",
+            "IMAGE_BUTTON",
+            "SHOW_HELP_BUTTON",
+            "EXIT_BUTTON"
+          ],
+          "section": null
+        },
+        {
+          "fields": [
+            "AUTO_QUERY"
+          ],
+          "section": null
+        },
+        {
+          "fields": [
+            "PUSH_BUTTON57"
+          ],
+          "section": null
+        },
+        {
+          "fields": [
+            "PRODUCT_LOV_BUTTON"
+          ],
+          "section": "RECT60"
+        }
+      ]
     }
   ],
   "relations": [
@@ -2216,61 +2338,174 @@
     }
   ],
   "tabPages": [],
+  "frames": [
+    {
+      "name": "RECT59",
+      "graphicsType": "Frame",
+      "rawGraphicsType": "Rectangle",
+      "canvas": "CV_ORDER",
+      "frameTitle": null,
+      "geometry": {
+        "x": "10",
+        "y": "32",
+        "width": "302",
+        "height": "112"
+      },
+      "enclosesItems": true,
+      "enclosedItems": [
+        "S_ITEM.ORD_ID",
+        "S_ORD.CUSTOMER_ID",
+        "S_ORD.CUSTOMER_NAME",
+        "S_ORD.DATE_ORDERED",
+        "S_ORD.DATE_SHIPPED",
+        "S_ORD.ORDER_FILLED",
+        "S_ORD.SALES_REP_ID",
+        "S_ORD.SALES_REP_NAME"
+      ]
+    },
+    {
+      "name": "RECT60",
+      "graphicsType": "Frame",
+      "rawGraphicsType": "Rectangle",
+      "canvas": "CV_ORDER",
+      "frameTitle": null,
+      "geometry": {
+        "x": "10",
+        "y": "148",
+        "width": "420",
+        "height": "123"
+      },
+      "enclosesItems": true,
+      "enclosedItems": [
+        "CONTROL.PRODUCT_LOV_BUTTON",
+        "S_ITEM.DESCRIPTION",
+        "S_ITEM.ITEM_ID",
+        "S_ITEM.ITEM_TOTAL",
+        "S_ITEM.PRICE",
+        "S_ITEM.PRODUCT_ID",
+        "S_ITEM.QUANTITY",
+        "S_ITEM.QUANTITY_SHIPPED",
+        "S_ITEM.TOTAL",
+        "S_ORD.PAYMENT_TYPE"
+      ]
+    },
+    {
+      "name": "RECT61",
+      "graphicsType": "Frame",
+      "rawGraphicsType": "Rectangle",
+      "canvas": "CV_INVENTORY",
+      "frameTitle": null,
+      "geometry": {
+        "x": "12",
+        "y": "41",
+        "width": "283",
+        "height": "89"
+      },
+      "enclosesItems": true,
+      "enclosedItems": [
+        "S_INVENTORY.AMOUNT_IN_STOCK",
+        "S_INVENTORY.MAX_IN_STOCK",
+        "S_INVENTORY.REORDER_POINT",
+        "S_INVENTORY.RESTOCK_DATE",
+        "S_INVENTORY.WAREHOUSE_ID"
+      ]
+    },
+    {
+      "name": "RECT62",
+      "graphicsType": "Frame",
+      "rawGraphicsType": "Rectangle",
+      "canvas": "CV_HELP",
+      "frameTitle": null,
+      "geometry": {
+        "x": "27",
+        "y": "33",
+        "width": "215",
+        "height": "135"
+      },
+      "enclosesItems": true,
+      "enclosedItems": [
+        "S_ITEM.ORD_ID"
+      ]
+    }
+  ],
   "staticText": [
     {
       "name": "TEXT91",
       "text": "Order Information",
+      "graphicsType": "Text",
       "canvas": "CV_ORDER",
+      "fontSize": "1600",
+      "fontWeight": "Bold",
       "geometry": {
         "x": "135",
         "y": "2",
         "width": "74",
         "height": "10"
-      }
+      },
+      "role": "heading",
+      "headingLevel": "h2"
     },
     {
       "name": "TEXT15",
       "text": "Payment Type",
+      "graphicsType": "Text",
       "canvas": "CV_ORDER",
+      "fontSize": "800",
+      "fontWeight": "Medium",
       "geometry": {
         "x": "125",
         "y": "104",
         "width": "51",
         "height": "10"
-      }
+      },
+      "role": "prose"
     },
     {
       "name": "TEXT27",
       "text": "Stock Information",
+      "graphicsType": "Text",
       "canvas": "CV_INVENTORY",
+      "fontSize": "1600",
+      "fontWeight": "Bold",
       "geometry": {
         "x": "109",
         "y": "16",
         "width": "122",
         "height": "19"
-      }
+      },
+      "role": "heading",
+      "headingLevel": "h2"
     },
     {
       "name": "TEXT99",
       "text": "The Orders Form lets you insert, update,&#10;delete and query orders for a customer.&#10;The Orders section (top) lets you display or &#10;define the order. The Items section (bottom)&#10;lets you display or define the line items for &#10;the order. The Stock section shows the &#10;existing stock for the product of the current &#10;lineitem. (Click on the Stock button to see &#10;the stock) You can use the Record menu &#10;for inserting and deleting records. ",
+      "graphicsType": "Text",
       "canvas": "CV_HELP",
+      "fontSize": "800",
+      "fontWeight": "Bold",
       "geometry": {
         "x": "40",
         "y": "46",
         "width": "2",
         "height": "9"
-      }
+      },
+      "role": "prose"
     },
     {
       "name": "TEXT126",
       "text": "Help Information",
+      "graphicsType": "Text",
       "canvas": "CV_HELP",
+      "fontSize": "1800",
+      "fontWeight": "Bold",
       "geometry": {
         "x": "63",
         "y": "6",
         "width": "1",
         "height": "1"
-      }
+      },
+      "role": "heading",
+      "headingLevel": "h2"
     }
   ],
   "formTriggers": [
