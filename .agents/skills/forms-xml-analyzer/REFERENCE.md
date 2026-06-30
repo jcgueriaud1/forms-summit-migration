@@ -27,6 +27,7 @@ Forms defaults + derived signals. No Vaadin/migration decisions.
   "canvases": [ { "name", "canvasType", "window", "width", "height",
                   "viewport": { "x", "y", "width", "height" } }, ... ],
   "tabPages": [ { "name", "label", "canvas" }, ... ],
+  "frames":   [ Frame, ... ],
   "staticText": [ StaticText, ... ],
   "formTriggers": [ Trigger, ... ],
   "referencedDbObjects": [ { "name", "paramShape": "unknown (resolve from schema)" } ],
@@ -55,7 +56,11 @@ keys.
   "derivedMultiRecord": { "value": bool|null, "source": "RecordsDisplayCount" | "derived(relation-membership)" },
   "lockingMode": { "value": "Automatic"|..., "injected": bool },
   "dataSourceColumns": [ { "name", "dscType", "precision", "scale", "length", "mandatory" }, ... ],
-  "itemCount", "items": [ Item, ... ], "triggers": [ Trigger, ... ]
+  "itemCount", "items": [ Item, ... ], "triggers": [ Trigger, ... ],
+  "layoutPlan": [ { "fields": [ "ITEM", ... ], "section": "RECT59" | null }, ... ]
+  // derived (ADR 0011/0012): rows of field names, Y-then-X order, tagged with the
+  // enclosing frame. Field ORDER the generator places from; ruleset uses it for
+  // FormLayout blocks, Grid blocks ignore it.
 }
 ```
 
@@ -103,7 +108,16 @@ RecordGroup { "name", "query", "columns": [ { "name", "dataType", "maximumLength
 Alert       { "name", "title", "alertStyle", "alertMessage",
               "button1Label", "button2Label", "button3Label" }   // verbatim; referenced by SHOW_ALERT in triggers
 ProgramUnit { "name", "kind": "program-unit", "programUnitType", "body" }  // the form's own PL/SQL (≠ referencedDbObjects, which are external/DB calls)
-StaticText  { "name", "text", "canvas", "geometry": { "x", "y", "width", "height" } }  // <Graphics GraphicsText="…">; non-text Graphics (Rectangle/Line) are omitted
+StaticText  { "name", "text", "graphicsType": "Text", "canvas", "fontSize", "fontWeight",
+              "geometry": { "x", "y", "width", "height" },
+              "role": "heading" | "prompt" | "prose",   // derived (ADR 0012)
+              "headingLevel": "h2" | "h3",               // role==heading only
+              "labelsItem": "BLOCK.ITEM" | absent }      // role==prompt only
+Frame       { "name", "canvas", "graphicsType": "Frame" | "Rectangle", "rawGraphicsType",
+              "frameTitle": str|null, "geometry": { "x", "y", "width", "height" },
+              "enclosesItems": bool, "enclosedItems": [ "BLOCK.ITEM", ... ] }
+              // a Rectangle/Frame Graphics; normalised to graphicsType "Frame" when it
+              // encloses >=1 item (→ frame-group), else "Rectangle" (→ decoration/Drop)
 Dependency  { "type", "name", "source", "via", "status": "undecided" }
 ```
 
@@ -161,6 +175,15 @@ Toolbar→HorizontalLayout), the window→view/dialog mapping, and `layoutPlan`
 - **item `geometry` + `canvas` + `tabPage`** — where each field sits. The ruleset
   *drops* geometry for component setters (Aura owns positioning) but `layoutPlan`
   *uses* it for row grouping — a clean spec-records / ruleset-decides split.
+- **`frames`** — Rectangle/Frame Graphics that enclose fields. Derived
+  `enclosedItems` (centre-in-bounds) lets the ruleset map a frame to a grouping
+  Section (`frame-group`) and the generator nest the enclosed fields under it.
+- **`staticText[].role`** + **`blocks[].layoutPlan`** — the heading-vs-prompt-vs-prose
+  classification and the Y-then-X field order. Together with `frames` these are the
+  **layout-fidelity** signals (ADR 0012): geometry is consumed to recover field
+  order, grouping, and section titles, then dropped — never invented, never silently
+  lost. Decision-free: the analyzer derives the *facts*; the ruleset picks the
+  Vaadin targets.
 
 ## Boundaries
 

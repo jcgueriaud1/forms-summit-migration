@@ -30,7 +30,31 @@ the spec as a place to decide Vaadin targets.
 **Construct**:
 A unit of migration meaning at the level the audience recognizes (master block,
 detail block, filter bar, LOV, totals, locking model). Tickets and scorecard rows
-are at construct grain; the spec's leaf grain is finer (form-object grain).
+are at construct grain; the spec's leaf grain is finer (form-object grain). A
+construct can be **layout** as much as data: a bordered field group, a section
+title, the order fields read in — these are constructs too (see _Layout fidelity_).
+
+**Layout fidelity**:
+The structural sameness of a migrated screen — the **same fields, in the form's
+order, grouped the same way** (a Forms frame → a titled section), with the **same
+section titles** and the **same kind of control per field** (a Radio Group stays a
+radio, not a text field). Distinct from **visual styling** (colour, font, spacing),
+which the Aura theme owns and ADR-0008 deliberately drops. Layout fidelity is what
+the analyzer's `frames` / `staticText.role` / `layoutPlan` signals and the ruleset's
+`frame-group` / `boilerplate-*` rules exist to preserve (ADR-0012); read-only slices
+keep it by treating read-only as a state, not a type (ADR-0013). _Avoid_: treating
+"we dropped geometry" as covering layout — geometry encodes structure (order,
+grouping), not just pixels; only the pixels are Aura's to drop.
+
+**Layout-fidelity gate**:
+The build-output completeness check — the runtime counterpart to the spec's
+form-object grain. A migrated view is not done until a UI test asserts that **every
+in-scope item, frame, and heading renders, in the form's order, as its mapped
+component type**. This catches the silent-loss class (a dropped title, a radio
+flattened to a text field, reordered fields) that behaviour-only tests sail past.
+_Avoid_: leaning on the spec census ("every node counted") as the fidelity
+guarantee — *counted ≠ described ≠ rendered*; the census proved nothing was dropped
+from the **spec**, not that nothing was dropped from the **view**.
 
 **Mapping ruleset**:
 The published decision tree that maps Forms constructs to Vaadin targets. The
@@ -48,8 +72,11 @@ app in a real browser (Playwright + DramaFinder) and asserts user-visible behavi
 the same construct the user recognized in Forms, now exercised end-to-end through
 View ← Presenter ← Service ← Domain ← Data against a real Oracle (Testcontainers).
 This is the build phase's completeness check, the runtime counterpart to the
-analyzer's form-object grain. _Avoid_: treating unit tests of the domain formula as
-sufficient — they prove the calculation, not that the construct works in the view.
+analyzer's form-object grain. It has **two dimensions**: *behavioural parity* (the
+construct does what Forms did) and *layout fidelity* (it renders as the same screen —
+the _Layout-fidelity gate_). _Avoid_: treating unit tests of the domain formula as
+sufficient — they prove the calculation, not that the construct works in the view;
+and behaviour-only assertions, which pass even when the screen looks wrong.
 
 ### Architectural layers
 
@@ -79,3 +106,9 @@ The persistence boundary (Spring `JdbcClient`).
 - "trigger grain" vs "form-object grain" — resolved: inventory is at form-object
   grain; trigger grain would miss declarative behavior (formula/summary items,
   relations, LOVs).
+- "spec completeness" vs "view completeness" — resolved: the spec census guarantees
+  every node is *accounted for* (form-object grain), but counted ≠ rendered. View
+  completeness is a separate guarantee enforced at build-output by the
+  _Layout-fidelity gate_ (ADR-0012). The ORDERS header lost its title, its field
+  order, its grouping frame, and its radio shape while the census still read
+  "183 elements, nothing dropped" — the lesson that motivated the second gate.

@@ -9,7 +9,11 @@
 # (FontSize/FontName/FontStyle/FontWeight/FontSpacing) and colour
 # (BackColor/ForegroundColor). The canvas-side (`canvasClassifiers`)
 # and block-side (`blockClassifiers`) sections drive Canvas → container
-# and Block → Grid/FormLayout decisions for the scaffolder (ADR 0010).
+# and Block → Grid/FormLayout decisions for the scaffolder (ADR 0010). The
+# graphics-side (`graphicsClassifiers`) section drives frame → grouping
+# section and boilerplate-text → heading, preserving structural layout
+# fidelity (ADR 0012); field ORDER within a block/section comes from
+# `layoutPlan` (Y-then-X), never invented.
 # Out of scope (still deferred): Window / VisualAttribute / PropertyClass.
 
 schemaVersion: 1
@@ -1731,7 +1735,7 @@ blockClassifiers:
     when: BlockName is not null
     target: FormLayout
     treatment: Automated
-    aiHint: "Fallback → single-record FormLayout. Items become field components placed in declaration order; Required carries to setRequiredIndicatorVisible."
+    aiHint: "Fallback → single-record FormLayout. Items become field components placed in `layoutPlan` order (Y-then-X), grouped into frame sections where a frame encloses them (graphicsClassifiers → frame-group, ADR 0012); never declaration-accident order. Required carries to setRequiredIndicatorVisible."
 
 blockTargets:
   Grid:
@@ -1779,6 +1783,135 @@ blockTargets:
       BlockName: { ignore: "Selector attribute used by classifier predicates" }
       Name: { ignore: "Control block is not emitted as a container; its items are hoisted into the surrounding layout" }
       RecordOrientation: { ignore: "Control block holds no records" }
+
+# ---- Graphics-side rules (layout fidelity, ADR 0012) ------------------
+# Non-item canvas Graphics: bounded frames that GROUP fields, and standalone
+# boilerplate TEXT that titles a region or carries help prose. These were the
+# silent-loss class before ADR 0012 — the census counted them (Graphics: N) but
+# no rule mapped them, so the build dropped the "Order Information" title and the
+# bordered header group. Analyzer-supplied operands: `graphicsType`
+# (Frame / Text / Rectangle / Line / …), `enclosesItems` (a frame/rectangle whose
+# bounds contain ≥1 item), `frameTitle`, and — for Text — `role`
+# (`heading` / `prompt` / `prose`) + `headingLevel`, derived from relative font
+# size and position.
+#
+# A static text acting as a field's PROMPT is NOT here: the analyzer attaches it
+# to the bound item and it carries via that item's `Prompt` → `setLabel`. Only
+# standalone text reaches these rules. Field ORDER inside a frame/block comes
+# from `layoutPlan` (Y-then-X), never declaration-accident order.
+graphicsClassifiers:
+  - id: frame-group
+    when: graphicsType == "Frame" and enclosesItems == true
+    target: Section
+    treatment: Automated
+    aiHint: "A Forms frame enclosing fields becomes a titled grouping section: a (sub-)FormLayout introduced by a heading from `frameTitle` (else the boilerplate heading sitting on the frame). The enclosed items are placed inside it in `layoutPlan` order. The frame's border/fill/bevel is styling — Aura owns it (ADR 0008); only the grouping and its title carry."
+  - id: boilerplate-heading
+    when: graphicsType == "Text" and role == "heading"
+    target: H3
+    treatment: Automated
+    aiHint: "Standalone boilerplate static text that is not a field prompt becomes a heading bound to no data. Use `headingLevel`: a form-dominant title (largest, top of canvas) → H2; a region/section title → H3. Carries the text only; font/colour are Aura's (ADR 0008)."
+  - id: boilerplate-prompt
+    when: graphicsType == "Text" and role == "prompt"
+    target: ItemLabel
+    treatment: Automated
+    aiHint: "A static text acting as a field's prompt (adjacent to the item named in `labelsItem`) is NOT rendered as a standalone node — it carries as that item's label (setLabel) on the mapped field. Recorded here so the disposition is explicit, not a silent drop; when an item already has its own Prompt, that wins and this is redundant."
+  - id: boilerplate-prose
+    when: graphicsType == "Text" and role != "prompt"
+    target: Paragraph
+    treatment: Automated
+    aiHint: "Other standalone static text — help/legend prose not bound to a field and not a heading — becomes a Paragraph/Span. Field prompts never reach here (boilerplate-prompt catches them first; they carry via the item's label)."
+  - id: graphics-decoration
+    when: graphicsType in ["Rectangle", "Line", "Arc", "Circle", "Polygon", "Image", "Text Graphic"]
+    target: Drop
+    treatment: Automated
+    aiHint: "Pure decoration with no grouping role and no text → dropped (Aura owns visual structure, ADR 0008). A Rectangle whose bounds enclose items is reclassified Frame by the analyzer (enclosesItems == true), so this rule only catches genuine decoration, never a grouping region."
+
+graphicsTargets:
+  Section:
+    attributes:
+      graphicsType: { ignore: "Selector attribute used by classifier predicates" }
+      enclosesItems: { ignore: "Selector attribute — drives the frame-group match, not a setter" }
+      enclosedItems: { ignore: "Analyzer-supplied containment list; drives which fields are placed in the section, not a setter" }
+      frameTitle: { carry: "section heading text (rendered as the section's H3)" }
+      XPosition: { ignore: "Vaadin Flow layout owns positioning" }
+      YPosition: { ignore: "Vaadin Flow layout owns positioning" }
+      Width: { ignore: "Vaadin Flow layout owns sizing" }
+      Height: { ignore: "Vaadin Flow layout owns sizing" }
+      Bevel: { ignore: "Aura theme owns borders / bevels (ADR 0008)" }
+      BackColor: { ignore: "Aura theme owns colour (ADR 0008)" }
+      ForegroundColor: { ignore: "Aura theme owns colour (ADR 0008)" }
+      FillPattern: { ignore: "Aura theme owns fills (ADR 0008)" }
+      FrameTitleFontName: { ignore: "Aura theme owns typography (ADR 0008)" }
+      FrameTitleFontSize: { ignore: "Aura theme owns typography (ADR 0008)" }
+      FrameTitleFontStyle: { ignore: "Aura theme owns typography (ADR 0008)" }
+      FrameTitleFontWeight: { ignore: "Aura theme owns typography (ADR 0008)" }
+      VisualAttributeName: { ignore: "Aura theme replaces Forms VisualAttribute (ADR 0008)" }
+  H2:
+    attributes:
+      graphicsType: { ignore: "Selector attribute used by classifier predicates" }
+      role: { ignore: "Selector attribute used by classifier predicates" }
+      headingLevel: { ignore: "Selector — picks H2 vs H3; not a setter" }
+      GraphicsText: { carry: setText }
+      XPosition: { ignore: "Vaadin Flow layout owns positioning" }
+      YPosition: { ignore: "Vaadin Flow layout owns positioning" }
+      Width: { ignore: "Vaadin Flow layout owns sizing" }
+      Height: { ignore: "Vaadin Flow layout owns sizing" }
+      FontName: { ignore: "Aura theme owns typography (ADR 0008)" }
+      FontSize: { ignore: "Aura theme owns typography (ADR 0008)" }
+      FontStyle: { ignore: "Aura theme owns typography (ADR 0008)" }
+      FontWeight: { ignore: "Aura theme owns typography (ADR 0008)" }
+      FontSpacing: { ignore: "Aura theme owns typography (ADR 0008)" }
+      ForegroundColor: { ignore: "Aura theme owns colour (ADR 0008)" }
+      BackColor: { ignore: "Aura theme owns colour (ADR 0008)" }
+      VisualAttributeName: { ignore: "Aura theme replaces Forms VisualAttribute (ADR 0008)" }
+  H3:
+    attributes:
+      graphicsType: { ignore: "Selector attribute used by classifier predicates" }
+      role: { ignore: "Selector attribute used by classifier predicates" }
+      headingLevel: { ignore: "Selector — picks H2 vs H3; not a setter" }
+      GraphicsText: { carry: setText }
+      XPosition: { ignore: "Vaadin Flow layout owns positioning" }
+      YPosition: { ignore: "Vaadin Flow layout owns positioning" }
+      Width: { ignore: "Vaadin Flow layout owns sizing" }
+      Height: { ignore: "Vaadin Flow layout owns sizing" }
+      FontName: { ignore: "Aura theme owns typography (ADR 0008)" }
+      FontSize: { ignore: "Aura theme owns typography (ADR 0008)" }
+      FontStyle: { ignore: "Aura theme owns typography (ADR 0008)" }
+      FontWeight: { ignore: "Aura theme owns typography (ADR 0008)" }
+      FontSpacing: { ignore: "Aura theme owns typography (ADR 0008)" }
+      ForegroundColor: { ignore: "Aura theme owns colour (ADR 0008)" }
+      BackColor: { ignore: "Aura theme owns colour (ADR 0008)" }
+      VisualAttributeName: { ignore: "Aura theme replaces Forms VisualAttribute (ADR 0008)" }
+  Paragraph:
+    attributes:
+      graphicsType: { ignore: "Selector attribute used by classifier predicates" }
+      role: { ignore: "Selector attribute used by classifier predicates" }
+      GraphicsText: { carry: setText }
+      XPosition: { ignore: "Vaadin Flow layout owns positioning" }
+      YPosition: { ignore: "Vaadin Flow layout owns positioning" }
+      Width: { ignore: "Vaadin Flow layout owns sizing" }
+      Height: { ignore: "Vaadin Flow layout owns sizing" }
+      FontName: { ignore: "Aura theme owns typography (ADR 0008)" }
+      FontSize: { ignore: "Aura theme owns typography (ADR 0008)" }
+      FontStyle: { ignore: "Aura theme owns typography (ADR 0008)" }
+      FontWeight: { ignore: "Aura theme owns typography (ADR 0008)" }
+      FontSpacing: { ignore: "Aura theme owns typography (ADR 0008)" }
+      ForegroundColor: { ignore: "Aura theme owns colour (ADR 0008)" }
+      BackColor: { ignore: "Aura theme owns colour (ADR 0008)" }
+      VisualAttributeName: { ignore: "Aura theme replaces Forms VisualAttribute (ADR 0008)" }
+  ItemLabel:
+    attributes:
+      graphicsType: { ignore: "Selector attribute used by classifier predicates" }
+      role: { ignore: "Selector attribute used by classifier predicates" }
+      labelsItem: { carry: "the bound item receives this text via setLabel; no standalone node is emitted" }
+      GraphicsText: { carry: "label text applied to the bound item (setLabel)" }
+      XPosition: { ignore: "Vaadin Flow layout owns positioning" }
+      YPosition: { ignore: "Vaadin Flow layout owns positioning" }
+      Width: { ignore: "Vaadin Flow layout owns sizing" }
+      Height: { ignore: "Vaadin Flow layout owns sizing" }
+  Drop:
+    attributes:
+      graphicsType: { ignore: "Decoration is not emitted; nothing carries" }
 
 # ---- Policy-side rules — cross-cutting (transaction / concurrency / delete) -
 # Not per-component: predicates apply to Form / Block / Relation properties.
@@ -1861,6 +1994,13 @@ emptyLabelFallback:
 # `min(Ha, Hb)`; `fallbackTolerance` is the absolute Y-distance used
 # when Height is missing on either operand. `enabled: false` reverts to
 # the pre-ADR-0011 declaration-order placement under the block target.
+#
+# Frame sectioning (ADR 0012) composes with this: where the analyzer reports a
+# frame enclosing items (`enclosesItems`), the rows whose items fall inside the
+# frame's bounds are wrapped in that frame's Section (graphicsClassifiers →
+# frame-group) under its heading; rows outside any frame stay at block top level.
+# Row order and section order both follow Y-then-X — the field order is the
+# form's order, never invented.
 layoutPlan:
   rowAffinity: 0.5
   fallbackTolerance: 50
