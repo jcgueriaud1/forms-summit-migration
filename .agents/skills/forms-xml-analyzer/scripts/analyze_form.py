@@ -549,10 +549,167 @@ def analyze(path):
         static_text.append({
             "name": a.get("Name"),
             "text": text,
+            "graphicsType": "Text",
             "canvas": attrs(anc).get("Name") if anc is not None else None,
+            "fontSize": a.get("GraphicsFontSize"),
+            "fontWeight": a.get("GraphicsFontWeight"),
             "geometry": {"x": a.get("XPosition"), "y": a.get("YPosition"),
                          "width": a.get("Width"), "height": a.get("Height")},
         })
+
+    # ---- layout fidelity: frames, static-text roles, layoutPlan (ADR 0012) -
+    # Geometry is dropped for *setters* (Aura/Flow own pixels, ADR 0008) but is
+    # consumed here to recover *structure*: which fields a frame groups, which
+    # static text is a heading vs a field prompt, and the row order of fields.
+    # All three are descriptive derived signals (like bodyShape / relationRole),
+    # not migration decisions — no Vaadin target is chosen here.
+    def _f(v):
+        try:
+            return float(v)
+        except (TypeError, ValueError):
+            return None
+
+    def _center(g):
+        x, y = _f(g.get("x")), _f(g.get("y"))
+        w, h = _f(g.get("width")), _f(g.get("height"))
+        if x is None or y is None:
+            return None
+        return (x + (w or 0) / 2.0, y + (h or 0) / 2.0)
+
+    # index every item's geometry + canvas (qualified name -> info)
+    item_geom = {}
+    for b in blocks:
+        for it in b["items"]:
+            item_geom["{}.{}".format(b["name"], it["name"]).upper()] = {
+                "block": b["name"], "name": it["name"], "canvas": it.get("canvas"),
+                "geometry": it.get("geometry") or {},
+            }
+
+    # Frames: a Rectangle/Frame Graphics whose bounds enclose >=1 item. A bounded
+    # rectangle that groups fields is normalised to graphicsType "Frame" (the
+    # ruleset's frame-group operand); a rectangle that encloses nothing stays
+    # "Rectangle" (decoration → Drop). Forms exports the header group as a
+    # titleless Rectangle, so frameTitle is usually null and the section heading
+    # comes from a heading-role static text sitting on the frame.
+    frames = []
+    for el in root.iter():
+        if local(el.tag) != "Graphics":
+            continue
+        a = attrs(el)
+        if a.get("GraphicsType") not in ("Rectangle", "Frame"):
+            continue
+        fx, fy = _f(a.get("XPosition")), _f(a.get("YPosition"))
+        fw, fh = _f(a.get("Width")), _f(a.get("Height"))
+        if None in (fx, fy, fw, fh):
+            continue
+        anc = parent_map.get(el)
+        while anc is not None and local(anc.tag) != "Canvas":
+            anc = parent_map.get(anc)
+        fcanvas = attrs(anc).get("Name") if anc is not None else None
+        enclosed = []
+        for q, info in item_geom.items():
+            if info["canvas"] and fcanvas and info["canvas"] != fcanvas:
+                continue
+            c = _center(info["geometry"])
+            if c is not None and fx <= c[0] <= fx + fw and fy <= c[1] <= fy + fh:
+                enclosed.append(q)
+        frames.append({
+            "name": a.get("Name"),
+            "graphicsType": "Frame" if enclosed else a.get("GraphicsType"),
+            "rawGraphicsType": a.get("GraphicsType"),
+            "canvas": fcanvas,
+            "frameTitle": a.get("FrameTitle") or None,
+            "geometry": {"x": a.get("XPosition"), "y": a.get("YPosition"),
+                         "width": a.get("Width"), "height": a.get("Height")},
+            "enclosesItems": bool(enclosed),
+            "enclosedItems": sorted(enclosed),
+        })
+
+    # Static-text role: heading (font larger than the canvas's typical text),
+    # prompt (a label adjacent to a field — carries as that field's label, not a
+    # standalone node), or prose. headingLevel ranks the dominant title (h2) vs
+    # section titles (h3). Heuristic, descriptive, font/position-derived.
+    # body baseline = the smallest static-text size on the form (Forms prompts /
+    # help prose sit at the base size; titles are set markedly larger). A text is
+    # a heading when it is at least 1.5x the body baseline — robust even when a
+    # canvas carries a single title (a canvas-relative threshold can't see that).
+    all_sizes = [x for x in (_f(t.get("fontSize")) for t in static_text) if x]
+    body_size = min(all_sizes) if all_sizes else 0
+    canvas_max = {}
+    for s in static_text:
+        fs = _f(s.get("fontSize")) or 0
+        canvas_max[s.get("canvas")] = max(canvas_max.get(s.get("canvas"), 0), fs)
+    for t in static_text:
+        fs = _f(t.get("fontSize")) or 0
+        tg = t.get("geometry") or {}
+        tc = _center(tg)
+        # prompt: a field sits just to the right on the same row, or directly below
+        labels = None
+        if tc is not None:
+            tx, ty = _f(tg.get("x")) or 0, tc[1]
+            trh = _f(tg.get("height")) or 12
+            for q, info in item_geom.items():
+                if info["canvas"] != t.get("canvas"):
+                    continue
+                ic = _center(info["geometry"])
+                if ic is None:
+                    continue
+                ix = _f((info["geometry"]).get("x")) or 0
+                right_same_row = ix >= tx and abs(ic[1] - ty) <= trh
+                below_aligned = ic[1] > ty and abs(ix - tx) <= trh and 0 < (ic[1] - ty) <= 3 * trh
+                if right_same_row or below_aligned:
+                    labels = q
+                    break
+        if fs and body_size and fs >= 1.5 * body_size:
+            t["role"] = "heading"
+            t["headingLevel"] = "h2" if fs >= canvas_max.get(t.get("canvas"), fs) else "h3"
+        elif labels:
+            t["role"] = "prompt"
+            t["labelsItem"] = labels
+        else:
+            t["role"] = "prose"
+
+    # layoutPlan per block: cluster the block's visible, placed items into rows
+    # by Y-proximity, order rows top→bottom and fields left→right within a row,
+    # and tag each row with the frame that encloses it (else null = block top
+    # level). This is the field ORDER + grouping the generator places from; it is
+    # the form's order, never declaration-accident order (ADR 0011 / 0012). The
+    # ruleset consumes it for single-record (FormLayout) blocks; Grid blocks
+    # ignore it. rowAffinity/fallbackTolerance mirror migration-rules.yaml.
+    ROW_AFFINITY, FALLBACK_TOL = 0.5, 50.0
+
+    def _frame_for(qnames):
+        for fr in frames:
+            if fr["enclosesItems"] and all(q in fr["enclosedItems"] for q in qnames):
+                return fr["name"]
+        return None
+
+    for b in blocks:
+        placed = []
+        for it in b["items"]:
+            g = it.get("geometry") or {}
+            y, x = _f(g.get("y")), _f(g.get("x"))
+            if y is None or x is None:
+                continue
+            placed.append((y, x, _f(g.get("height")), it["name"]))
+        placed.sort(key=lambda p: (p[0], p[1]))
+        rows = []
+        for y, x, h, name in placed:
+            row = rows[-1] if rows else None
+            if row is not None:
+                ph = [m[2] for m in row["members"] if m[2]] + ([h] if h else [])
+                tol = ROW_AFFINITY * min(ph) if ph else FALLBACK_TOL
+                if abs(y - row["y"]) <= max(tol, 1.0):
+                    row["members"].append((y, x, h, name))
+                    continue
+            rows.append({"y": y, "members": [(y, x, h, name)]})
+        plan = []
+        for row in rows:
+            members = sorted(row["members"], key=lambda m: m[1])
+            names = [m[3] for m in members]
+            qnames = ["{}.{}".format(b["name"], n).upper() for n in names]
+            plan.append({"fields": names, "section": _frame_for(qnames)})
+        b["layoutPlan"] = plan
 
     # ---- referenced DB program units (resolve signatures from schema) ----
     refs = set()
@@ -612,6 +769,7 @@ def analyze(path):
         "windows": windows,
         "canvases": canvases,
         "tabPages": tab_pages,
+        "frames": frames,
         "staticText": static_text,
         "formTriggers": collect_triggers(form_el, parent_map) if form_el is not None else [],
         "referencedDbObjects": [
@@ -662,6 +820,31 @@ def to_markdown(spec):
             b["name"], b["relationRole"], b["databaseBlock"], crud, dm["value"],
             lk["value"], lk["injected"]))
     L.append("")
+    if spec.get("frames"):
+        L.append("## Frames (grouping regions — ADR 0012)")
+        L.append("")
+        for fr in spec["frames"]:
+            if not fr.get("enclosesItems"):
+                continue
+            enc = ", ".join(q.split(".", 1)[-1] for q in fr["enclosedItems"])
+            L.append("- **{}** on {} title={} encloses: {}".format(
+                fr["name"], fr.get("canvas"), fr.get("frameTitle") or "—", enc))
+        L.append("")
+    has_plan = any(b.get("layoutPlan") for b in spec["blocks"])
+    if has_plan:
+        L.append("## Layout plan (field order + section — ADR 0011/0012)")
+        L.append("")
+        L.append("> Field order is the form's order (Y-then-X), never invented. `section` is the enclosing frame.")
+        L.append("")
+        for b in spec["blocks"]:
+            plan = b.get("layoutPlan") or []
+            if not plan:
+                continue
+            L.append("- **{}**".format(b["name"]))
+            for row in plan:
+                sect = " [section: {}]".format(row["section"]) if row.get("section") else ""
+                L.append("  - {}{}".format(", ".join(row["fields"]), sect))
+        L.append("")
     L.append("## Block data-source columns (base-table types)")
     L.append("")
     for b in spec["blocks"]:
@@ -771,7 +954,14 @@ def to_markdown(spec):
             snippet = s["text"].replace("\n", " ")
             if len(snippet) > 80:
                 snippet = snippet[:77] + "..."
-            L.append("- {}/{}: \"{}\"".format(s["canvas"], s["name"], snippet))
+            role = s.get("role") or "—"
+            extra = ""
+            if role == "heading":
+                extra = " ({})".format(s.get("headingLevel") or "h?")
+            elif role == "prompt" and s.get("labelsItem"):
+                extra = " (labels {})".format(s["labelsItem"].split(".", 1)[-1])
+            L.append("- {}/{} [{}{}]: \"{}\"".format(
+                s["canvas"], s["name"], role, extra, snippet))
         L.append("")
     if spec["referencedDbObjects"]:
         L.append("## Referenced DB program units (resolve signatures from schema)")

@@ -58,9 +58,25 @@ Stdlib only (Python 3.9+). No external dependencies.
 
 **Layout** is captured too (facts, not decisions): `windows`, `canvases`
 (`canvasType` + owning window + viewport), `tabPages`, and per-item `geometry` +
-`canvas` + `tabPage`. These feed `canvasClassifiers`, the window→view/dialog
-mapping, and `layoutPlan` (Y-proximity row grouping). The ruleset drops geometry
-for setters but uses it for row layout.
+`canvas` + `tabPage`. Geometry is dropped for *setters* (Aura/Flow own pixels,
+ADR 0008) but is **consumed to recover structure** (ADR 0012) — the analyzer
+emits three derived layout-fidelity signals so the build never invents field
+order or silently drops a group/title:
+
+- **`frames[]`** — a Rectangle/Frame Graphics whose bounds enclose ≥1 item, with
+  `{name, canvas, graphicsType, frameTitle, geometry, enclosesItems,
+  enclosedItems[]}`. A bounded rectangle that groups fields is normalised to
+  `graphicsType: "Frame"` (→ ruleset `frame-group` → grouping Section); one that
+  encloses nothing stays `"Rectangle"` (→ `graphics-decoration` → Drop).
+- **`staticText[].role`** — `heading` / `prompt` / `prose`, derived from font
+  size (heading ≥ 1.5× the form's body baseline) and adjacency (prompt = a label
+  next to the item named in `labelsItem`), plus `headingLevel` (`h2`/`h3`). Feeds
+  `boilerplate-heading` / `boilerplate-prompt` / `boilerplate-prose`.
+- **`blocks[].layoutPlan`** — rows of field names clustered by Y-proximity, ordered
+  top→bottom then left→right, each tagged with the enclosing frame (`section`).
+  This is the field ORDER + grouping the generator places from — the form's order,
+  never declaration-accident order. The ruleset consumes it for single-record
+  (FormLayout) blocks; Grid blocks ignore it.
 
 **Builder-grade descriptive facts** (verbatim, no decisions) the generator needs
 to recreate a form faithfully:
@@ -75,7 +91,10 @@ to recreate a form faithfully:
 | `dataSourceColumns[{name, dscType, precision, scale, length, mandatory}]` | block | base-table column types — for typing domain-bean fields |
 | `alerts[{name, alertStyle, alertMessage, buttonNLabel}]` | form | confirm/question dialogs referenced by `SHOW_ALERT` |
 | `programUnits[{name, kind, programUnitType, body}]` | form | the form's own PL/SQL (Forms coordination boilerplate); distinct from `referencedDbObjects` (external/DB calls) |
-| `staticText`, `attachedLibraries`, `visualAttributes`, `objectGroups`, `form.menuModule` | form | recorded descriptively (labels/headers, reused/deferred objects) — no migration decision |
+| `staticText[{name, text, role, headingLevel, labelsItem, canvas, fontSize}]` | form | boilerplate text + derived role (heading/prompt/prose) — feeds `boilerplate-*` rules |
+| `frames[{name, canvas, graphicsType, frameTitle, enclosesItems, enclosedItems}]` | form | bounded grouping regions — feeds `frame-group` |
+| `blocks[].layoutPlan[{fields[], section}]` | block | Y-then-X field order + frame grouping — the order the generator places from |
+| `attachedLibraries`, `visualAttributes`, `objectGroups`, `form.menuModule` | form | recorded descriptively (reused/deferred objects) — no migration decision |
 
 ## Dependencies (out-of-slice surfaces) — ask, never silently drop
 
