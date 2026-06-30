@@ -1,12 +1,14 @@
 package com.example.summit.ui;
 
 import com.example.summit.domain.Order;
+import com.example.summit.domain.OrderLine;
 import com.example.summit.domain.OrderSummary;
 import com.example.summit.presenter.OrderPresenter;
 import com.vaadin.flow.component.checkbox.Checkbox;
 import com.vaadin.flow.component.combobox.ComboBox;
 import com.vaadin.flow.component.datepicker.DatePicker;
 import com.vaadin.flow.component.formlayout.FormLayout;
+import com.vaadin.flow.component.grid.Grid;
 import com.vaadin.flow.component.html.Paragraph;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.textfield.TextField;
@@ -20,9 +22,12 @@ import com.vaadin.flow.router.Route;
  *
  * <p>This is the faithful web rendering of Forms' single-record Enter-Query on the
  * {@code S_ORD} master (Variant A, {@code block-master-single}): a lookup that loads
- * one record, not a grid of orders. Editing, the line-items grid, totals, the pager
- * and commit arrive in later slices. The view holds no SQL — it talks only to the
- * {@link OrderPresenter} (View &larr; Presenter &larr; Service &larr; Data).
+ * one record, not a grid of orders. Below the header, a <strong>read-only line-items
+ * {@link Grid}</strong> renders the order's {@code S_ITEM} rows — the {@code S_ORD_S_ITEM}
+ * master-detail. Header and detail load together and stay coordinated: picking another
+ * order replaces both. Editing, totals, the pager and commit arrive in later slices. The
+ * view holds no SQL — it talks only to the {@link OrderPresenter}
+ * (View &larr; Presenter &larr; Service &larr; Data).
  */
 @Route(value = "orders", layout = MainLayout.class)
 @PageTitle("Orders | Summit Migration POC")
@@ -41,14 +46,17 @@ public class OrderView extends VerticalLayout {
     private final Checkbox orderFilled = new Checkbox("Order Filled");
 
     private final FormLayout header = new FormLayout();
+    private final Grid<OrderLine> lineItems = new Grid<>();
     private final Paragraph emptyHint = new Paragraph("Search for an order to load its header.");
 
     public OrderView(OrderPresenter presenter) {
         this.presenter = presenter;
 
-        add(buildSearch(), emptyHint, header);
+        add(buildSearch(), emptyHint, header, lineItems);
         buildHeader();
+        buildLineItems();
         header.setVisible(false);
+        lineItems.setVisible(false);
     }
 
     private ComboBox<OrderSummary> buildSearch() {
@@ -96,6 +104,23 @@ public class OrderView extends VerticalLayout {
                 paymentType, orderFilled);
     }
 
+    /**
+     * The read-only detail grid over the order's {@code S_ITEM} lines. A plain {@link Grid}
+     * with explicit columns (no editor) — read-only by construction, matching the Step 1b
+     * scope. {@code Description} is the joined product name and {@code Item Total} is the
+     * domain {@link OrderLine#itemTotal()} formula ({@code quantity_shipped * price}).
+     */
+    private void buildLineItems() {
+        lineItems.addColumn(OrderLine::itemId).setHeader("Item").setAutoWidth(true);
+        lineItems.addColumn(OrderLine::productId).setHeader("Product").setAutoWidth(true);
+        lineItems.addColumn(OrderLine::productName).setHeader("Description").setFlexGrow(1);
+        lineItems.addColumn(OrderLine::price).setHeader("Price").setAutoWidth(true);
+        lineItems.addColumn(OrderLine::quantity).setHeader("Qty").setAutoWidth(true);
+        lineItems.addColumn(OrderLine::quantityShipped).setHeader("Qty Shipped").setAutoWidth(true);
+        lineItems.addColumn(OrderLine::itemTotal).setHeader("Item Total").setAutoWidth(true);
+        lineItems.setAllRowsVisible(true);
+    }
+
     private void showOrder(Order order) {
         orderId.setValue(String.valueOf(order.id()));
         customerId.setValue(String.valueOf(order.customerId()));
@@ -107,12 +132,19 @@ public class OrderView extends VerticalLayout {
         paymentType.setValue(nullSafe(order.paymentType()));
         orderFilled.setValue(order.orderFilled());
 
+        // S_ORD_S_ITEM coordination: the detail grid is reloaded with the picked order's
+        // lines, so switching orders replaces the contents (header and detail stay in sync).
+        lineItems.setItems(order.lines());
+
         emptyHint.setVisible(false);
         header.setVisible(true);
+        lineItems.setVisible(true);
     }
 
     private void clearHeader() {
         header.setVisible(false);
+        lineItems.setVisible(false);
+        lineItems.setItems(java.util.Collections.emptyList());
         emptyHint.setVisible(true);
     }
 

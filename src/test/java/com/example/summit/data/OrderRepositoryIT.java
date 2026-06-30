@@ -1,10 +1,12 @@
 package com.example.summit.data;
 
 import com.example.summit.domain.Order;
+import com.example.summit.domain.OrderLine;
 import com.example.summit.domain.OrderSearchCriteria;
 import com.example.summit.domain.OrderSummary;
 import org.junit.jupiter.api.Test;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
@@ -16,8 +18,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Proves {@code OrderRepository} against a real Summit Oracle (Testcontainers). The
- * headline assertion: {@code loadGraph} returns the customer and sales-rep display
- * names <em>in one shot</em> — the join dissolves the Forms POST-QUERY lookups.
+ * headline assertions: {@code loadGraph} returns the customer and sales-rep display
+ * names <em>in one shot</em>, and the order's {@code S_ITEM} line items — each with its
+ * product description joined — as part of the <em>same</em> query path. The joins
+ * dissolve every Forms POST-QUERY lookup.
  */
 class OrderRepositoryIT extends SummitDbIT {
 
@@ -49,6 +53,53 @@ class OrderRepositoryIT extends SummitDbIT {
         assertNull(order.salesRepName());
         assertNull(order.dateShipped());
         assertFalse(order.orderFilled());
+    }
+
+    @Test
+    void loadGraphReturnsTheFullOrderGraphInOneQueryPath() {
+        // The whole aggregate — header + S_ITEM lines + each line's joined product
+        // description — comes back from the single loadGraph query path (no N+1).
+        Order order = repository.loadGraph(50001).orElseThrow();
+
+        // Header still resolves as before.
+        assertEquals(50001L, order.id());
+        assertEquals("Unisports", order.customerName());
+        assertEquals("Magee", order.salesRepName());
+
+        // Lines arrive ordered by item_id, the product description joined onto each row.
+        assertEquals(2, order.lines().size());
+
+        OrderLine first = order.lines().get(0);
+        assertEquals(1L, first.itemId());
+        assertEquals(41010L, first.productId());
+        assertEquals("Ski Boots", first.productName());
+        assertEquals(0, new BigDecimal("50.00").compareTo(first.price()));
+        assertEquals(5L, first.quantity());
+        assertEquals(5L, first.quantityShipped());
+        // ITEM_TOTAL formula: quantity_shipped * price.
+        assertEquals(0, new BigDecimal("250.00").compareTo(first.itemTotal()));
+
+        OrderLine second = order.lines().get(1);
+        assertEquals(2L, second.itemId());
+        assertEquals(20108L, second.productId());
+        assertEquals("Ski Pole", second.productName());
+        assertEquals(27L, second.quantityShipped());
+        assertEquals(0, new BigDecimal("351.00").compareTo(second.itemTotal()));
+
+        // The line totals reconcile to the order's stored S_ORD.total (601.00).
+        BigDecimal lineSum = order.lines().stream()
+                .map(OrderLine::itemTotal)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        assertEquals(0, new BigDecimal("601.00").compareTo(lineSum));
+    }
+
+    @Test
+    void loadGraphReturnsAnEmptyLineListForAnOrderWithNoItems() {
+        // 50003 has no S_ITEM rows — the LEFT JOIN keeps the header, lines is empty.
+        Order order = repository.loadGraph(50003).orElseThrow();
+
+        assertEquals(50003L, order.id());
+        assertTrue(order.lines().isEmpty());
     }
 
     @Test
