@@ -27,6 +27,8 @@ The decision is also recorded in `docs/orders-form-spec.md` (form-specific) and
 the `block-master-single` aiHint was enriched with the quick+advanced search
 affordance.
 
-**Cleanup:** the prototype HTML is kept as the decision record for now; fold
-Variant A into the real Vaadin ORDERS view when Step 1 is built, then delete the
-losing variants + switcher (don't promote prototype code straight to production).
+**Cleanup (done, issue #12):** Variant A is folded into the real Vaadin ORDERS view
+(`OrderView`, PRD #8 Step 1c — canvas/toolbar/CONTROL topology); the losing variants
+(B, C) and the variant switcher have been removed from `orders-search-prototype.html`.
+The prototype now renders Variant A only and survives as the read-only mock of the
+chosen shape (prototype code was not promoted as-is).
