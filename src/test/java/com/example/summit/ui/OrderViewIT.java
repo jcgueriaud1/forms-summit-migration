@@ -1,12 +1,14 @@
 package com.example.summit.ui;
 
 import com.example.summit.it.support.OracleSpringPlaywrightIT;
+import com.microsoft.playwright.Locator;
 import com.microsoft.playwright.Page;
 import org.junit.jupiter.api.Test;
 import org.vaadin.addons.dramafinder.element.ButtonElement;
 import org.vaadin.addons.dramafinder.element.CheckboxElement;
 import org.vaadin.addons.dramafinder.element.ComboBoxElement;
 import org.vaadin.addons.dramafinder.element.DatePickerElement;
+import org.vaadin.addons.dramafinder.element.DetailsElement;
 import org.vaadin.addons.dramafinder.element.GridElement;
 import org.vaadin.addons.dramafinder.element.NotificationElement;
 import org.vaadin.addons.dramafinder.element.RadioButtonGroupElement;
@@ -233,5 +235,95 @@ public class OrderViewIT extends OracleSpringPlaywrightIT {
                 "Order Id", "Date Ordered", "Customer Id", "Customer Name",
                 "Sales Rep Id", "Sales Rep Name", "Date Shipped", "Order Filled", "Payment Type"),
                 order);
+    }
+
+    // ---- Advanced search + navigation that reflects the result set (issue #14) --------------
+    // The QBE replacement: the advanced panel's multi-field filters AND-narrow the lookup, and
+    // running a search loads the matching set positioned at record 1 — so the pager always
+    // reflects the current search (one match → one page) and resets on every search and on Clear.
+
+    private void openAdvancedSearch() {
+        DetailsElement.getBySummaryText(page, "Advanced search").setOpen(true);
+    }
+
+    /** The advanced fields share labels with the header (e.g. "Payment Type"), so scope to the panel. */
+    private Locator advanced() {
+        return page.locator("#advanced-search");
+    }
+
+    private void runSearch() {
+        page.locator("#order-search").click();
+    }
+
+    @Test
+    public void testAdvancedSearchLoadsTheResultSetWithNavigationReflectingIt() {
+        openAdvancedSearch();
+        // Customer "Unisports" matches two orders (50001, 50003); Search loads the set at record 1.
+        TextFieldElement.getByLabel(advanced(), "Customer").setValue("Unisports");
+        runSearch();
+
+        TextFieldElement.getByLabel(page, "Order Id").assertValue("50001");
+        assertThat(page.getByText("Record 1 of 2")).isVisible();
+        previousRecord().assertDisabled();
+        nextRecord().assertEnabled();
+    }
+
+    @Test
+    public void testAdvancedSearchWithASingleMatchHasSinglePageNavigation() {
+        openAdvancedSearch();
+        // Only Womansport's order (50002) is CREDIT — a one-record set, so both ends are disabled.
+        ComboBoxElement.getByLabel(advanced(), "Payment Type").selectItem("Credit");
+        runSearch();
+
+        TextFieldElement.getByLabel(page, "Order Id").assertValue("50002");
+        assertThat(page.getByText("Record 1 of 1")).isVisible();
+        previousRecord().assertDisabled();
+        nextRecord().assertDisabled();
+    }
+
+    @Test
+    public void testAdvancedSearchThatMatchesNothingShowsNoResultsAndNoPager() {
+        openAdvancedSearch();
+        TextFieldElement.getByLabel(advanced(), "Customer").setValue("No Such Customer");
+        runSearch();
+
+        assertThat(page.getByText("No orders match your search.")).isVisible();
+        assertThat(nextRecord().getLocator()).isHidden();
+    }
+
+    @Test
+    public void testRunningANewSearchResetsNavigationToTheFirstRecord() {
+        openAdvancedSearch();
+        TextFieldElement.getByLabel(advanced(), "Customer").setValue("Unisports");
+        runSearch();
+
+        // Step to the last record of the set...
+        nextRecord().click();
+        TextFieldElement.getByLabel(page, "Order Id").assertValue("50003");
+        assertThat(page.getByText("Record 2 of 2")).isVisible();
+
+        // ...then re-run the search: the cursor resets to record 1, not wherever it was left.
+        runSearch();
+        TextFieldElement.getByLabel(page, "Order Id").assertValue("50001");
+        assertThat(page.getByText("Record 1 of 2")).isVisible();
+        previousRecord().assertDisabled();
+    }
+
+    @Test
+    public void testClearResetsTheAdvancedCriteriaAndNavigation() {
+        openAdvancedSearch();
+        TextFieldElement.getByLabel(advanced(), "Customer").setValue("Unisports");
+        ComboBoxElement.getByLabel(advanced(), "Payment Type").selectItem("Cash");
+        runSearch();
+        // A result set is loaded and the pager is showing it.
+        assertThat(page.getByText("Record 1 of 2")).isVisible();
+
+        page.locator("#order-clear").click();
+
+        // Clear resets the criteria and the navigation: back to the empty state, no pager.
+        assertThat(page.getByText("Search for an order to load its header.")).isVisible();
+        assertThat(nextRecord().getLocator()).isHidden();
+        TextFieldElement.getByLabel(advanced(), "Customer").assertValue("");
+        ComboBoxElement.getByLabel(advanced(), "Payment Type").assertValue("");
     }
 }

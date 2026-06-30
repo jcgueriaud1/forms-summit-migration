@@ -46,19 +46,19 @@ public class OrderPresenter {
         this.orderService = orderService;
     }
 
-    /** Quick-search suggestions for the term the clerk has typed so far. */
-    public List<OrderSummary> suggest(String quickTerm) {
-        return orderService.search(new OrderSearchCriteria(quickTerm));
+    /** Search suggestions for the criteria the clerk has built so far (quick term + advanced). */
+    public List<OrderSummary> suggest(OrderSearchCriteria criteria) {
+        return orderService.search(criteria);
     }
 
     /**
-     * Opens the result set for {@code quickTerm} and positions the cursor at the {@code picked}
-     * suggestion, loading that order. This is the entry point the pager then steps through: the
-     * result set is every order matching the same quick term the clerk searched, so prev/next
-     * walk the clerk's query exactly as Forms' record scrollbar did.
+     * Opens the result set for {@code criteria} and positions the cursor at the {@code picked}
+     * suggestion, loading that order. This is the autocomplete entry point the pager then steps
+     * through: the result set is every order matching the same criteria the clerk searched, so
+     * prev/next walk the clerk's query exactly as Forms' record scrollbar did.
      */
-    public Optional<Order> open(String quickTerm, OrderSummary picked) {
-        this.resultSet = orderService.search(new OrderSearchCriteria(quickTerm));
+    public Optional<Order> open(OrderSearchCriteria criteria, OrderSummary picked) {
+        this.resultSet = orderService.search(criteria);
         int index = indexOf(picked.id());
         if (index < 0) {
             // Defensive: the picked order isn't in the re-queried set — keep it a one-record
@@ -67,6 +67,19 @@ public class OrderPresenter {
             index = 0;
         }
         this.position = index;
+        return loadCurrent();
+    }
+
+    /**
+     * Runs {@code criteria} and loads the result set positioned at its <strong>first</strong>
+     * record — the advanced-search entry point. The pager then reflects exactly this set: one
+     * match is "record 1 of 1", N matches are "record 1 of N" starting at the first. The cursor
+     * is reset on every search, so a fresh search always starts the clerk at record 1; an empty
+     * result set returns {@link Optional#empty()} with the cursor cleared (no pager).
+     */
+    public Optional<Order> search(OrderSearchCriteria criteria) {
+        this.resultSet = orderService.search(criteria);
+        this.position = resultSet.isEmpty() ? -1 : 0;
         return loadCurrent();
     }
 

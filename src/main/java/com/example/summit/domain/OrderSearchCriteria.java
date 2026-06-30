@@ -1,36 +1,74 @@
 package com.example.summit.domain;
 
+import java.time.LocalDate;
 import java.util.OptionalLong;
 
 /**
- * Pure, immutable value object for the quick search — it translates a clerk's typed
- * term into the predicate components {@code OrderRepository.findByCriteria} turns into
- * SQL. It is the faithful web rendering of Forms' Enter-Query for the
- * single-record {@code S_ORD} block: "by order id / customer / sales rep".
+ * Pure, immutable value object for the order lookup — the faithful web rendering of Forms'
+ * Enter-Query for the single-record {@code S_ORD} block. It carries the clerk's <em>quick
+ * term</em> ("by order id / customer / sales rep") and the <em>advanced</em>, QBE-style
+ * filters (customer, sales rep, payment type, ordered date-range, order-filled status), and
+ * translates them into the predicate components {@code OrderRepository.findByCriteria} turns
+ * into SQL.
  *
- * <p>Domain-pure (ADR-0001): no Spring, no Vaadin, no SQL — it decides <em>what</em>
- * to match, not <em>how</em> to query. The rules:
+ * <p>Domain-pure (ADR-0001): no Spring, no Vaadin, no SQL — it decides <em>what</em> to match,
+ * not <em>how</em> to query. The combination rule is the QBE one:
  * <ul>
- *   <li>a blank term matches every order (empty criteria);</li>
- *   <li>an all-digit term can match the {@code S_ORD.ID} as well as the names;</li>
- *   <li>any term matches customer name or sales-rep name, case-insensitively
- *       ({@link #namePattern()} is a contains-pattern).</li>
+ *   <li>the quick term matches the {@code S_ORD.ID} <em>or</em> the customer / sales-rep name
+ *       (an OR-group — {@link #namePattern()} is a case-insensitive contains-pattern);</li>
+ *   <li>each advanced filter that is set narrows the result further — they combine with the
+ *       quick term and with each other by <strong>AND</strong>;</li>
+ *   <li>a criteria with nothing set ({@link #isEmpty()}) places no constraint — every order
+ *       matches.</li>
  * </ul>
+ *
+ * <p>Blank text is normalised away (a blank advanced field is "not set", same as null), so an
+ * untouched advanced panel contributes no predicate. The ordered date-range bounds are
+ * <strong>inclusive</strong> on both ends — see {@link #matchesOrderedDate(LocalDate)}, the
+ * canonical contract the SQL mirrors.
  */
-public record OrderSearchCriteria(String quickTerm) {
+public record OrderSearchCriteria(
+        String quickTerm,
+        String customer,
+        String salesRep,
+        String paymentType,
+        LocalDate orderedFrom,
+        LocalDate orderedTo,
+        Boolean orderFilled) {
 
     public OrderSearchCriteria {
         quickTerm = quickTerm == null ? "" : quickTerm.strip();
+        customer = blankToNull(customer);
+        salesRep = blankToNull(salesRep);
+        paymentType = blankToNull(paymentType);
     }
 
-    /** A blank quick term places no constraint — the result set is every order. */
+    /** Convenience constructor for the quick term alone — no advanced filters set. */
+    public OrderSearchCriteria(String quickTerm) {
+        this(quickTerm, null, null, null, null, null, null);
+    }
+
+    /** No quick term and no advanced filter — the result set is then every order. */
     public boolean isEmpty() {
-        return quickTerm.isEmpty();
+        return !hasQuickTerm()
+                && customer == null
+                && salesRep == null
+                && paymentType == null
+                && orderedFrom == null
+                && orderedTo == null
+                && orderFilled == null;
+    }
+
+    // ---- Quick term (id / customer / sales-rep name OR-group) ---------------------------
+
+    /** True when the clerk typed a quick term (the id-or-name OR-group is then active). */
+    public boolean hasQuickTerm() {
+        return !quickTerm.isEmpty();
     }
 
     /** True when the term is all digits, so it can be matched against {@code S_ORD.ID}. */
     public boolean matchesOrderId() {
-        return !quickTerm.isEmpty() && quickTerm.chars().allMatch(Character::isDigit);
+        return hasQuickTerm() && quickTerm.chars().allMatch(Character::isDigit);
     }
 
     /**
@@ -50,10 +88,75 @@ public record OrderSearchCriteria(String quickTerm) {
     }
 
     /**
-     * Case-insensitive contains-pattern for matching customer / sales-rep names.
+     * Case-insensitive contains-pattern for the quick term against customer / sales-rep names.
      * Pair with {@code UPPER(column) LIKE :pattern} in the query.
      */
     public String namePattern() {
-        return "%" + quickTerm.toUpperCase() + "%";
+        return likePattern(quickTerm);
+    }
+
+    // ---- Advanced filters (each AND-narrows the result) ---------------------------------
+
+    public boolean hasCustomer() {
+        return customer != null;
+    }
+
+    /** Case-insensitive contains-pattern for the advanced customer-name filter. */
+    public String customerPattern() {
+        return likePattern(customer);
+    }
+
+    public boolean hasSalesRep() {
+        return salesRep != null;
+    }
+
+    /** Case-insensitive contains-pattern for the advanced sales-rep-name filter. */
+    public String salesRepPattern() {
+        return likePattern(salesRep);
+    }
+
+    public boolean hasPaymentType() {
+        return paymentType != null;
+    }
+
+    public boolean hasOrderedFrom() {
+        return orderedFrom != null;
+    }
+
+    public boolean hasOrderedTo() {
+        return orderedTo != null;
+    }
+
+    /** True when the order-filled status is constrained ({@code true}=filled, {@code false}=not). */
+    public boolean hasOrderFilled() {
+        return orderFilled != null;
+    }
+
+    /**
+     * Whether {@code date} falls inside the ordered date-range — the canonical, inclusive
+     * contract for the {@code orderedFrom}/{@code orderedTo} bounds. An unset bound is open:
+     * a null {@code orderedFrom} means "no lower bound", a null {@code orderedTo} means "no
+     * upper bound". The {@code findByCriteria} SQL mirrors this with {@code >=} / {@code <=}.
+     */
+    public boolean matchesOrderedDate(LocalDate date) {
+        if (date == null) {
+            return !hasOrderedFrom() && !hasOrderedTo();
+        }
+        if (hasOrderedFrom() && date.isBefore(orderedFrom)) {
+            return false;
+        }
+        return !hasOrderedTo() || !date.isAfter(orderedTo);
+    }
+
+    private static String likePattern(String value) {
+        return "%" + value.toUpperCase() + "%";
+    }
+
+    private static String blankToNull(String value) {
+        if (value == null) {
+            return null;
+        }
+        String stripped = value.strip();
+        return stripped.isEmpty() ? null : stripped;
     }
 }
