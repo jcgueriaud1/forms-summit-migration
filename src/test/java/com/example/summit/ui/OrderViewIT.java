@@ -113,6 +113,64 @@ public class OrderViewIT extends OracleSpringPlaywrightIT {
         assertThat(grid.findRow(0).orElseThrow().getCell(2).getCellContentLocator()).hasText("Pro Ski Boot");
     }
 
+    // ---- Prev/next pager over the result set (issue #13) --------------------------------
+    // The replacement for Forms' record scrollbar: a quick search returns a result set, and
+    // prev/next step through it one order at a time with a "record N of M" indicator. The two
+    // Unisports orders (50001, 50003), ordered by id, are the result set here.
+
+    private ButtonElement previousRecord() {
+        return ButtonElement.getByText(page, new Page.GetByRoleOptions().setName("Previous"));
+    }
+
+    private ButtonElement nextRecord() {
+        return ButtonElement.getByText(page, new Page.GetByRoleOptions().setName("Next"));
+    }
+
+    @Test
+    public void testPagerHiddenUntilAnOrderIsLoaded() {
+        // Before any search there is no result set to step, so the pager is not shown.
+        assertThat(nextRecord().getLocator()).isHidden();
+        assertThat(page.getByText("Record 1 of")).isHidden();
+    }
+
+    @Test
+    public void testPagerStepsThroughTheSearchResultSet() {
+        ComboBoxElement search = ComboBoxElement.getByLabel(page, "Find order");
+        // "Unisports" matches two orders (50001, 50003); picking the first opens that result set.
+        search.filterAndSelectItem("Unisports", "#50001 — Unisports (Magee)");
+
+        // Positioned at the first match: "record 1 of 2", prev disabled, next enabled.
+        assertThat(page.getByText("Record 1 of 2")).isVisible();
+        previousRecord().assertDisabled();
+        nextRecord().assertEnabled();
+
+        // Step forward: the next order in the set loads into the same read-only header...
+        nextRecord().click();
+        TextFieldElement.getByLabel(page, "Order Id").assertValue("50003");
+        TextFieldElement.getByLabel(page, "Sales Rep Name").assertValue("");
+        // ...now at the last match: "record 2 of 2", next disabled, prev enabled.
+        assertThat(page.getByText("Record 2 of 2")).isVisible();
+        nextRecord().assertDisabled();
+        previousRecord().assertEnabled();
+
+        // Step back to the first match — the header reloads the previous order.
+        previousRecord().click();
+        TextFieldElement.getByLabel(page, "Order Id").assertValue("50001");
+        assertThat(page.getByText("Record 1 of 2")).isVisible();
+        previousRecord().assertDisabled();
+    }
+
+    @Test
+    public void testPagerReportsASingleMatchAsRecordOneOfOne() {
+        ComboBoxElement search = ComboBoxElement.getByLabel(page, "Find order");
+        // Womansport has just one order — a one-record set: both ends are disabled.
+        search.filterAndSelectItem("Womansport", "#50002 — Womansport (Giljum)");
+
+        assertThat(page.getByText("Record 1 of 1")).isVisible();
+        previousRecord().assertDisabled();
+        nextRecord().assertDisabled();
+    }
+
     @Test
     public void testOrderWithNoSalesRepLoadsWithBlankRep() {
         ComboBoxElement search = ComboBoxElement.getByLabel(page, "Find order");

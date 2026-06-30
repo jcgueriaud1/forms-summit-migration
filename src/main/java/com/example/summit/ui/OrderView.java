@@ -12,6 +12,7 @@ import com.vaadin.flow.component.datepicker.DatePicker;
 import com.vaadin.flow.component.grid.Grid;
 import com.vaadin.flow.component.html.H2;
 import com.vaadin.flow.component.html.Paragraph;
+import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.notification.Notification;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
@@ -78,13 +79,25 @@ public class OrderView extends VerticalLayout {
     private final Grid<OrderLine> lineItems = new Grid<>();
     private final Paragraph emptyHint = new Paragraph("Search for an order to load its header.");
 
+    // The replacement for Forms' record scrollbar: prev/next step through the result set, with a
+    // "record N of M" indicator. The position lives in the presenter (issue #13); this is its view.
+    private final Button prevRecord = new Button("‹ Previous");
+    private final Button nextRecord = new Button("Next ›");
+    private final Span recordIndicator = new Span();
+    private final HorizontalLayout pager = new HorizontalLayout(prevRecord, recordIndicator, nextRecord);
+
+    /** The quick term that produced the current suggestions — the result set prev/next steps. */
+    private String lastSearchTerm = "";
+
     public OrderView(OrderPresenter presenter) {
         this.presenter = presenter;
 
         buildHeader();
         buildLineItems();
+        buildPager();
         headerSection.setVisible(false);
         lineItems.setVisible(false);
+        pager.setVisible(false);
 
         setSizeFull();
         add(buildToolbar(), buildContent());
@@ -132,8 +145,32 @@ public class OrderView extends VerticalLayout {
     private VerticalLayout buildContent() {
         VerticalLayout content = new VerticalLayout();
         content.setPadding(false);
-        content.add(buildSearch(), emptyHint, headerSection, lineItems);
+        content.add(buildSearch(), pager, emptyHint, headerSection, lineItems);
         return content;
+    }
+
+    /**
+     * The prev/next pager — the faithful web rendering of Forms' record scrollbar (issue #13).
+     * It owns no position: it reads {@link OrderPresenter#hasPrevious()}/{@code hasNext()} and the
+     * "record N of M" counts back from the presenter, and asks it to step. Prev is disabled at the
+     * first match, next at the last.
+     */
+    private void buildPager() {
+        prevRecord.addClickListener(event -> presenter.previous().ifPresent(this::showOrder));
+        nextRecord.addClickListener(event -> presenter.next().ifPresent(this::showOrder));
+        pager.setPadding(false);
+        recordIndicator.getStyle().set("align-self", "center");
+    }
+
+    /** Reflects the presenter's cursor in the pager — the single place the indicator/buttons sync. */
+    private void refreshPager() {
+        boolean hasResultSet = presenter.hasResultSet();
+        pager.setVisible(hasResultSet);
+        if (hasResultSet) {
+            recordIndicator.setText("Record " + presenter.recordNumber() + " of " + presenter.recordCount());
+            prevRecord.setEnabled(presenter.hasPrevious());
+            nextRecord.setEnabled(presenter.hasNext());
+        }
     }
 
     private ComboBox<OrderSummary> buildSearch() {
@@ -142,15 +179,19 @@ public class OrderView extends VerticalLayout {
         search.setPlaceholder("Order id, customer, or sales rep");
         search.setItemLabelGenerator(OrderView::suggestionLabel);
         // Server-side autocomplete: each keystroke runs the quick search through the presenter.
-        search.setItems(query -> presenter.suggest(query.getFilter().orElse("")).stream()
-                .skip(query.getOffset())
-                .limit(query.getLimit()));
+        // We remember the term so picking a suggestion opens the matching result set the pager steps.
+        search.setItems(query -> {
+            lastSearchTerm = query.getFilter().orElse("");
+            return presenter.suggest(lastSearchTerm).stream()
+                    .skip(query.getOffset())
+                    .limit(query.getLimit());
+        });
         search.addValueChangeListener(event -> {
             OrderSummary picked = event.getValue();
             if (picked == null) {
                 clearHeader();
             } else {
-                presenter.load(picked.id()).ifPresent(this::showOrder);
+                presenter.open(lastSearchTerm, picked).ifPresent(this::showOrder);
             }
         });
         return search;
@@ -240,13 +281,16 @@ public class OrderView extends VerticalLayout {
         emptyHint.setVisible(false);
         headerSection.setVisible(true);
         lineItems.setVisible(true);
+        refreshPager();
     }
 
     private void clearHeader() {
+        presenter.clear();
         headerSection.setVisible(false);
         lineItems.setVisible(false);
         lineItems.setItems(java.util.Collections.emptyList());
         emptyHint.setVisible(true);
+        refreshPager();
     }
 
     private static String nullSafe(String value) {
