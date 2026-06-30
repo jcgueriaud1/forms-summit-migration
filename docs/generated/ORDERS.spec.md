@@ -44,10 +44,42 @@ Windows: WIN_ORDER (Orders and Items), WIN_INVENTORY (Stock Levels)
 
 | Block | role | dbBlock | CRUD i/u/d/q (injected) | multiRecord | locking (injected) |
 |---|---|---|---|---|---|
-| S_ORD | master | True | 1/1/1/1 (True) | True | Automatic (True) |
+| S_ORD | master | True | 1/1/1/1 (True) | False | Automatic (True) |
 | S_ITEM | detail | True | 1/1/1/1 (True) | True | Automatic (True) |
 | S_INVENTORY | detail | True | 1/1/1/1 (True) | True | Automatic (True) |
-| CONTROL | control | False | 1/1/1/1 (False) | True | Automatic (True) |
+| CONTROL | control | False | 1/1/1/1 (False) | False | Automatic (True) |
+
+## Frames (grouping regions — ADR 0012)
+
+- **RECT59** on CV_ORDER title=— encloses: ORD_ID, CUSTOMER_ID, CUSTOMER_NAME, DATE_ORDERED, DATE_SHIPPED, ORDER_FILLED, SALES_REP_ID, SALES_REP_NAME
+- **RECT60** on CV_ORDER title=— encloses: PRODUCT_LOV_BUTTON, DESCRIPTION, ITEM_ID, ITEM_TOTAL, PRICE, PRODUCT_ID, QUANTITY, QUANTITY_SHIPPED, TOTAL, PAYMENT_TYPE
+- **RECT61** on CV_INVENTORY title=— encloses: AMOUNT_IN_STOCK, MAX_IN_STOCK, REORDER_POINT, RESTOCK_DATE, WAREHOUSE_ID
+- **RECT62** on CV_HELP title=— encloses: ORD_ID
+
+## Layout plan (field order + section — ADR 0011/0012)
+
+> Field order is the form's order (Y-then-X), never invented. `section` is the enclosing frame.
+
+- **S_ORD**
+  - ID
+  - DATE_ORDERED, CUSTOMER_ID, CUSTOMER_NAME [section: RECT59]
+  - SALES_REP_ID, SALES_REP_NAME [section: RECT59]
+  - DATE_SHIPPED, ORDER_FILLED [section: RECT59]
+  - PAYMENT_TYPE [section: RECT60]
+- **S_ITEM**
+  - PRODUCT_IMAGE
+  - IMAGE_DESCRIPTION
+  - ORD_ID [section: RECT59]
+  - ITEM_ID, PRODUCT_ID, DESCRIPTION, PRICE, QUANTITY, QUANTITY_SHIPPED, ITEM_TOTAL [section: RECT60]
+  - TOTAL [section: RECT60]
+- **S_INVENTORY**
+  - PRODUCT_ID
+  - WAREHOUSE_ID, AMOUNT_IN_STOCK, REORDER_POINT, MAX_IN_STOCK, RESTOCK_DATE [section: RECT61]
+- **CONTROL**
+  - IMMEDIATE, STOCK_BUTTON, IMAGE_BUTTON, SHOW_HELP_BUTTON, EXIT_BUTTON
+  - AUTO_QUERY
+  - PUSH_BUTTON57
+  - PRODUCT_LOV_BUTTON [section: RECT60]
 
 ## Block data-source columns (base-table types)
 
@@ -155,11 +187,11 @@ Windows: WIN_ORDER (Orders and Items), WIN_INVENTORY (Stock Levels)
 
 ## Static text (verbatim labels / headers / help)
 
-- CV_ORDER/TEXT91: "Order Information"
-- CV_ORDER/TEXT15: "Payment Type"
-- CV_INVENTORY/TEXT27: "Stock Information"
-- CV_HELP/TEXT99: "The Orders Form lets you insert, update,&#10;delete and query orders for a cu..."
-- CV_HELP/TEXT126: "Help Information"
+- CV_ORDER/TEXT91 [heading (h2)]: "Order Information"
+- CV_ORDER/TEXT15 [prose]: "Payment Type"
+- CV_INVENTORY/TEXT27 [heading (h2)]: "Stock Information"
+- CV_HELP/TEXT99 [prose]: "The Orders Form lets you insert, update,&#10;delete and query orders for a cu..."
+- CV_HELP/TEXT126 [heading (h2)]: "Help Information"
 
 ## Referenced DB program units (resolve signatures from schema)
 
