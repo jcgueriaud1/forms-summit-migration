@@ -83,6 +83,8 @@ public class OrderView extends VerticalLayout {
     private final H2 orderInfoHeading = new H2("Order Information");
     private final VerticalLayout headerSection = new VerticalLayout();
     private final Grid<OrderLine> lineItems = new Grid<>();
+    private Grid.Column<OrderLine> descriptionColumn;
+    private Grid.Column<OrderLine> itemTotalColumn;
     private final Paragraph emptyHint = new Paragraph(NO_ORDER_HINT);
 
     // Quick search (autocomplete picker) — by order id / customer / sales rep.
@@ -324,11 +326,11 @@ public class OrderView extends VerticalLayout {
     private void buildLineItems() {
         lineItems.addColumn(OrderLine::itemId).setHeader("Item").setAutoWidth(true);
         lineItems.addColumn(OrderLine::productId).setHeader("Product").setAutoWidth(true);
-        lineItems.addColumn(OrderLine::productName).setHeader("Description").setFlexGrow(1);
+        descriptionColumn = lineItems.addColumn(OrderLine::productName).setHeader("Description").setFlexGrow(1);
         lineItems.addColumn(OrderLine::price).setHeader("Price").setAutoWidth(true);
         lineItems.addColumn(OrderLine::quantity).setHeader("Qty").setAutoWidth(true);
         lineItems.addColumn(OrderLine::quantityShipped).setHeader("Qty Shipped").setAutoWidth(true);
-        lineItems.addColumn(OrderLine::itemTotal).setHeader("Item Total").setAutoWidth(true);
+        itemTotalColumn = lineItems.addColumn(OrderLine::itemTotal).setHeader("Item Total").setAutoWidth(true);
         lineItems.setAllRowsVisible(true);
     }
 
@@ -350,6 +352,11 @@ public class OrderView extends VerticalLayout {
 
         // S_ORD_S_ITEM coordination: the detail grid is reloaded with the picked order's lines.
         lineItems.setItems(order.lines());
+
+        // Forms TOTAL (Summary=Sum over ITEM_TOTAL) → a read-only footer under the Item Total
+        // column, fed straight from the domain Order.total() (ADR-0001).
+        descriptionColumn.setFooter("Total");
+        itemTotalColumn.setFooter(order.total().toPlainString());
 
         emptyHint.setVisible(false);
         headerSection.setVisible(true);
