@@ -4,7 +4,8 @@ import com.example.summit.domain.Order;
 import com.example.summit.domain.OrderSearchCriteria;
 import com.example.summit.domain.OrderSummary;
 import com.example.summit.service.OrderService;
-import com.vaadin.flow.spring.annotation.UIScope;
+import org.springframework.beans.factory.config.ConfigurableBeanFactory;
+import org.springframework.context.annotation.Scope;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -24,12 +25,13 @@ import java.util.Optional;
  * position ({@link #recordNumber()} of {@link #recordCount()}) lives here, not in the view
  * (issue #13) — so the view stays a thin renderer of presenter state.
  *
- * <p><b>Scope.</b> {@code @UIScope}: the cursor is per-clerk (per browser UI), not shared.
- * A default-singleton {@code @Component} would let two clerks browsing at once corrupt each
- * other's position — the cursor is conversational state, so it lives for the life of the UI.
+ * <p><b>Scope.</b> {@code prototype}: each {@link com.example.summit.ui.OrderView} (recreated on
+ * every navigation) gets its own presenter, so the cursor's lifetime matches the view's exactly —
+ * a fresh view starts from a clean cursor. A default-singleton {@code @Component} would instead let
+ * two clerks browsing at once corrupt each other's position.
  */
 @Component
-@UIScope
+@Scope(ConfigurableBeanFactory.SCOPE_PROTOTYPE)
 public class OrderPresenter {
 
     private final OrderService orderService;
