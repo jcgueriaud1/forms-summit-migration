@@ -3,7 +3,10 @@ package com.example.summit.presenter;
 import com.example.summit.domain.Order;
 import com.example.summit.domain.OrderSearchCriteria;
 import com.example.summit.domain.OrderSummary;
+import com.example.summit.domain.Product;
+import com.example.summit.domain.ProductDefaults;
 import com.example.summit.service.OrderService;
+import com.example.summit.service.ProductService;
 import org.springframework.beans.factory.config.ConfigurableBeanFactory;
 import org.springframework.context.annotation.Scope;
 import org.springframework.stereotype.Component;
@@ -37,6 +40,7 @@ import java.util.Optional;
 public class OrderPresenter {
 
     private final OrderService orderService;
+    private final ProductService productService;
 
     /** The quick-search result set the clerk is stepping through (the Forms query result). */
     private List<OrderSummary> resultSet = List.of();
@@ -51,8 +55,9 @@ public class OrderPresenter {
      */
     private List<EditableLine> workingLines = new ArrayList<>();
 
-    public OrderPresenter(OrderService orderService) {
+    public OrderPresenter(OrderService orderService, ProductService productService) {
         this.orderService = orderService;
+        this.productService = productService;
     }
 
     /** Search suggestions for the criteria the clerk has built so far (quick term + advanced). */
@@ -178,6 +183,34 @@ public class OrderPresenter {
      */
     public BigDecimal currentTotal() {
         return Order.total(workingLines.stream().map(EditableLine::toOrderLine).toList());
+    }
+
+    // ---- Product LOV + WHEN-VALIDATE-ITEM defaulter (issue #17) --------------------------------
+    // The PRODUCTS_LOV feeds the line's product picker (id + name, writes back only the id); the
+    // defaulter is the separate WHEN-VALIDATE-ITEM rule, re-defaulting description + price on any
+    // product_id change (LOV pick or direct entry) — orchestration here, the formula-free lookup
+    // in ProductService (orders-form-spec.md).
+
+    /** The {@code PRODUCTS_LOV} items (id + name, ordered by name) for the line's lookup ComboBox. */
+    public List<Product> products() {
+        return productService.lookup();
+    }
+
+    /**
+     * The {@code WHEN-VALIDATE-ITEM} defaulter: re-defaults {@code line}'s {@code description} and
+     * {@code price} from the product, fired on any {@code product_id} change. Returns the applied
+     * {@link ProductDefaults} when the product exists, or {@link Optional#empty()} — the Forms
+     * {@code NO_DATA_FOUND} reject path — when the id is invalid, in which case the line is left
+     * untouched so the caller can reject it. This is deliberately separate from the LOV's own id
+     * write-back: it runs the same way for a directly-entered id.
+     */
+    public Optional<ProductDefaults> applyProductDefaults(EditableLine line, long productId) {
+        Optional<ProductDefaults> defaults = productService.findProductDefaults(productId);
+        defaults.ifPresent(d -> {
+            line.setProductName(d.name());
+            line.setPrice(d.suggestedPrice());
+        });
+        return defaults;
     }
 
     private Optional<Order> loadCurrent() {

@@ -3,6 +3,7 @@ package com.example.summit.ui;
 import com.example.summit.domain.Order;
 import com.example.summit.domain.OrderSearchCriteria;
 import com.example.summit.domain.OrderSummary;
+import com.example.summit.domain.Product;
 import com.example.summit.presenter.EditableLine;
 import com.example.summit.presenter.OrderPresenter;
 import com.vaadin.flow.component.Component;
@@ -27,6 +28,10 @@ import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.data.binder.Binder;
 import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
+
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 
 /**
  * The ORDERS view — the faithful web rendering of Summit's {@code ORDERS} Forms window.
@@ -92,6 +97,14 @@ public class OrderView extends VerticalLayout {
     // Read-only display of the edited row's ITEM_TOTAL, shown while its editor is open so the row
     // total recomputes live without re-rendering (and closing) the editor.
     private final Span itemTotalEditor = new Span();
+    // Read-only display of the edited row's product description (S_PRODUCT.name), shown while the
+    // editor is open so the WHEN-VALIDATE-ITEM re-default shows live, again without refreshing (and
+    // closing) the open editor (issue #17, see vaadin-grid-editor-live-recompute).
+    private final Span descriptionEditor = new Span();
+    // Guards the product ComboBox value-change listener while the editor seeds it from the line on
+    // open: the WHEN-VALIDATE-ITEM defaulter must fire only on a clerk's product change, not when an
+    // existing line is loaded into the editor (Forms fires it on validation, not on query).
+    private boolean suppressProductDefaulter;
     private final Paragraph emptyHint = new Paragraph(NO_ORDER_HINT);
 
     // The detail-block editing controls (issue #16). Add appends a line with the next per-order
@@ -344,7 +357,8 @@ public class OrderView extends VerticalLayout {
      */
     private void buildLineItems() {
         lineItems.addColumn(EditableLine::getItemId).setHeader("Item").setAutoWidth(true);
-        lineItems.addColumn(EditableLine::getProductId).setHeader("Product").setAutoWidth(true);
+        Grid.Column<EditableLine> productColumn =
+                lineItems.addColumn(EditableLine::getProductId).setHeader("Product").setAutoWidth(true);
         descriptionColumn = lineItems.addColumn(EditableLine::getProductName).setHeader("Description").setFlexGrow(1);
         Grid.Column<EditableLine> priceColumn =
                 lineItems.addColumn(EditableLine::getPrice).setHeader("Price").setAutoWidth(true);
@@ -367,6 +381,21 @@ public class OrderView extends VerticalLayout {
         IntegerField quantityField = new IntegerField();
         IntegerField quantityShippedField = new IntegerField();
 
+        // The PRODUCTS_LOV (issue #17): a ComboBox over the catalog (id + name, ordered by name),
+        // showing "id — name" but writing back only the id — a picker, not a defaulter. The small
+        // Summit catalog is fetched once and held by id so a directly-typed id can be resolved.
+        List<Product> products = presenter.products();
+        Map<Long, Product> productsById = new LinkedHashMap<>();
+        products.forEach(product -> productsById.put(product.id(), product));
+        ComboBox<Product> productCombo = new ComboBox<>();
+        productCombo.setId("line-product");
+        productCombo.setItems(products);
+        productCombo.setItemLabelGenerator(product -> product.id() + " — " + product.name());
+        // Allow a directly-typed id (the Forms field accepted typing as well as the LOV): a known id
+        // selects its product (re-defaulting via the listener below); an unknown one is rejected.
+        productCombo.setAllowCustomValue(true);
+        productColumn.setEditorComponent(productCombo);
+
         binder.forField(priceField).bind(EditableLine::getPrice, EditableLine::setPrice);
         // Quantities are domain longs; the IntegerField presents them and converts back, treating a
         // cleared field as zero so the line stays summable.
@@ -380,6 +409,11 @@ public class OrderView extends VerticalLayout {
         priceColumn.setEditorComponent(priceField);
         quantityColumn.setEditorComponent(quantityField);
         quantityShippedColumn.setEditorComponent(quantityShippedField);
+        // Description (S_PRODUCT.name) is never typed — it is re-defaulted by the product change — so
+        // in the editor it gets a read-only display that updates live when the product changes, the
+        // same pattern as the item-total cell.
+        descriptionEditor.setId("line-description");
+        descriptionColumn.setEditorComponent(descriptionEditor);
         // ITEM_TOTAL is computed, never typed — but in the editor it gets a read-only display so the
         // row's item total visibly recomputes live as the clerk edits, without re-rendering (and
         // tearing down) the open editor.
@@ -391,9 +425,51 @@ public class OrderView extends VerticalLayout {
         quantityShippedField.addValueChangeListener(event -> onLineEdited());
         quantityField.addValueChangeListener(event -> onLineEdited());
 
-        // Seed the live item-total display when the editor opens, and fold the final value back into
-        // the static cell when it closes (a refresh while editing would close the open editor).
-        editor.addOpenListener(event -> itemTotalEditor.setText(itemTotalText(event.getItem())));
+        // The WHEN-VALIDATE-ITEM defaulter (issue #17): a product change — whether the clerk picks
+        // from the LOV or types an id — writes back only the id (the LOV's job) and then re-defaults
+        // the line's description and price from that product (the separate defaulter). The price
+        // field is updated live so its own listener re-totals the row and the order footer.
+        productCombo.addValueChangeListener(event -> {
+            if (suppressProductDefaulter) {
+                return;
+            }
+            Product picked = event.getValue();
+            EditableLine edited = lineItems.getEditor().getItem();
+            if (edited == null || picked == null) {
+                return;
+            }
+            edited.setProductId(picked.id());                    // LOV return mapping: only the id
+            presenter.applyProductDefaults(edited, picked.id()); // defaulter: description + price
+            descriptionEditor.setText(nullSafe(edited.getProductName()));
+            priceField.setValue(edited.getPrice());              // reflects the re-defaulted price...
+            onLineEdited();                                      // ...and re-totals row + footer
+        });
+        // A directly-typed product id: a known id selects its product (which re-defaults through the
+        // listener above); an unknown one is the Forms NO_DATA_FOUND reject — cleared, with a message.
+        productCombo.addCustomValueSetListener(event -> {
+            String raw = event.getDetail() == null ? "" : event.getDetail().trim();
+            Long id = parseProductId(raw);
+            Product match = id == null ? null : productsById.get(id);
+            if (match != null) {
+                productCombo.setValue(match);
+            } else {
+                productCombo.clear();
+                Notification.show("No product with id " + raw + ".");
+            }
+        });
+
+        // Seed the live item-total + description displays when the editor opens, and reflect the
+        // current product in the LOV — suppressing the defaulter so loading an existing line does not
+        // re-default it. Fold the final values back into the static cells on close (a refresh while
+        // editing would close the open editor).
+        editor.addOpenListener(event -> {
+            EditableLine item = event.getItem();
+            suppressProductDefaulter = true;
+            productCombo.setValue(productsById.get(item.getProductId()));
+            suppressProductDefaulter = false;
+            descriptionEditor.setText(nullSafe(item.getProductName()));
+            itemTotalEditor.setText(itemTotalText(item));
+        });
         editor.addCloseListener(event -> {
             lineItems.getDataProvider().refreshItem(event.getItem());
             refreshOrderTotal();
@@ -535,5 +611,14 @@ public class OrderView extends VerticalLayout {
 
     private static String nullSafe(String value) {
         return value == null ? "" : value;
+    }
+
+    /** Parses a typed product id, or {@code null} if it is not a number (then rejected as invalid). */
+    private static Long parseProductId(String raw) {
+        try {
+            return Long.valueOf(raw);
+        } catch (NumberFormatException notANumber) {
+            return null;
+        }
     }
 }
