@@ -1,23 +1,35 @@
 {
   "version": 1,
   "skills": {
-    "vaadin-playwright-test": {
-      "source": "parttio/dramafinder",
-      "sourceType": "github",
-      "skillPath": "skills/vaadin-playwright-test/SKILL.md",
-      "computedHash": "61b20d28fc6ec08539f28677f417075ce5b7940e689e8ec016df31f8d5ef1a9a"
-    },
     "ask-matt": {
       "source": "mattpocock/skills",
       "sourceType": "github",
       "skillPath": "skills/engineering/ask-matt/SKILL.md",
       "computedHash": "f3ac3351e2a242ce2591e4f8475424d58f62db3f5786332b78f330b15312d1e0"
     },
+    "aura-theme": {
+      "source": "vaadin/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/aura-theme/SKILL.md",
+      "computedHash": "9d1496bba9c960afd9d98f78e9601ec7cfab1d6713f296a9ad6ee12cbcc5d314"
+    },
+    "client-side-views": {
+      "source": "vaadin/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/client-side-views/SKILL.md",
+      "computedHash": "2b27b7d9e250281aa7636fed6e5bdfedabbf53b67370124ade032652af2c8bf9"
+    },
     "codebase-design": {
       "source": "mattpocock/skills",
       "sourceType": "github",
       "skillPath": "skills/engineering/codebase-design/SKILL.md",
       "computedHash": "2426dc4accf1a85dedfb560edb3a877ec8828b7375ea08c970df2b6c900a2a22"
+    },
+    "data-providers": {
+      "source": "vaadin/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/data-providers/SKILL.md",
+      "computedHash": "44a9a9a12f907884bcceff7a31bcaa1588c45ce5d53cf033d92daf46317488b8"
     },
     "diagnosing-bugs": {
       "source": "mattpocock/skills",
@@ -30,6 +42,18 @@
       "sourceType": "github",
       "skillPath": "skills/engineering/domain-modeling/SKILL.md",
       "computedHash": "67343881f5def98487d56243155716110afbcbf22ec92421c882d532b941cb17"
+    },
+    "forms-and-validation": {
+      "source": "vaadin/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/forms-and-validation/SKILL.md",
+      "computedHash": "3906f986f0437b18ce239c5a1bf1aaf6607ddf629343710f6b46e6af43f540cc"
+    },
+    "frontend-design": {
+      "source": "vaadin/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/frontend-design/SKILL.md",
+      "computedHash": "740ed5a012e44ea09b7985579ff0439ad4ca58af2064b6138634c20bf330e30e"
     },
     "grill-me": {
       "source": "mattpocock/skills",
@@ -67,11 +91,35 @@
       "skillPath": "skills/engineering/prototype/SKILL.md",
       "computedHash": "40ff56e36bb13b5a9a16903efd6c78a02690ba430e10a8d1a65559100b77f475"
     },
+    "responsive-layouts": {
+      "source": "vaadin/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/responsive-layouts/SKILL.md",
+      "computedHash": "a5b60aa6c386c380dd992c4cc302d978a8edb7aaccc0b082fd4aa5bee450ac75"
+    },
+    "reusable-components": {
+      "source": "vaadin/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/reusable-components/SKILL.md",
+      "computedHash": "dbd4c09f0eab3488c996c34a467cea3c755aca61ea987052f915170e8f041fb7"
+    },
+    "security": {
+      "source": "vaadin/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/security/SKILL.md",
+      "computedHash": "a70bc5c685ede8e8dec8937e974a9f34bd8f3625ed3bf47bc0ccf5cd841accdb"
+    },
     "setup-matt-pocock-skills": {
       "source": "mattpocock/skills",
       "sourceType": "github",
       "skillPath": "skills/engineering/setup-matt-pocock-skills/SKILL.md",
       "computedHash": "400da4521ed701c99e8824ae7b71c7859632ee91481b3715890036cf8aec6857"
+    },
+    "signals": {
+      "source": "vaadin/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/signals/SKILL.md",
+      "computedHash": "b7c4271d017079335d161f0c5fbaf7a739ddb9687e546c8cf940194a52f0f01d"
     },
     "tdd": {
       "source": "mattpocock/skills",
@@ -84,6 +132,24 @@
       "sourceType": "github",
       "skillPath": "skills/productivity/teach/SKILL.md",
       "computedHash": "9cd31ea42b40915ea5fd3949ed229b217d1dfad07dd93d9b0db771dcdd6a6c8a"
+    },
+    "testbench-testing": {
+      "source": "vaadin/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/testbench-testing/SKILL.md",
+      "computedHash": "46fa4cb68e197283dbc027b962df06216d27159b2f7f5c019eb51b58c44154c4"
+    },
+    "theming": {
+      "source": "vaadin/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/theming/SKILL.md",
+      "computedHash": "92ac0e6be1ed1a15624592fdb836bf4f33085437c08fbe40ad4df9756168261e"
+    },
+    "third-party-components": {
+      "source": "vaadin/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/third-party-components/SKILL.md",
+      "computedHash": "5ee729e27fbdcf44b8ac34277cce0205dd0c821ef4dba4f623c3593bbcab2f07"
     },
     "to-issues": {
       "source": "mattpocock/skills",
@@ -102,6 +168,36 @@
       "sourceType": "github",
       "skillPath": "skills/engineering/triage/SKILL.md",
       "computedHash": "b77ea99c2e6e97815b373cc476ad4cc1835d3e736867b764602147be71f6c131"
+    },
+    "ui-unit-testing": {
+      "source": "vaadin/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/ui-unit-testing/SKILL.md",
+      "computedHash": "0f7dd405f0f1180c3b430cce3fb877b17e3645e052b958f0ea516972a0896421"
+    },
+    "vaadin-form-layout": {
+      "source": "vaadin/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/vaadin-form-layout/SKILL.md",
+      "computedHash": "49eeef6315db3223d65def434cca1fb0763f011a72d9ed1222fefa80c98cfc7f"
+    },
+    "vaadin-layouts": {
+      "source": "vaadin/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/vaadin-layouts/SKILL.md",
+      "computedHash": "66929d50de2f6cbec10b9577ae9a5bd4c2ac0f6e2256518e73a154f825afafa0"
+    },
+    "vaadin-playwright-test": {
+      "source": "parttio/dramafinder",
+      "sourceType": "github",
+      "skillPath": "skills/vaadin-playwright-test/SKILL.md",
+      "computedHash": "61b20d28fc6ec08539f28677f417075ce5b7940e689e8ec016df31f8d5ef1a9a"
+    },
+    "views-and-navigation": {
+      "source": "vaadin/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/views-and-navigation/SKILL.md",
+      "computedHash": "87971c2debaa975b2b515c4a3827b5c25224c8f38abb0df26891b96a9f2cd47d"
     },
     "writing-great-skills": {
       "source": "mattpocock/skills",
