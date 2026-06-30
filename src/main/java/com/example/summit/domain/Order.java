@@ -1,5 +1,6 @@
 package com.example.summit.domain;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 
@@ -25,4 +26,16 @@ public record Order(
         String paymentType,
         boolean orderFilled,
         List<OrderLine> lines) {
+
+    /**
+     * The {@code TOTAL} summary: {@code Sum} over each line's {@link OrderLine#itemTotal()}
+     * (the Forms {@code TOTAL} Summary item, {@code SummaryFunction="Sum"} over {@code ITEM_TOTAL}).
+     * An order with no lines sums to {@link BigDecimal#ZERO}; unpriced lines contribute zero,
+     * following {@code itemTotal()}'s null-price handling.
+     */
+    public BigDecimal total() {
+        return lines.stream()
+                .map(OrderLine::itemTotal)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
 }

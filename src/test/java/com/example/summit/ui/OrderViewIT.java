@@ -115,6 +115,31 @@ public class OrderViewIT extends OracleSpringPlaywrightIT {
         assertThat(grid.findRow(0).orElseThrow().getCell(2).getCellContentLocator()).hasText("Pro Ski Boot");
     }
 
+    @Test
+    public void testOrderTotalFooterShowsTheDomainComputedSum() {
+        // The order Total footer (Forms TOTAL = Sum over ITEM_TOTAL) is fed from Order.total()
+        // (ADR-0001), so it reflects quantity_shipped * price summed across the lines.
+        ComboBoxElement search = ComboBoxElement.getByLabel(page, "Find order");
+        search.filterAndSelectItem("50001", "#50001 — Unisports (Magee)");
+
+        GridElement grid = GridElement.get(page);
+        grid.waitForGridToStopLoading();
+
+        // Sanity: the order actually loaded before we look at its footer.
+        TextFieldElement.getByLabel(page, "Order Id").assertValue("50001");
+
+        // 50001: 5 * 50 + 27 * 13 = 601, under a "Total" footer label (the value renders at the
+        // NUMBER's canonical scale — whole sums show no trailing ".00").
+        assertThat(page.getByText("Total", new Page.GetByTextOptions().setExact(true))).isVisible();
+        assertThat(page.getByText("601", new Page.GetByTextOptions().setExact(true))).isVisible();
+
+        // Switching orders recomputes the footer: 50002 -> 8 * 1000 + 1 * 56.6 = 8056.6 (the
+        // 56.60 cents survive — they are summed, not rounded away).
+        search.filterAndSelectItem("50002", "#50002 — Womansport (Giljum)");
+        grid.waitForGridToStopLoading();
+        assertThat(page.getByText("8056.6", new Page.GetByTextOptions().setExact(true))).isVisible();
+    }
+
     // ---- Prev/next pager over the result set (issue #13) --------------------------------
     // The replacement for Forms' record scrollbar: a quick search returns a result set, and
     // prev/next step through it one order at a time with a "record N of M" indicator. The two
