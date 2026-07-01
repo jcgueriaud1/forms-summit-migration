@@ -332,6 +332,36 @@ public class OrderViewIT extends OracleSpringPlaywrightIT {
         assertThat(page.locator("#order-total")).hasText("651.00");
     }
 
+    /**
+     * Product LOV + WHEN-VALIDATE-ITEM defaulter (issue #46). The line's product is picked from the
+     * {@code PRODUCTS_LOV} — a ComboBox that lists each product as "id — name" but returns only the id.
+     * Picking a different product re-defaults the line's description and price from that product, so the
+     * order Total recomputes live (the defaulter is separate from the pick, fired on the product change).
+     */
+    @Test
+    public void testPickingAProductFromTheLovReDefaultsDescriptionAndPrice() {
+        ComboBoxElement search = ComboBoxElement.getByLabel(page, "Find order");
+        search.filterAndSelectItem("50001", "#50001 — Unisports (Magee)");
+        TextFieldElement.getByLabel(page, "Order Id").assertValue("50001");
+
+        // On load the first line is product 41010 "Ski Boots" at 50.00; total 250.00 + 351.00 = 601.00.
+        assertThat(page.locator("#order-total")).hasText("601.00");
+
+        // Open the first line's editor on the Product cell (column 1) — the PRODUCTS_LOV surfaces.
+        GridElement grid = GridElement.get(page);
+        grid.findRow(0).orElseThrow().getCell(1).getCellContentLocator().dblclick();
+
+        ComboBoxElement productLov = new ComboBoxElement(page.locator("#order-product-lov"));
+        assertThat(productLov.getLocator()).isVisible();
+        // The LOV displays the current product as "id — name" (both columns), returning only the id.
+        productLov.assertValue("41010 — Ski Boots");
+
+        // Pick a different product: the defaulter re-defaults price to 1000.00 (and description to
+        // "Pro Ski Boot"), so the footer recomputes live to 5 * 1000.00 + 351.00 = 5351.00.
+        productLov.filterAndSelectItem("Pro", "30421 — Pro Ski Boot");
+        assertThat(page.locator("#order-total")).hasText("5351.00");
+    }
+
     /** Reads the trimmed text of a body cell addressed by row index and column header. */
     private static String cell(GridElement grid, int row, String column) {
         return grid.findCell(row, column).orElseThrow()
