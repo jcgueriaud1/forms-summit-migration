@@ -47,6 +47,26 @@ public class EditableHeader {
         this.rowScn = order.rowScn();
     }
 
+    /** A blank header for a brand-new order — no id and no scn yet (both are assigned on commit). */
+    private EditableHeader() {
+        this.id = 0L;
+        this.rowScn = null;
+        this.customerName = "";
+        this.salesRepName = "";
+        // A new order defaults to CASH (no credit check), matching the S_ORD payment-type default.
+        this.paymentType = "CASH";
+    }
+
+    /**
+     * A fresh, empty working header for a <strong>new</strong> order (issue #19): no {@link #getId()
+     * id} and no {@link #getRowScn() ORA_ROWSCN} — {@link Order#isNew()} holds, so the commit inserts
+     * it with an id from {@code S_ORD_ID.nextval}. The clerk fills the customer (the
+     * {@code WHEN-VALIDATE-ITEM} defaulter resolves the name + sales rep) and adds line items.
+     */
+    public static EditableHeader blank() {
+        return new EditableHeader();
+    }
+
     public long getId() {
         return id;
     }

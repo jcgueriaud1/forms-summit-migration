@@ -14,7 +14,10 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Pure unit test for the presenter's whole-graph commit orchestration (issue #19) — no Spring, no
@@ -116,6 +119,30 @@ class OrderPresenterCommitTest {
         assertInstanceOf(CommitResult.Conflict.class, result);
         // No re-seed: the clerk's session still holds the originally-loaded scn to reconcile from.
         assertEquals(7L, presenter.editableHeader().getRowScn());
+    }
+
+    @Test
+    void newOrderStartsABlankInsertableGraphAndCommitsAsAnInsert() {
+        StubService service = new StubService();
+        service.saveResult = new CommitResult.Committed(70000);
+        OrderPresenter presenter = loadedPresenter(service); // starts on a loaded order...
+
+        presenter.newOrder(); // ...then the clerk starts a fresh one
+
+        // A blank header (no scn -> isNew), no lines, and no result set to page through.
+        assertNull(presenter.editableHeader().getRowScn());
+        assertTrue(presenter.editableLines().isEmpty());
+        assertFalse(presenter.hasResultSet());
+
+        // The clerk enters a customer and adds a line, then commits.
+        presenter.editableHeader().setCustomerId(201);
+        presenter.addLine();
+        presenter.commit();
+
+        // The order handed to save is a new (insertable) graph with the clerk's customer and line.
+        assertTrue(service.savedOrder.isNew());
+        assertEquals(201L, service.savedOrder.customerId());
+        assertEquals(1, service.savedOrder.lines().size());
     }
 
     @Test

@@ -163,6 +163,20 @@ public class OrderPresenter {
         this.workingHeader = null;
     }
 
+    /**
+     * Starts a brand-new, unsaved order (issue #19): a blank working header ({@link EditableHeader#blank()},
+     * so {@link Order#isNew()} holds — the commit will INSERT it with an id from {@code S_ORD_ID.nextval})
+     * and an empty working line set for the clerk to fill and add lines to. The search cursor is cleared,
+     * since a new order is not part of any result set (the pager hides). The customer-id defaulter and the
+     * line editing then work exactly as they do for a loaded order.
+     */
+    public void newOrder() {
+        this.resultSet = List.of();
+        this.position = -1;
+        this.workingLines = new ArrayList<>();
+        this.workingHeader = EditableHeader.blank();
+    }
+
     // ---- In-memory line editing (issue #16) ---------------------------------------------------
     // Loading an order seeds a fresh working set; the editable grid binds to it and the order
     // total is summed over it live as the clerk edits, adds, or removes lines. ADR-0002: the

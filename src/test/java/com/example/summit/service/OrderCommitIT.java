@@ -142,6 +142,18 @@ class OrderCommitIT extends SummitDbIT {
         assertEquals(LocalDate.of(1992, 9, 10), after.dateShipped());
     }
 
+    @Test
+    void aNewOrderWithoutACustomerIsRefusedNotLeftAsAConstraintError() {
+        // S_ORD.customer_id is a mandatory FK: a new order with no customer is refused cleanly by the
+        // gate (a typed Rejected), not surfaced as a raw constraint violation from the insert.
+        Order noCustomer = new Order(0, 0, null, LocalDate.of(1992, 8, 31), null,
+                null, null, "CASH", false, List.of(), null);
+
+        CommitResult result = service.save(noCustomer);
+
+        assertInstanceOf(CommitResult.Rejected.class, result);
+    }
+
     // ---- fixtures ------------------------------------------------------------------------------
 
     /** A new (unpersisted) order with the given lines — customer 201 / rep 1, CASH, filled. */

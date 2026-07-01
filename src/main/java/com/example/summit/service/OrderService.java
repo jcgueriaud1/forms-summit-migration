@@ -93,6 +93,12 @@ public class OrderService {
         if (!order.shipDateValid()) {
             return new CommitResult.Rejected("Ship date cannot be before the order date.");
         }
+        // S_ORD.customer_id is a mandatory FK: a new order with no customer is refused cleanly here
+        // rather than as a raw constraint violation. A loaded order always has one (the defaulter
+        // never clears it), so this only ever bites the new-order path.
+        if (order.customerId() <= 0) {
+            return new CommitResult.Rejected("A customer is required.");
+        }
         if (order.isNew()) {
             long newId = orderRepository.insertOrder(order);
             order.lines().forEach(line -> orderRepository.insertItem(newId, line));
