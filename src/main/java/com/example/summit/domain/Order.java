@@ -63,6 +63,29 @@ public record Order(
     }
 
     /**
+     * The ship-date guard as a <strong>pure domain invariant</strong> (ADR-0001, issue #47) — the
+     * Forms {@code S_ORD} {@code WHEN-VALIDATE-RECORD} check {@code date_shipped >= date_ordered}. An
+     * order cannot record a shipment before it was ordered. A {@code null} ship date is valid (the
+     * order simply has not shipped yet); equal dates are valid (shipped the day it was ordered); only
+     * a ship date strictly before the order date is rejected. The view mirrors this to a Binder
+     * validator (ADR-0002) for live feedback on the ship-date field.
+     */
+    public boolean shipDateValid() {
+        return shipDateValid(dateOrdered, dateShipped);
+    }
+
+    /**
+     * The {@code date_shipped >= date_ordered} guard over <em>arbitrary</em> dates — the same rule as
+     * {@link #shipDateValid()}, exposed so the header editing session can validate the dates the clerk
+     * is typing before rebuilding an {@link Order} (issue #47), keeping the check authoritative in the
+     * Domain. A {@code null} ship date is allowed; a {@code null} order date makes the comparison
+     * vacuous (nothing to be before), so it too is allowed.
+     */
+    public static boolean shipDateValid(LocalDate dateOrdered, LocalDate dateShipped) {
+        return dateShipped == null || dateOrdered == null || !dateShipped.isBefore(dateOrdered);
+    }
+
+    /**
      * The next {@code item_id} for a new line — the Forms {@code S_ITEM} {@code PRE-INSERT} rule
      * {@code NVL(MAX(item_id),0)+1}, scoped <em>per order</em> (issue #45). An order with no lines
      * yields {@code 1}, so two orders both start their lines at {@code 1}, exactly as the per-order

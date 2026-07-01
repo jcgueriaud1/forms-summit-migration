@@ -78,6 +78,45 @@ class OrderTest {
         assertEquals(1L, orderWith().nextItemId());
     }
 
+    // ---- shipDateValid: the S_ORD WHEN-VALIDATE-RECORD ship-date guard (issue #47) --------------
+
+    @Test
+    void shipDateEqualToOrderDateIsValid() {
+        // Shipped the same day it was ordered — date_shipped >= date_ordered holds.
+        assertTrue(Order.shipDateValid(LocalDate.of(1992, 8, 31), LocalDate.of(1992, 8, 31)));
+    }
+
+    @Test
+    void shipDateAfterOrderDateIsValid() {
+        assertTrue(Order.shipDateValid(LocalDate.of(1992, 8, 31), LocalDate.of(1992, 9, 10)));
+    }
+
+    @Test
+    void shipDateBeforeOrderDateIsRejected() {
+        // An impossible shipment — shipped before it was ordered.
+        assertFalse(Order.shipDateValid(LocalDate.of(1992, 8, 31), LocalDate.of(1992, 8, 30)));
+    }
+
+    @Test
+    void aNullShipDateIsValid() {
+        // The order simply has not shipped yet — nothing to compare.
+        assertTrue(Order.shipDateValid(LocalDate.of(1992, 8, 31), null));
+    }
+
+    @Test
+    void aNullOrderDateMakesTheComparisonVacuous() {
+        // With no order date there is nothing for the ship date to be before.
+        assertTrue(Order.shipDateValid(null, LocalDate.of(1992, 8, 31)));
+    }
+
+    @Test
+    void shipDateValidReadsTheOrdersOwnDates() {
+        // The instance form guards an order's own date_ordered / date_shipped.
+        Order shipped = new Order(50001, 201, "Unisports", LocalDate.of(1992, 8, 31),
+                LocalDate.of(1992, 8, 30), 1L, "Magee", "CASH", true, List.of());
+        assertFalse(shipped.shipDateValid());
+    }
+
     // ---- hasLineItems: the Non-Isolated cascade-delete guard predicate (issue #45) --------------
 
     @Test
