@@ -5,6 +5,8 @@ import org.junit.jupiter.api.Test;
 import java.math.BigDecimal;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Pure domain test for the {@code ITEM_TOTAL} formula — no Spring, no DB. Guards the one
@@ -36,5 +38,13 @@ class OrderLineTest {
         OrderLine line = new OrderLine(1, 41010, "Ski Boots", null, 5, 5);
 
         assertEquals(0, BigDecimal.ZERO.compareTo(line.itemTotal()));
+    }
+
+    @Test
+    void hasProductReflectsWhetherAProductIsSet() {
+        // A filled line has its product; a blank line the clerk added but never filled has none
+        // (product_id 0) — the commit gate refuses it rather than crashing the S_ITEM FK insert.
+        assertTrue(new OrderLine(1, 41010, "Ski Boots", new BigDecimal("50.00"), 5, 5).hasProduct());
+        assertFalse(new OrderLine(3, 0, "", null, 0, 0).hasProduct());
     }
 }

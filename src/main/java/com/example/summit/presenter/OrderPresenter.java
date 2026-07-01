@@ -1,7 +1,9 @@
 package com.example.summit.presenter;
 
+import com.example.summit.domain.CommitResult;
 import com.example.summit.domain.Customer;
 import com.example.summit.domain.Order;
+import com.example.summit.domain.OrderLine;
 import com.example.summit.domain.OrderSearchCriteria;
 import com.example.summit.domain.OrderSummary;
 import com.example.summit.domain.PaymentEligibility;
@@ -161,6 +163,20 @@ public class OrderPresenter {
         this.workingHeader = null;
     }
 
+    /**
+     * Starts a brand-new, unsaved order (issue #19): a blank working header ({@link EditableHeader#blank()},
+     * so {@link Order#isNew()} holds — the commit will INSERT it with an id from {@code S_ORD_ID.nextval})
+     * and an empty working line set for the clerk to fill and add lines to. The search cursor is cleared,
+     * since a new order is not part of any result set (the pager hides). The customer-id defaulter and the
+     * line editing then work exactly as they do for a loaded order.
+     */
+    public void newOrder() {
+        this.resultSet = List.of();
+        this.position = -1;
+        this.workingLines = new ArrayList<>();
+        this.workingHeader = EditableHeader.blank();
+    }
+
     // ---- In-memory line editing (issue #16) ---------------------------------------------------
     // Loading an order seeds a fresh working set; the editable grid binds to it and the order
     // total is summed over it live as the clerk edits, adds, or removes lines. ADR-0002: the
@@ -278,18 +294,61 @@ public class OrderPresenter {
         return PaymentEligibility.allows(creditRating, paymentType);
     }
 
+    // ---- Whole-graph commit (COMMIT_FORM, issue #19) ------------------------------------------
+    // The one Commit action: assemble the working header + working lines into a domain Order and
+    // hand it to the Service's single @Transactional whole-graph save. The Service is the
+    // authoritative gate (ADR-0002); the presenter only orchestrates and, on success, reloads so
+    // further edits build on the persisted state (fresh id + ORA_ROWSCN).
+
+    /**
+     * Commits the loaded, edited order — header + all line items — through
+     * {@link OrderService#save(Order)} as one transaction, returning its typed {@link CommitResult}.
+     * On {@link CommitResult.Committed} the working state is reloaded from the persisted order (in a
+     * fresh read, so it carries the moved {@code ORA_ROWSCN}) and the cursor repositioned on it, so a
+     * follow-up edit-and-commit does not falsely conflict. A {@link CommitResult.Conflict} or
+     * {@link CommitResult.Rejected} leaves the working state untouched for the clerk to reconcile.
+     */
+    public CommitResult commit() {
+        if (workingHeader == null) {
+            return new CommitResult.Rejected("There is no order to commit.");
+        }
+        CommitResult result = orderService.save(assembleWorkingOrder());
+        if (result instanceof CommitResult.Committed committed) {
+            reseedWorkingState(orderService.load(committed.orderId()));
+        }
+        return result;
+    }
+
+    /** The working header + working lines as a domain {@link Order} to save — carries the load scn. */
+    private Order assembleWorkingOrder() {
+        List<OrderLine> lines = workingLines.stream().map(EditableLine::toOrderLine).toList();
+        return new Order(
+                workingHeader.getId(), workingHeader.getCustomerId(), workingHeader.getCustomerName(),
+                workingHeader.getDateOrdered(), workingHeader.getDateShipped(),
+                workingHeader.getSalesRepId(), workingHeader.getSalesRepName(),
+                workingHeader.getPaymentType(), workingHeader.isOrderFilled(),
+                lines, workingHeader.getRowScn());
+    }
+
     private Optional<Order> loadCurrent() {
         if (position < 0 || position >= resultSet.size()) {
             return Optional.empty();
         }
         Optional<Order> loaded = orderService.load(resultSet.get(position).id());
-        // A freshly loaded order seeds a fresh working set; a failed load leaves none.
+        reseedWorkingState(loaded);
+        return loaded;
+    }
+
+    /**
+     * Seeds fresh working copies of the header and lines from a (re)loaded order — the single place
+     * the editable session is reset from truth, shared by load, pager steps, and post-commit reload.
+     * A freshly loaded order seeds a fresh working set; an empty load leaves none.
+     */
+    private void reseedWorkingState(Optional<Order> loaded) {
         this.workingLines = loaded
                 .map(order -> new ArrayList<>(order.lines().stream().map(EditableLine::new).toList()))
                 .orElseGet(ArrayList::new);
-        // ...and a fresh working header for the editable form (issue #18).
         this.workingHeader = loaded.map(EditableHeader::new).orElse(null);
-        return loaded;
     }
 
     private int indexOf(long orderId) {

@@ -1,8 +1,10 @@
 package com.example.summit.ui;
 
 import com.example.summit.it.support.OracleSpringPlaywrightIT;
+import com.example.summit.it.support.SummitOracleContainer;
 import com.microsoft.playwright.Locator;
 import com.microsoft.playwright.Page;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.vaadin.addons.dramafinder.element.BigDecimalFieldElement;
 import org.vaadin.addons.dramafinder.element.ButtonElement;
@@ -19,11 +21,15 @@ import com.microsoft.playwright.options.AriaRole;
 
 import java.math.BigDecimal;
 import java.nio.file.Paths;
+import java.sql.Connection;
+import java.sql.Statement;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.regex.Pattern;
 
 import static com.microsoft.playwright.assertions.PlaywrightAssertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * UI integration test for {@link OrderView} — the first real form migration (PRD #8,
@@ -39,6 +45,20 @@ public class OrderViewIT extends OracleSpringPlaywrightIT {
     @Override
     public String getView() {
         return "orders";
+    }
+
+    /**
+     * Removes any order this suite created through the New-order flow (ids come from
+     * {@code S_ORD_ID.nextval}, which starts at 70000 — well above the seed) so the shared Summit
+     * container stays pristine for sibling IT classes that assert the exact seed set.
+     */
+    @AfterEach
+    public void removeCreatedOrders() throws Exception {
+        try (Connection connection = SummitOracleContainer.INSTANCE.createConnection("");
+                Statement statement = connection.createStatement()) {
+            statement.execute("DELETE FROM s_item WHERE ord_id >= 70000");
+            statement.execute("DELETE FROM s_ord WHERE id >= 70000");
+        }
     }
 
     @Test
@@ -538,6 +558,75 @@ public class OrderViewIT extends OracleSpringPlaywrightIT {
 
         dateShipped.assertInvalid();
         dateShipped.assertErrorMessage("Ship date cannot be before the order date.");
+    }
+
+    // ---- Whole-graph commit: the COMMIT_FORM save (issue #19) -------------------------------
+    // One Commit action persists the header + all line items as a single @Transactional save. The
+    // button is the KEY-COMMIT action, enabled only while an order is loaded; the deep proof of the
+    // save/optimistic-locking semantics lives in the service ITs (OrderCommitIT).
+
+    private ButtonElement commitButton() {
+        return new ButtonElement(page.locator("#order-commit"));
+    }
+
+    @Test
+    public void testCommitButtonIsDisabledUntilAnOrderIsLoaded() {
+        // Nothing loaded → nothing to commit, so the action is disabled.
+        commitButton().assertDisabled();
+
+        loadOrder();
+        commitButton().assertEnabled();
+    }
+
+    @Test
+    public void testCommittingALoadedOrderReportsSuccess() {
+        // Load 50001 and commit it unchanged: the whole-graph save runs end-to-end (view → presenter
+        // → service → Oracle) and reports the committed order. Committing the order as-loaded rewrites
+        // the same values, so the shared seed data other tests rely on is left intact.
+        loadOrder();
+        commitButton().click();
+
+        NotificationElement.getByText(page, "Order #50001 committed.").assertOpen();
+    }
+
+    @Test
+    public void testCommittingABlankAddedLineIsRefusedNotCrashed() {
+        // The reported repro: Add line, leave it unfilled, Commit. S_ITEM.product_id is a mandatory
+        // FK, so the commit gate refuses the blank line with a clear message instead of crashing on
+        // ORA-02291 — and the loaded order is left untouched (rejected before any write).
+        loadOrder(); // 50001 (two lines)
+        ButtonElement.getByText(page, "Add line").click();
+        GridElement grid = GridElement.get(page);
+        page.waitForCondition(() -> grid.getTotalRowCount() == 3);
+
+        commitButton().click();
+
+        NotificationElement.getByText(page, "Each line must have a product.").assertOpen();
+    }
+
+    @Test
+    public void testCreatingANewOrderCommitsItWithASequenceAssignedId() {
+        // New order: a blank editable form (no order id yet), the S_ORD PRE-INSERT reachable from the UI.
+        new ButtonElement(page.locator("#order-new")).click();
+        TextFieldElement.getByLabel(page, "Order Id").assertValue("");
+
+        // Enter a customer: the WHEN-VALIDATE-ITEM defaulter resolves the name + sales rep.
+        TextFieldElement.getByLabel(page, "Customer Id").setValue("201");
+        TextFieldElement.getByLabel(page, "Customer Name").assertValue("Unisports");
+
+        // Add a line and pick a product from the LOV (the whole-graph save carries it too).
+        ButtonElement.getByText(page, "Add line").click();
+        GridElement grid = GridElement.get(page);
+        page.waitForCondition(() -> grid.getTotalRowCount() == 1);
+        new ComboBoxElement(page.locator("#line-product")).selectItem("41010 — Ski Boots");
+
+        // Commit: the whole-graph INSERT runs and the order id field fills with the sequence-assigned id.
+        commitButton().click();
+        assertThat(page.getByText(Pattern.compile("Order #\\d+ committed\\."))).isVisible();
+
+        String assignedId = TextFieldElement.getByLabel(page, "Order Id").getValue();
+        assertTrue(Long.parseLong(assignedId) >= 70000,
+                "the new order's id should come from S_ORD_ID.nextval, was " + assignedId);
     }
 
     @Test

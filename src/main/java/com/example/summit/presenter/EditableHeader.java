@@ -29,6 +29,9 @@ public class EditableHeader {
     private String salesRepName;
     private String paymentType;
     private boolean orderFilled;
+    // The optimistic-locking token captured at load (S_ORD.ORA_ROWSCN) — carried untouched through
+    // the editing session so the commit can re-check it (concurrency-pessimistic-to-scn, issue #19).
+    private final Long rowScn;
 
     /** Wraps a loaded order's header for editing. */
     public EditableHeader(Order order) {
@@ -41,6 +44,27 @@ public class EditableHeader {
         this.salesRepName = order.salesRepName();
         this.paymentType = order.paymentType();
         this.orderFilled = order.orderFilled();
+        this.rowScn = order.rowScn();
+    }
+
+    /** A blank header for a brand-new order — no id and no scn yet (both are assigned on commit). */
+    private EditableHeader() {
+        this.id = 0L;
+        this.rowScn = null;
+        this.customerName = "";
+        this.salesRepName = "";
+        // A new order defaults to CASH (no credit check), matching the S_ORD payment-type default.
+        this.paymentType = "CASH";
+    }
+
+    /**
+     * A fresh, empty working header for a <strong>new</strong> order (issue #19): no {@link #getId()
+     * id} and no {@link #getRowScn() ORA_ROWSCN} — {@link Order#isNew()} holds, so the commit inserts
+     * it with an id from {@code S_ORD_ID.nextval}. The clerk fills the customer (the
+     * {@code WHEN-VALIDATE-ITEM} defaulter resolves the name + sales rep) and adds line items.
+     */
+    public static EditableHeader blank() {
+        return new EditableHeader();
     }
 
     public long getId() {
@@ -109,5 +133,10 @@ public class EditableHeader {
 
     public void setOrderFilled(boolean orderFilled) {
         this.orderFilled = orderFilled;
+    }
+
+    /** The {@code ORA_ROWSCN} version captured at load — the commit re-checks it (issue #19). */
+    public Long getRowScn() {
+        return rowScn;
     }
 }

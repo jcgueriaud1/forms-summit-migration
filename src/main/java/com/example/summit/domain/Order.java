@@ -15,6 +15,12 @@ import java.util.stream.LongStream;
  * <p>The {@link #lines()} list is the unit of load: the {@code S_ORD_S_ITEM} master-detail
  * coordination means header and detail are always loaded — and reloaded — together. An
  * order with no line items carries an empty list.
+ *
+ * <p>{@link #rowScn()} is the order's optimistic-locking version — the {@code S_ORD} row's
+ * {@code ORA_ROWSCN} read at load time ({@code concurrency-pessimistic-to-scn}, issue #19). It is a
+ * concurrency token, not business data: the whole-graph save re-checks it so a stale save fails
+ * rather than overwriting a concurrent change. A not-yet-persisted order carries {@code null}
+ * (see {@link #isNew()}).
  */
 public record Order(
         long id,
@@ -26,7 +32,8 @@ public record Order(
         String salesRepName,
         String paymentType,
         boolean orderFilled,
-        List<OrderLine> lines) {
+        List<OrderLine> lines,
+        Long rowScn) {
 
     /**
      * The {@code TOTAL} summary: {@code Sum} over each line's {@link OrderLine#itemTotal()}
@@ -78,6 +85,16 @@ public record Order(
      */
     public boolean hasLineItems() {
         return !lines.isEmpty();
+    }
+
+    /**
+     * Whether this order has not yet been persisted — it carries no {@link #rowScn() ORA_ROWSCN}
+     * version, so the whole-graph save must {@code INSERT} it, drawing a new id from
+     * {@code S_ORD_ID.nextval} (the {@code S_ORD} {@code PRE-INSERT}), rather than run the
+     * optimistic scn-checked {@code UPDATE}. A loaded order always carries a scn, so it is never new.
+     */
+    public boolean isNew() {
+        return rowScn == null;
     }
 
     /**

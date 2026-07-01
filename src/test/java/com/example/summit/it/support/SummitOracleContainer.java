@@ -2,6 +2,9 @@ package com.example.summit.it.support;
 
 import org.testcontainers.oracle.OracleContainer;
 
+import java.sql.Connection;
+import java.sql.SQLException;
+import java.sql.Statement;
 import java.time.Duration;
 
 /**
@@ -31,6 +34,30 @@ public final class SummitOracleContainer {
 
     static {
         INSTANCE.start();
+        createAuditTrigger();
+    }
+
+    /**
+     * Creates the {@code AUDIT_S_ITEM} trigger (AFTER INSERT ON {@code s_item} FOR EACH ROW) once the
+     * container is up. It is a PL/SQL block, which the {@code withInitScript} SQL splitter cannot
+     * parse (its {@code BEGIN ... END;} body carries inner statement terminators), so it is created
+     * here as a single JDBC statement instead. Its target table {@code s_item_audit} is seeded by the
+     * init script. This makes the DB behaviour real for every harness: a whole-graph commit's line
+     * inserts fire the trigger inside the same transaction, unchanged and with zero Java (issue #19).
+     */
+    private static void createAuditTrigger() {
+        try (Connection connection = INSTANCE.createConnection("");
+                Statement statement = connection.createStatement()) {
+            statement.execute("""
+                    CREATE OR REPLACE TRIGGER audit_s_item
+                    AFTER INSERT ON s_item
+                    FOR EACH ROW
+                    BEGIN
+                      INSERT INTO s_item_audit VALUES (1);
+                    END;""");
+        } catch (SQLException e) {
+            throw new IllegalStateException("Failed to create the AUDIT_S_ITEM trigger", e);
+        }
     }
 
     private SummitOracleContainer() {
