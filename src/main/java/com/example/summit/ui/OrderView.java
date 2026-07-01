@@ -4,6 +4,7 @@ import com.example.summit.domain.Order;
 import com.example.summit.domain.OrderLine;
 import com.example.summit.domain.OrderSummary;
 import com.example.summit.presenter.OrderPresenter;
+import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.checkbox.Checkbox;
 import com.vaadin.flow.component.combobox.ComboBox;
 import com.vaadin.flow.component.datepicker.DatePicker;
@@ -13,6 +14,9 @@ import com.vaadin.flow.component.grid.ColumnTextAlign;
 import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.H2;
 import com.vaadin.flow.component.html.Paragraph;
+import com.vaadin.flow.component.html.Span;
+import com.vaadin.flow.component.orderedlayout.FlexComponent.Alignment;
+import com.vaadin.flow.component.orderedlayout.FlexComponent.JustifyContentMode;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.radiobutton.RadioButtonGroup;
@@ -22,6 +26,7 @@ import com.vaadin.flow.router.Route;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * The ORDERS view — the faithful web rendering of Forms' {@code CV_ORDER} canvas
@@ -34,7 +39,10 @@ import java.util.List;
  * top-level {@link VerticalLayout} (rule {@code canvas-content}); the Forms Toolbar
  * canvas becomes a {@link HorizontalLayout} docked at the top (rule
  * {@code canvas-horizontal-toolbar}), here holding the query affordance that replaces
- * Execute/Enter-Query. The non-DB {@code CONTROL} block is a {@code LayoutHost}
+ * Execute/Enter-Query and — from issue #42 — the prev/next pager that replaces Forms'
+ * record scrollbar, stepping through the search result set with a "record N of M"
+ * indicator. The presenter owns the position; the view only renders it and disables the
+ * ends. The non-DB {@code CONTROL} block is a {@code LayoutHost}
  * (rule {@code block-control}): it is <em>not</em> rendered as a container — its items
  * are hoisted into the surrounding layout. Its buttons (stock, image, help, exit,
  * product-LOV) are all out of this slice, so none surface yet.
@@ -90,12 +98,26 @@ public class OrderView extends VerticalLayout {
     private final RadioButtonGroup<String> paymentType = new RadioButtonGroup<>("Payment Type");
 
     private final HorizontalLayout toolbar = new HorizontalLayout();
+    private final ComboBox<OrderSummary> search = new ComboBox<>("Find order");
+    // Prev/next pager (issue #42) — the record-scrollbar replacement. Position lives in the
+    // presenter; these controls render "record N of M" and disable at the result-set ends.
+    private final Button previousButton = new Button("Previous");
+    private final Button nextButton = new Button("Next");
+    private final Span recordIndicator = new Span();
+    private final HorizontalLayout pager = new HorizontalLayout();
     private final H2 orderInformationHeading = new H2("Order Information");
     private final FormLayout headerFields = new FormLayout();
     private final Div orderInformationSection = new Div();
     private final Div itemsSection = new Div();
     private final Grid<OrderLine> lineItems = new Grid<>();
     private final Paragraph emptyHint = new Paragraph("Search for an order to load its header.");
+
+    // The quick term behind the current suggestion list, captured from the autocomplete's
+    // fetch so committing a pick re-runs the same search into the pager's result set.
+    private String quickTerm = "";
+    // Guards the search field's value-change listener while the pager syncs it to the
+    // current record, so stepping does not re-commit the search and reset the position.
+    private boolean syncingSelection = false;
 
     public OrderView(OrderPresenter presenter) {
         this.presenter = presenter;
@@ -107,6 +129,7 @@ public class OrderView extends VerticalLayout {
 
         // The loaded-order regions stay hidden until a suggestion is picked.
         setOrderVisible(false);
+        updatePager();
 
         add(toolbar, emptyHint, orderId, orderInformationSection, itemsSection);
     }
@@ -118,30 +141,92 @@ public class OrderView extends VerticalLayout {
      */
     private void buildToolbar() {
         toolbar.setWidthFull();
-        toolbar.add(buildSearch());
+        toolbar.setAlignItems(Alignment.BASELINE);
+        toolbar.setJustifyContentMode(JustifyContentMode.BETWEEN);
+        buildSearch();
+        buildPager();
+        toolbar.add(search, pager);
     }
 
-    private ComboBox<OrderSummary> buildSearch() {
-        ComboBox<OrderSummary> search = new ComboBox<>("Find order");
+    private void buildSearch() {
         search.setWidth("420px");
         search.setPlaceholder("Order id, customer, or sales rep");
         search.setItemLabelGenerator(OrderView::suggestionLabel);
         // Server-side autocomplete: each keystroke runs the quick search through the
         // presenter. The fetch honors the ComboBox's lazy window (offset/limit) or
         // Vaadin rejects the result; the search is capped at 50, so the first page holds
-        // every suggestion and any later page is empty.
-        search.setItems(query -> presenter.suggest(query.getFilter().orElse("")).stream()
-                .skip(query.getOffset())
-                .limit(query.getLimit()));
+        // every suggestion and any later page is empty. The filter is captured so that
+        // committing a pick can re-run the same search into the pager's result set.
+        search.setItems(query -> {
+            quickTerm = query.getFilter().orElse("");
+            return presenter.suggest(quickTerm).stream()
+                    .skip(query.getOffset())
+                    .limit(query.getLimit());
+        });
         search.addValueChangeListener(event -> {
+            // Ignore value changes the pager itself makes while reflecting the current record.
+            if (syncingSelection) {
+                return;
+            }
             OrderSummary picked = event.getValue();
             if (picked == null) {
                 clearHeader();
             } else {
-                presenter.load(picked.id()).ifPresent(this::showOrder);
+                // Commit the search: the picked term fixes the result set the pager walks,
+                // positioned at the picked order (reuses the single-order load path).
+                presenter.select(quickTerm, picked.id()).ifPresent(this::showOrder);
             }
+            updatePager();
         });
-        return search;
+    }
+
+    /**
+     * The prev/next pager (issue #42) — Forms' record scrollbar re-expressed as two step
+     * controls and a "record N of M" indicator. The position lives in the presenter; each
+     * step loads through the same path a pick does, then reflects the landed record back
+     * into the search field so it never shows a stale order.
+     */
+    private void buildPager() {
+        previousButton.addClickListener(event -> step(presenter.previous()));
+        nextButton.addClickListener(event -> step(presenter.next()));
+
+        pager.setId("order-pager");
+        pager.setAlignItems(Alignment.CENTER);
+        recordIndicator.setId("order-record-indicator");
+        pager.add(previousButton, recordIndicator, nextButton);
+    }
+
+    private void step(Optional<Order> loaded) {
+        loaded.ifPresent(order -> {
+            showOrder(order);
+            syncSearchSelection();
+        });
+        updatePager();
+    }
+
+    /** Reflects the current record in the search field without re-committing the search. */
+    private void syncSearchSelection() {
+        syncingSelection = true;
+        try {
+            presenter.currentSummary().ifPresent(search::setValue);
+        } finally {
+            syncingSelection = false;
+        }
+    }
+
+    /**
+     * Renders the presenter's result-set position: the "record N of M" indicator and the
+     * end-of-set disabling. The pager is hidden until a search has been committed.
+     */
+    private void updatePager() {
+        int count = presenter.resultCount();
+        boolean walkable = count > 0 && presenter.currentRecord() > 0;
+        pager.setVisible(walkable);
+        if (walkable) {
+            recordIndicator.setText("Record " + presenter.currentRecord() + " of " + count);
+        }
+        previousButton.setEnabled(presenter.hasPrevious());
+        nextButton.setEnabled(presenter.hasNext());
     }
 
     private static String suggestionLabel(OrderSummary summary) {
@@ -253,6 +338,7 @@ public class OrderView extends VerticalLayout {
     }
 
     private void clearHeader() {
+        presenter.reset();
         setOrderVisible(false);
         lineItems.setItems(List.of());
         emptyHint.setVisible(true);
