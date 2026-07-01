@@ -1,6 +1,7 @@
 package com.example.summit.ui;
 
 import com.example.summit.presenter.DemoPresenter;
+import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.Paragraph;
 import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
@@ -18,10 +19,14 @@ public class DemoView extends VerticalLayout {
 
     public DemoView(DemoPresenter presenter) {
         Span value = new Span(presenter.databaseLabel());
-        value.getStyle().set("font-size", "var(--lumo-font-size-xl)");
+        // Aura owns styling (ADR-0008) — use Aura tokens, not Lumo.
+        value.getStyle().set("font-size", "var(--aura-font-size-xl)");
         value.getStyle().set("font-weight", "bold");
 
-        add(new Paragraph("Connected database (read through View ← Presenter ← Service ← Domain ← Data):"),
+        Div panel = new Div(
+                new Paragraph("Connected database (read through View ← Presenter ← Service ← Domain ← Data):"),
                 value);
+        panel.addClassName("panel");
+        add(panel);
     }
 }

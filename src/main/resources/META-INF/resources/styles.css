@@ -1,0 +1,3 @@
+/* Application stylesheets. Loaded after Aura (see Application.java, ADR-0008),
+   so these layer on top of the Aura theme tokens. */
+@import "summit-theme.css";
