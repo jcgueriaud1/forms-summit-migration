@@ -6,13 +6,16 @@ import org.junit.jupiter.api.Test;
 import org.vaadin.addons.dramafinder.element.CheckboxElement;
 import org.vaadin.addons.dramafinder.element.ComboBoxElement;
 import org.vaadin.addons.dramafinder.element.DatePickerElement;
+import org.vaadin.addons.dramafinder.element.GridElement;
 import org.vaadin.addons.dramafinder.element.RadioButtonGroupElement;
 import org.vaadin.addons.dramafinder.element.TextFieldElement;
 
 import java.nio.file.Paths;
 import java.time.LocalDate;
+import java.util.List;
 
 import static com.microsoft.playwright.assertions.PlaywrightAssertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
  * UI integration test for {@link OrderView} — the first real form migration (PRD #38,
@@ -77,6 +80,71 @@ public class OrderViewIT extends OracleSpringPlaywrightIT {
         page.screenshot(new Page.ScreenshotOptions()
                 .setPath(Paths.get("target/orders-view.png"))
                 .setFullPage(true));
+    }
+
+    @Test
+    public void testLoadingAnOrderPopulatesTheReadOnlyLineItemsGrid() {
+        ComboBoxElement search = ComboBoxElement.getByLabel(page, "Find order");
+        search.filterAndSelectItem("50001", "#50001 — Unisports (Magee)");
+        // Wait for the load round-trip to finish before reading the coordinated grid.
+        TextFieldElement.getByLabel(page, "Order Id").assertValue("50001");
+
+        GridElement grid = GridElement.get(page);
+
+        // Layout-fidelity gate (ADR-0012): every in-scope column, in the form's order.
+        assertEquals(
+                List.of("Item", "Product", "Description", "Price", "Qty", "Qty Shipped", "Item Total"),
+                grid.getHeaderCellContents());
+
+        // Behavioural parity: the order's two S_ITEM lines load, product descriptions
+        // resolved through the S_PRODUCT join — beside their ids, no per-line lookup.
+        assertEquals(2, grid.getTotalRowCount());
+        assertEquals("1", cell(grid, 0, "Item"));
+        assertEquals("41010", cell(grid, 0, "Product"));
+        assertEquals("Ski Boots", cell(grid, 0, "Description"));
+        assertEquals("50.00", cell(grid, 0, "Price"));
+        assertEquals("5", cell(grid, 0, "Qty"));
+        assertEquals("5", cell(grid, 0, "Qty Shipped"));
+        assertEquals("250.00", cell(grid, 0, "Item Total"));
+        assertEquals("Ski Pole", cell(grid, 1, "Description"));
+        assertEquals("351.00", cell(grid, 1, "Item Total"));
+
+        page.screenshot(new Page.ScreenshotOptions()
+                .setPath(Paths.get("target/orders-view.png"))
+                .setFullPage(true));
+    }
+
+    @Test
+    public void testSwitchingOrdersReplacesTheLineItemsGrid() {
+        ComboBoxElement search = ComboBoxElement.getByLabel(page, "Find order");
+
+        search.filterAndSelectItem("50001", "#50001 — Unisports (Magee)");
+        TextFieldElement.getByLabel(page, "Order Id").assertValue("50001");
+        GridElement grid = GridElement.get(page);
+        assertEquals("Ski Boots", cell(grid, 0, "Description"));
+
+        // S_ORD_S_ITEM coordination: picking a different order swaps the grid's contents.
+        search.filterAndSelectItem("50002", "#50002 — Womansport (Giljum)");
+        TextFieldElement.getByLabel(page, "Order Id").assertValue("50002");
+        assertEquals(2, grid.getTotalRowCount());
+        assertEquals("Pro Ski Boot", cell(grid, 0, "Description"));
+        assertEquals("8000.00", cell(grid, 0, "Item Total"));
+    }
+
+    @Test
+    public void testOrderWithNoLineItemsShowsAnEmptyGrid() {
+        ComboBoxElement search = ComboBoxElement.getByLabel(page, "Find order");
+        // 50003 has a header but no S_ITEM rows — the coordinated grid shows no rows.
+        search.filterAndSelectItem("50003", "#50003 — Unisports (no rep)");
+        TextFieldElement.getByLabel(page, "Order Id").assertValue("50003");
+
+        assertEquals(0, GridElement.get(page).getTotalRowCount());
+    }
+
+    /** Reads the trimmed text of a body cell addressed by row index and column header. */
+    private static String cell(GridElement grid, int row, String column) {
+        return grid.findCell(row, column).orElseThrow()
+                .getCellContentLocator().innerText().trim();
     }
 
     @Test
