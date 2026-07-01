@@ -1,12 +1,15 @@
 package com.example.summit.ui;
 
 import com.example.summit.domain.Order;
+import com.example.summit.domain.OrderLine;
 import com.example.summit.domain.OrderSummary;
 import com.example.summit.presenter.OrderPresenter;
 import com.vaadin.flow.component.checkbox.Checkbox;
 import com.vaadin.flow.component.combobox.ComboBox;
 import com.vaadin.flow.component.datepicker.DatePicker;
 import com.vaadin.flow.component.formlayout.FormLayout;
+import com.vaadin.flow.component.grid.Grid;
+import com.vaadin.flow.component.grid.ColumnTextAlign;
 import com.vaadin.flow.component.html.Paragraph;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.radiobutton.RadioButtonGroup;
@@ -14,6 +17,7 @@ import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 /**
@@ -23,10 +27,13 @@ import java.util.List;
  *
  * <p>This is the faithful web rendering of Forms' single-record Enter-Query on the
  * {@code S_ORD} master (Variant A, {@code block-master-single}): a lookup that loads
- * one record, not a grid of orders. The line-items grid (#40), the layout shell,
- * pager, and advanced search (#41), editing, totals, and commit all arrive in later
- * slices. The view holds no SQL — it talks only to the {@link OrderPresenter}
- * (View &larr; Presenter &larr; Service &larr; Domain &larr; Data).
+ * one record, not a grid of orders. Below the header, the order's {@code S_ITEM} line
+ * items load automatically into a <strong>read-only {@link Grid}</strong> coordinated on
+ * the same order ({@code S_ORD_S_ITEM}, #40) — picking a different order reloads header
+ * and lines together. The layout shell, pager, and advanced search (#41), editing,
+ * totals, and commit all arrive in later slices. The view holds no SQL — it talks only
+ * to the {@link OrderPresenter} (View &larr; Presenter &larr; Service &larr; Domain
+ * &larr; Data).
  *
  * <p><strong>Read-only is a state, not a component type (ADR-0013).</strong> Each
  * header field renders as the control the classifier mapped for it, put into a
@@ -54,14 +61,17 @@ public class OrderView extends VerticalLayout {
     private final Checkbox orderFilled = new Checkbox("Order Filled");
 
     private final FormLayout header = new FormLayout();
+    private final Grid<OrderLine> lineItems = new Grid<>();
     private final Paragraph emptyHint = new Paragraph("Search for an order to load its header.");
 
     public OrderView(OrderPresenter presenter) {
         this.presenter = presenter;
 
         buildHeader();
+        buildLineItems();
         header.setVisible(false);
-        add(buildSearch(), emptyHint, header);
+        lineItems.setVisible(false);
+        add(buildSearch(), emptyHint, header, lineItems);
     }
 
     private ComboBox<OrderSummary> buildSearch() {
@@ -116,6 +126,37 @@ public class OrderView extends VerticalLayout {
                 paymentType, orderFilled);
     }
 
+    /**
+     * The read-only line-items grid. Columns follow the form's order (ADR-0012): Item,
+     * Product, Description, Price, Qty, Qty Shipped, Item Total — the {@code S_ITEM}
+     * block as the clerk reads it. Read-only is the Grid's default state here (no editor,
+     * no Grid Pro); the editable slice adds inline editing later. {@code Item Total} binds
+     * to the pure {@link OrderLine#itemTotal()} domain method, not a view-side formula.
+     */
+    private void buildLineItems() {
+        lineItems.addColumn(OrderLine::itemId).setHeader("Item").setAutoWidth(true);
+        lineItems.addColumn(OrderLine::productId).setHeader("Product").setAutoWidth(true);
+        lineItems.addColumn(OrderLine::description).setHeader("Description").setAutoWidth(true).setFlexGrow(1);
+        lineItems.addColumn(line -> money(line.price())).setHeader("Price")
+                .setTextAlign(ColumnTextAlign.END).setAutoWidth(true);
+        lineItems.addColumn(OrderLine::quantity).setHeader("Qty")
+                .setTextAlign(ColumnTextAlign.END).setAutoWidth(true);
+        lineItems.addColumn(OrderLine::quantityShipped).setHeader("Qty Shipped")
+                .setTextAlign(ColumnTextAlign.END).setAutoWidth(true);
+        lineItems.addColumn(line -> money(line.itemTotal())).setHeader("Item Total")
+                .setTextAlign(ColumnTextAlign.END).setAutoWidth(true);
+
+        // A short, header-coordinated detail block — size to its rows rather than scroll
+        // inside a fixed viewport, so the whole order reads at a glance.
+        lineItems.setAllRowsVisible(true);
+        lineItems.setWidthFull();
+    }
+
+    /** Renders a money amount with two decimals; a null amount shows blank. */
+    private static String money(BigDecimal amount) {
+        return amount == null ? "" : String.format("%.2f", amount);
+    }
+
     private static String paymentTypeLabel(String code) {
         return switch (code) {
             case "CASH" -> "Cash";
@@ -135,12 +176,19 @@ public class OrderView extends VerticalLayout {
         paymentType.setValue(order.paymentType());
         orderFilled.setValue(order.orderFilled());
 
+        // S_ORD_S_ITEM coordination: the grid always shows the loaded order's lines, so
+        // switching orders replaces the contents outright.
+        lineItems.setItems(order.lines());
+
         emptyHint.setVisible(false);
         header.setVisible(true);
+        lineItems.setVisible(true);
     }
 
     private void clearHeader() {
         header.setVisible(false);
+        lineItems.setVisible(false);
+        lineItems.setItems(List.of());
         emptyHint.setVisible(true);
     }
 

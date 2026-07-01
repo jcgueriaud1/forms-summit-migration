@@ -1,10 +1,12 @@
 package com.example.summit.data;
 
 import com.example.summit.domain.Order;
+import com.example.summit.domain.OrderLine;
 import com.example.summit.domain.OrderSearchCriteria;
 import com.example.summit.domain.OrderSummary;
 import org.junit.jupiter.api.Test;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
@@ -38,6 +40,43 @@ class OrderRepositoryIT extends SummitDbIT {
         assertEquals(LocalDate.of(1992, 9, 10), order.dateShipped());
         assertEquals("CASH", order.paymentType());
         assertTrue(order.orderFilled());
+    }
+
+    @Test
+    void loadGraphReturnsTheFullOrderGraphInOneQueryPath() {
+        // The headline of #40: one loadGraph call brings back the header AND its S_ITEM
+        // lines, each line's product description resolved by the S_PRODUCT join — no
+        // separate per-line lookup.
+        Order order = repository.loadGraph(50001).orElseThrow();
+
+        List<OrderLine> lines = order.lines();
+        assertEquals(2, lines.size());
+
+        // Ordered by item_id, as the grid shows them.
+        OrderLine first = lines.get(0);
+        assertEquals(1L, first.itemId());
+        assertEquals(41010L, first.productId());
+        assertEquals("Ski Boots", first.description()); // joined from S_PRODUCT.name
+        assertEquals(0, new BigDecimal("50.00").compareTo(first.price()));
+        assertEquals(5L, first.quantity());
+        assertEquals(5L, first.quantityShipped());
+        assertEquals(0, new BigDecimal("250.00").compareTo(first.itemTotal()));
+
+        OrderLine second = lines.get(1);
+        assertEquals(2L, second.itemId());
+        assertEquals(20108L, second.productId());
+        assertEquals("Ski Pole", second.description());
+        assertEquals(27L, second.quantityShipped());
+        assertEquals(0, new BigDecimal("351.00").compareTo(second.itemTotal()));
+    }
+
+    @Test
+    void loadGraphReturnsAnEmptyLineListForAnOrderWithNoItems() {
+        // 50003 has a header but no S_ITEM rows — the graph loads with an empty (never
+        // null) line list, so the coordinated grid simply shows no rows.
+        Order order = repository.loadGraph(50003).orElseThrow();
+
+        assertTrue(order.lines().isEmpty());
     }
 
     @Test
