@@ -10,6 +10,10 @@
 # (BackColor/ForegroundColor). The canvas-side (`canvasClassifiers`)
 # and block-side (`blockClassifiers`) sections drive Canvas → container
 # and Block → Grid/FormLayout decisions for the scaffolder (ADR 0010). The
+# block-action side (`blockActionClassifiers`) derives record actions
+# (Delete / Duplicate / New) from the block's `crud` capability, so a
+# deletable/insertable block gets those affordances whether or not a
+# KEY-DELREC / KEY-DUPREC / KEY-CREREC trigger exists. The
 # graphics-side (`graphicsClassifiers`) section drives frame → grouping
 # section and boilerplate-text → heading, preserving structural layout
 # fidelity (ADR 0012); field ORDER within a block/section comes from
@@ -1512,15 +1516,15 @@ logicClassifiers:
   - id: trigger-key-crerec
     when: type == "Trigger" and name == "KEY-CREREC"
     targetIdiom: Shortcut
-    aiHint: "Translate the body to a 'create record' Shortcut — invokes the new-item factory from WHEN-CREATE-RECORD / WHEN-NEW-RECORD-INSTANCE."
+    aiHint: "REFINES blockActionClassifiers block-action-create — the New affordance itself comes from the block's crud.insertAllowed, not from this trigger. Translate the body as the new-item factory (WHEN-CREATE-RECORD / WHEN-NEW-RECORD-INSTANCE defaults) that action invokes, and bind the keystroke as a Shortcut onto it; do not make the trigger the sole create path."
   - id: trigger-key-delrec
     when: type == "Trigger" and name == "KEY-DELREC"
     targetIdiom: Shortcut
-    aiHint: "Translate the body to a 'delete record' Shortcut — invokes the service delete path."
+    aiHint: "REFINES blockActionClassifiers block-action-delete — the Delete affordance itself comes from the block's crud.deleteAllowed, not from this trigger. Translate the body only as refinement: keep its confirm alert as a ConfirmDialog and bind the keystroke as a Shortcut onto the same Delete action (which honours the relation delete policy); do not make the trigger the sole delete path."
   - id: trigger-key-duprec
     when: type == "Trigger" and name == "KEY-DUPREC"
     targetIdiom: Shortcut
-    aiHint: "Translate the body to a 'duplicate record' Shortcut — copy the current bean and open the editor on the copy."
+    aiHint: "REFINES blockActionClassifiers block-action-duplicate — the Duplicate affordance itself comes from the block's crud.insertAllowed, not from this trigger. Use this body as the authoritative field-reset list for the copy (it nulls the fields the duplicate must not carry — id, and any per-line keys) and bind the keystroke as a Shortcut onto the same Duplicate action."
   - id: trigger-key-entqry
     when: type == "Trigger" and name == "KEY-ENTQRY"
     targetIdiom: Shortcut
@@ -1746,9 +1750,9 @@ blockTargets:
       Label: { carry: setHeader }
       QueryDataSourceName: { ignore: "Database binding lives on the DataProvider, not the Grid" }
       QueryDataSourceColumns: { ignore: "Database binding lives on the DataProvider, not the Grid" }
-      InsertAllowed: { ignore: "Editable Grid + service-level access control replaces Forms InsertAllowed" }
+      InsertAllowed: { ignore: "Not a Grid setter — drives blockActionClassifiers block-action-create / block-action-duplicate (New + Duplicate row actions); per-column edit access still comes from each item's editability" }
       UpdateAllowed: { ignore: "Editable Grid + service-level access control replaces Forms UpdateAllowed" }
-      DeleteAllowed: { ignore: "Editable Grid + service-level access control replaces Forms DeleteAllowed" }
+      DeleteAllowed: { ignore: "Not a Grid setter — drives blockActionClassifiers block-action-delete (a Remove row action), composed with the relation delete policy (policyClassifiers delete-*)" }
       QueryAllowed: { ignore: "Grid filtering covers Forms QueryAllowed" }
       ShowVerticalScrollbar: { ignore: "Grid owns its own scrollbar" }
       ShowHorizontalScrollbar: { ignore: "Grid owns its own scrollbar" }
@@ -1769,9 +1773,9 @@ blockTargets:
       Label: { carry: setText }
       QueryDataSourceName: { ignore: "Database binding lives on the Binder, not the layout" }
       QueryDataSourceColumns: { ignore: "Database binding lives on the Binder, not the layout" }
-      InsertAllowed: { ignore: "Binder / service-level access control replaces Forms InsertAllowed" }
+      InsertAllowed: { ignore: "Not a FormLayout setter — drives blockActionClassifiers block-action-create / block-action-duplicate (New + Duplicate record actions in the block toolbar)" }
       UpdateAllowed: { transform: { to: setReadOnly, via: forms-updateallowed-to-readonly } }
-      DeleteAllowed: { ignore: "Service-level access control replaces Forms DeleteAllowed" }
+      DeleteAllowed: { ignore: "Not a FormLayout setter — drives blockActionClassifiers block-action-delete (a Delete record action in the block toolbar), composed with the relation delete policy (policyClassifiers delete-*)" }
       QueryAllowed: { ignore: "Filterable fields cover Forms QueryAllowed" }
       Required: { ignore: "Required-state lives on the bound fields, not the FormLayout" }
       Tooltip: { carry: setTooltipText }
@@ -1783,6 +1787,45 @@ blockTargets:
       BlockName: { ignore: "Selector attribute used by classifier predicates" }
       Name: { ignore: "Control block is not emitted as a container; its items are hoisted into the surrounding layout" }
       RecordOrientation: { ignore: "Control block holds no records" }
+
+# ---- Block-action rules — record CRUD affordances (Delete / Duplicate / New) --
+# Delete, Duplicate and New/Create are the DEFAULT record actions on any Forms
+# base-table block that permits them (Record → Remove / Duplicate / Insert on the
+# runtime menu). They are a property of the block's `crud` capability, NOT of a
+# KEY-DELREC / KEY-DUPREC / KEY-CREREC trigger — a block with no such trigger
+# still offers them. Before this section the capability was dropped (blockTargets
+# marked DeleteAllowed / InsertAllowed `ignore`) and an action surfaced only when
+# a KEY-* trigger happened to exist, and even then as a keyboard Shortcut, never a
+# visible control. The observed loss: a deletable block migrated with a
+# service-layer delete path but no Delete affordance, and no Duplicate at all.
+# These rules emit the affordances from the CRUD flags; the KEY-* triggers
+# (logicClassifiers trigger-key-delrec / -duprec / -crerec) only REFINE them
+# (a confirm alert, a field-reset list, a keystroke binding).
+#
+# Block-scoped and behavioural, like policyClassifiers — a CRUD flag has no source
+# Forms Item, so there is no paired *Targets attribute table. Operands:
+# `databaseBlock`, `crud.deleteAllowed`, `crud.insertAllowed`. Placement follows
+# the block's own target: a multi-record Grid gets row / grid-toolbar actions; a
+# single-record FormLayout gets buttons in the block toolbar. The Delete action
+# MUST compose with the relation's delete policy (policyClassifiers
+# delete-cascade-guard / delete-cascade / delete-isolated) — the guard is
+# authoritative over the button.
+blockActionClassifiers:
+  - id: block-action-delete
+    when: databaseBlock == "true" and crud.deleteAllowed == true
+    target: DeleteAction
+    treatment: AI-coded
+    aiHint: "The block permits delete → render a Delete record action (a Button in the block toolbar for a single-record FormLayout; a row / grid-toolbar action for a multi-record Grid) wired to the Service delete path. It MUST honour the relation delete policy: a Non-Isolated master (delete-cascade-guard) disables or vetoes the action while detail rows exist and surfaces that message; a Cascading master (delete-cascade) deletes the whole graph in one transaction; an Isolated or childless block deletes directly. If a KEY-DELREC trigger carried a confirm alert, keep it as a ConfirmDialog; otherwise still confirm — a destructive action warrants it on the web."
+  - id: block-action-duplicate
+    when: databaseBlock == "true" and crud.insertAllowed == true
+    target: DuplicateAction
+    treatment: AI-coded
+    aiHint: "The block permits insert → render a Duplicate record action that copies the current record into a new, unsaved editable record: clone the bean, then clear the identity / PK and any per-record generated key (the S_ORD_ID.nextval / MAX(item_id)+1 seam) so the copy commits as an INSERT. When a KEY-DUPREC trigger exists its body is the AUTHORITATIVE clear-list (it nulls exactly the fields the copy must not carry — e.g. id, and product/description/price on a line); absent it, clear the PK / identity only. A multi-record Grid duplicates the selected row; a single-record FormLayout opens a new record seeded from the loaded one."
+  - id: block-action-create
+    when: databaseBlock == "true" and crud.insertAllowed == true
+    target: CreateAction
+    treatment: AI-coded
+    aiHint: "The block permits insert → render a New / Create record action that opens a blank editable record from the new-item factory (applying WHEN-CREATE-RECORD / WHEN-NEW-RECORD-INSTANCE defaults, if any). Rounds out the record-action family alongside Duplicate; the KEY-CREREC keystroke (trigger-key-crerec), when present, only invokes it."
 
 # ---- Graphics-side rules (layout fidelity, ADR 0012) ------------------
 # Non-item canvas Graphics: bounded frames that GROUP fields, and standalone
