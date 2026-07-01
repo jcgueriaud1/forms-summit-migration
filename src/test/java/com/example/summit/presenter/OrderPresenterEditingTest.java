@@ -4,7 +4,9 @@ import com.example.summit.domain.Order;
 import com.example.summit.domain.OrderLine;
 import com.example.summit.domain.OrderSearchCriteria;
 import com.example.summit.domain.OrderSummary;
+import com.example.summit.domain.ProductDefaults;
 import com.example.summit.service.OrderService;
+import com.example.summit.service.ProductService;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
@@ -35,9 +37,12 @@ class OrderPresenterEditingTest {
             50001, 201, "Unisports", LocalDate.of(1992, 8, 31), LocalDate.of(1992, 9, 10),
             1L, "Magee", "CASH", true, List.of(BOOTS, POLE));
 
+    /** The one product the stub LOV knows — id 30421, "Pro Ski Boot", suggested price 1000.00. */
+    private static final long PRO_BOOT_ID = 30421;
+
     /** A presenter wired to a stub service that always returns {@link #ORDER}, loaded and positioned. */
     private static OrderPresenter loadedPresenter() {
-        OrderService service = new OrderService(null) {
+        OrderService orderService = new OrderService(null) {
             @Override
             public List<OrderSummary> search(OrderSearchCriteria criteria) {
                 return List.of(new OrderSummary(
@@ -49,7 +54,17 @@ class OrderPresenterEditingTest {
                 return Optional.of(ORDER);
             }
         };
-        OrderPresenter presenter = new OrderPresenter(service);
+        // A stub product service that knows exactly one product, so the defaulter's found / not-found
+        // branches are both exercisable without a database.
+        ProductService productService = new ProductService(null) {
+            @Override
+            public Optional<ProductDefaults> findProductDefaults(long productId) {
+                return productId == PRO_BOOT_ID
+                        ? Optional.of(new ProductDefaults("Pro Ski Boot", new BigDecimal("1000.00")))
+                        : Optional.empty();
+            }
+        };
+        OrderPresenter presenter = new OrderPresenter(orderService, productService);
         presenter.select("Unisports", ORDER.id());
         return presenter;
     }
@@ -128,6 +143,50 @@ class OrderPresenterEditingTest {
         // Removing a line drops its contribution from the live total.
         presenter.removeLine(presenter.editableLines().get(1)); // drop the pole (27 * 13.00 = 351.00)
         assertEquals(0, new BigDecimal("300.00").compareTo(presenter.currentTotal()));
+    }
+
+    // ---- Product LOV + WHEN-VALIDATE-ITEM defaulter (issue #46) --------------------------------
+
+    @Test
+    void applyProductDefaultsReDefaultsDescriptionAndPriceFromTheProduct() {
+        OrderPresenter presenter = loadedPresenter();
+        EditableLine line = presenter.addLine(); // a blank, unproducted new line (item 3)
+
+        boolean applied = presenter.applyProductDefaults(line, PRO_BOOT_ID);
+
+        // The defaulter writes the id and re-defaults the description (product name) and price
+        // (suggested wholesale) onto the line — fired on the product_id change, LOV pick or direct entry.
+        assertTrue(applied);
+        assertEquals(PRO_BOOT_ID, line.getProductId());
+        assertEquals("Pro Ski Boot", line.getDescription());
+        assertEquals(0, new BigDecimal("1000.00").compareTo(line.getPrice()));
+    }
+
+    @Test
+    void applyProductDefaultsReDefaultsOnAnyProductChange() {
+        OrderPresenter presenter = loadedPresenter();
+        EditableLine boots = presenter.editableLines().get(0); // loaded as 41010 / "Ski Boots" / 50.00
+
+        // Changing the product re-defaults the line again — the defaulter is not a one-shot on new lines.
+        presenter.applyProductDefaults(boots, PRO_BOOT_ID);
+
+        assertEquals(PRO_BOOT_ID, boots.getProductId());
+        assertEquals("Pro Ski Boot", boots.getDescription());
+        assertEquals(0, new BigDecimal("1000.00").compareTo(boots.getPrice()));
+    }
+
+    @Test
+    void applyProductDefaultsRejectsAnUnknownProductAndLeavesTheLineUntouched() {
+        OrderPresenter presenter = loadedPresenter();
+        EditableLine boots = presenter.editableLines().get(0);
+
+        boolean applied = presenter.applyProductDefaults(boots, 999999);
+
+        // The NO_DATA_FOUND case: rejected (false) and the line keeps its original product/description/price.
+        assertFalse(applied);
+        assertEquals(41010L, boots.getProductId());
+        assertEquals("Ski Boots", boots.getDescription());
+        assertEquals(0, new BigDecimal("50.00").compareTo(boots.getPrice()));
     }
 
     @Test

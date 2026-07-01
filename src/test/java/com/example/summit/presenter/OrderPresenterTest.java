@@ -4,6 +4,7 @@ import com.example.summit.domain.Order;
 import com.example.summit.domain.OrderSearchCriteria;
 import com.example.summit.domain.OrderSummary;
 import com.example.summit.service.OrderService;
+import com.example.summit.service.ProductService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -42,7 +43,7 @@ class OrderPresenterTest {
     @BeforeEach
     void setUp() {
         orderService = mock(OrderService.class);
-        presenter = new OrderPresenter(orderService);
+        presenter = new OrderPresenter(orderService, mock(ProductService.class));
         when(orderService.search(any(OrderSearchCriteria.class))).thenReturn(RESULT_SET);
         when(orderService.load(anyLong())).thenAnswer(call -> Optional.of(order(call.getArgument(0))));
     }

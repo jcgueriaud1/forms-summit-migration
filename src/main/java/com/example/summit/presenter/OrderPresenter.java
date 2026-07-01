@@ -3,7 +3,10 @@ package com.example.summit.presenter;
 import com.example.summit.domain.Order;
 import com.example.summit.domain.OrderSearchCriteria;
 import com.example.summit.domain.OrderSummary;
+import com.example.summit.domain.Product;
+import com.example.summit.domain.ProductDefaults;
 import com.example.summit.service.OrderService;
+import com.example.summit.service.ProductService;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
@@ -29,11 +32,20 @@ import java.util.Optional;
  * {@link #currentTotal() total} is summed over them live as the clerk edits, adds, duplicates, or
  * removes lines. ADR-0002: the presenter orchestrates the recompute (the view's Binder listeners
  * call back in), no Signals. Persisting the working set is the commit slice's job.
+ *
+ * <p><strong>Product LOV + defaulter (issue #46).</strong> The presenter feeds the line's
+ * {@code PRODUCTS_LOV} its reference list ({@link #availableProducts()}) and owns the
+ * {@code WHEN-VALIDATE-ITEM} defaulter ({@link #applyProductDefaults}): on any {@code product_id}
+ * change — a LOV pick or a directly typed id — it looks the product up through the {@link ProductService}
+ * and writes the product's name and suggested price onto the working line's description and price.
+ * An id that is not a real product is rejected (the Forms {@code NO_DATA_FOUND → RAISE}); the view
+ * turns the rejection into a message on the field.
  */
 @Component
 public class OrderPresenter {
 
     private final OrderService orderService;
+    private final ProductService productService;
 
     /** The result set the pager walks — the orders the committed search returned. */
     private List<OrderSummary> resultSet = List.of();
@@ -42,8 +54,9 @@ public class OrderPresenter {
     /** The mutable working copies of the loaded order's lines — the editable grid's items. */
     private List<EditableLine> workingLines = new ArrayList<>();
 
-    public OrderPresenter(OrderService orderService) {
+    public OrderPresenter(OrderService orderService, ProductService productService) {
         this.orderService = orderService;
+        this.productService = productService;
     }
 
     /** Quick-search suggestions for the term the clerk has typed so far. */
@@ -124,6 +137,40 @@ public class OrderPresenter {
     /** Removes a line from the working set (the in-memory detail delete). */
     public void removeLine(EditableLine line) {
         workingLines.remove(line);
+    }
+
+    // ---- Product LOV + WHEN-VALIDATE-ITEM defaulter (issue #46) --------------------------------
+
+    /**
+     * The {@code PRODUCTS_LOV} reference list — {@code (id, name)} ordered by name — that feeds the
+     * line's product lookup ({@code orders-form-spec.md} §LOV). Reference data, so the view loads it
+     * once at init (the Forms {@code WHEN-NEW-FORM-INSTANCE} record-group populate).
+     */
+    public List<Product> availableProducts() {
+        return productService.lookupProducts();
+    }
+
+    /**
+     * The {@code S_ITEM} {@code WHEN-VALIDATE-ITEM} defaulter (rule {@code trigger-when-validate-item-default}),
+     * fired on <em>any</em> {@code product_id} change — a {@code PRODUCTS_LOV} pick or a directly typed id,
+     * kept separate from the pick itself. It looks the product up through the {@link ProductService} and,
+     * when it exists, writes the id onto the line and re-defaults the line's {@code description} from the
+     * product name and its {@code price} from the suggested wholesale price. An id that is not a real
+     * product is the Forms {@code NO_DATA_FOUND}: the line is left untouched and {@code false} is returned,
+     * which the view surfaces as a rejection message on the field.
+     *
+     * @return {@code true} if the product existed and the line was re-defaulted; {@code false} if the id
+     *         was not a real product (the line is unchanged)
+     */
+    public boolean applyProductDefaults(EditableLine line, long productId) {
+        Optional<ProductDefaults> defaults = productService.findProductDefaults(productId);
+        if (defaults.isEmpty()) {
+            return false;
+        }
+        line.setProductId(productId);
+        line.setDescription(defaults.get().name());
+        line.setPrice(defaults.get().suggestedPrice());
+        return true;
     }
 
     /**

@@ -2,6 +2,7 @@ package com.example.summit.ui;
 
 import com.example.summit.domain.Order;
 import com.example.summit.domain.OrderSummary;
+import com.example.summit.domain.Product;
 import com.example.summit.presenter.EditableLine;
 import com.example.summit.presenter.OrderPresenter;
 import com.vaadin.flow.component.button.Button;
@@ -31,7 +32,9 @@ import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
 
 import java.math.BigDecimal;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -50,8 +53,9 @@ import java.util.Optional;
  * indicator. The presenter owns the position; the view only renders it and disables the
  * ends. The non-DB {@code CONTROL} block is a {@code LayoutHost}
  * (rule {@code block-control}): it is <em>not</em> rendered as a container — its items
- * are hoisted into the surrounding layout. Its buttons (stock, image, help, exit,
- * product-LOV) are all out of this slice, so none surface yet.
+ * are hoisted into the surrounding layout. Its {@code PRODUCT_LOV_BUTTON} is dissolved into
+ * the line's product {@link ComboBox} itself — the LOV is the field, not a separate popup
+ * button (issue #46). Its other buttons (stock, image, help, exit) remain out of this slice.
  *
  * <p><strong>Structural layout fidelity (ADR-0012, {@code graphicsClassifiers}).</strong>
  * Structure is migrated even though visual styling is dropped (ADR-0008):
@@ -122,6 +126,18 @@ public class OrderView extends VerticalLayout {
     // Read-only display of the edited row's ITEM_TOTAL, shown while its editor is open so the row
     // total recomputes live without re-rendering (and tearing down) the open editor.
     private final Span itemTotalEditor = new Span();
+    // The PRODUCTS_LOV (issue #46): the line's product picker — a ComboBox showing "id — name" and
+    // returning only the id, fed by the presenter's service-backed reference list. Editing the price
+    // in place needs the field beyond buildLineEditor (the defaulter reflects the defaulted price into
+    // it), so it and the ComboBox are view fields.
+    private final ComboBox<Product> productField = new ComboBox<>();
+    private final BigDecimalField priceField = new BigDecimalField();
+    // The LOV reference list indexed by id, so opening the editor can show the line's current product
+    // and a directly typed / picked id can resolve to its display row.
+    private final Map<Long, Product> productsById = new HashMap<>();
+    // Guards the product field's value-change listener while the editor syncs it to the current line,
+    // so seeding or reflecting a resolved product does not re-fire the WHEN-VALIDATE-ITEM defaulter.
+    private boolean syncingProduct = false;
     // Detail-block record actions (issue #45), derived from S_ITEM.crud (blockActionClassifiers):
     // New appends a blank line (next per-order item id), Duplicate clones the selected line
     // (KEY-DUPREC clear-list), Delete removes it after a confirm. Duplicate/Delete need a selection.
@@ -314,7 +330,8 @@ public class OrderView extends VerticalLayout {
      */
     private void buildLineItems() {
         lineItems.addColumn(EditableLine::getItemId).setHeader("Item").setAutoWidth(true);
-        lineItems.addColumn(EditableLine::getProductId).setHeader("Product").setAutoWidth(true);
+        Grid.Column<EditableLine> productColumn = lineItems.addColumn(line -> productDisplay(line.getProductId()))
+                .setHeader("Product").setAutoWidth(true);
         lineItems.addColumn(EditableLine::getDescription).setHeader("Description").setAutoWidth(true).setFlexGrow(1);
         Grid.Column<EditableLine> priceColumn = lineItems.addColumn(line -> money(line.getPrice()))
                 .setHeader("Price").setTextAlign(ColumnTextAlign.END).setAutoWidth(true);
@@ -338,7 +355,7 @@ public class OrderView extends VerticalLayout {
         lineItems.setWidthFull();
         lineItems.setSelectionMode(Grid.SelectionMode.SINGLE);
 
-        buildLineEditor(priceColumn, quantityColumn, quantityShippedColumn, itemTotalColumn);
+        buildLineEditor(productColumn, priceColumn, quantityColumn, quantityShippedColumn, itemTotalColumn);
         buildLineActions();
     }
 
@@ -350,7 +367,8 @@ public class OrderView extends VerticalLayout {
      * typed, so it gets a read-only display in the editor; a refresh while the editor is open would
      * tear it down, so the static cell is reconciled on the editor's close instead.
      */
-    private void buildLineEditor(Grid.Column<EditableLine> priceColumn,
+    private void buildLineEditor(Grid.Column<EditableLine> productColumn,
+                                 Grid.Column<EditableLine> priceColumn,
                                  Grid.Column<EditableLine> quantityColumn,
                                  Grid.Column<EditableLine> quantityShippedColumn,
                                  Grid.Column<EditableLine> itemTotalColumn) {
@@ -359,9 +377,10 @@ public class OrderView extends VerticalLayout {
         editor.setBinder(binder);
         editor.setBuffered(false);
 
-        BigDecimalField priceField = new BigDecimalField();
         IntegerField quantityField = new IntegerField();
         IntegerField quantityShippedField = new IntegerField();
+
+        buildProductLov();
 
         binder.forField(priceField).bind(EditableLine::getPrice, EditableLine::setPrice);
         // Quantities are domain longs; the IntegerField presents them and converts back, treating a
@@ -373,6 +392,10 @@ public class OrderView extends VerticalLayout {
                 .withConverter(value -> value == null ? 0L : value.longValue(), Long::intValue)
                 .bind(EditableLine::getQuantityShipped, EditableLine::setQuantityShipped);
 
+        // The product field is NOT bound through the Binder: a product change re-defaults the
+        // description and price too, so the WHEN-VALIDATE-ITEM defaulter writes the whole line at once
+        // (applyProductChange) rather than the Binder writing the bare id.
+        productColumn.setEditorComponent(productField);
         priceColumn.setEditorComponent(priceField);
         quantityColumn.setEditorComponent(quantityField);
         quantityShippedColumn.setEditorComponent(quantityShippedField);
@@ -382,12 +405,102 @@ public class OrderView extends VerticalLayout {
         quantityField.addValueChangeListener(event -> onLineEdited());
         quantityShippedField.addValueChangeListener(event -> onLineEdited());
 
-        editor.addOpenListener(event -> itemTotalEditor.setText(money(event.getItem().itemTotal())));
+        editor.addOpenListener(event -> {
+            EditableLine line = event.getItem();
+            itemTotalEditor.setText(money(line.itemTotal()));
+            // Seed the LOV with the line's current product (empty for a blank new line), without
+            // re-firing the defaulter, and clear any stale rejection from a prior edit.
+            syncingProduct = true;
+            try {
+                productField.setValue(productsById.get(line.getProductId()));
+            } finally {
+                syncingProduct = false;
+            }
+            productField.setInvalid(false);
+        });
         editor.addCloseListener(event -> {
             lineItems.getDataProvider().refreshItem(event.getItem());
             refreshOrderTotal();
         });
         lineItems.addItemDoubleClickListener(event -> editor.editItem(event.getItem()));
+    }
+
+    /**
+     * Builds the {@code PRODUCTS_LOV} (issue #46) — the line's product picker. It is fed the presenter's
+     * service-backed reference list ({@code select id, name from s_product order by name}) once at view
+     * init (the Forms record-group populate) and shows each row as "id — name" while returning only the
+     * id, so the popup lists both columns but {@code S_ITEM.PRODUCT_ID} receives just the id.
+     *
+     * <p>Two paths drive the same defaulter: picking a row fires {@code valueChange}, and typing an id
+     * directly and committing it fires {@code customValueSet} — both route to {@link #applyProductChange}
+     * so the description/price re-default on <em>any</em> {@code product_id} change, LOV pick or direct
+     * entry.
+     */
+    private void buildProductLov() {
+        List<Product> products = presenter.availableProducts();
+        products.forEach(product -> productsById.put(product.id(), product));
+        productField.setId("order-product-lov");
+        productField.setItems(products);
+        productField.setItemLabelGenerator(Product::label);
+        // Allow a directly typed product id (the Forms text-item entry), not only a dropdown pick.
+        productField.setAllowCustomValue(true);
+        productField.setWidthFull();
+
+        productField.addValueChangeListener(event -> {
+            if (syncingProduct || event.getValue() == null) {
+                return;
+            }
+            applyProductChange(event.getValue().id());
+        });
+        productField.addCustomValueSetListener(event -> onProductTyped(event.getDetail()));
+    }
+
+    /**
+     * Handles a directly typed product id (the LOV's {@code customValueSet}). A numeric entry runs the
+     * same {@link #applyProductChange} defaulter; anything non-numeric is rejected on the field, since
+     * only a product id — not a name — is a valid direct entry.
+     */
+    private void onProductTyped(String typed) {
+        String text = typed == null ? "" : typed.trim();
+        try {
+            applyProductChange(Long.parseLong(text));
+        } catch (NumberFormatException notAnId) {
+            rejectProduct(text);
+        }
+    }
+
+    /**
+     * The {@code WHEN-VALIDATE-ITEM} defaulter as the view drives it: hand the changed {@code product_id}
+     * to the presenter, which re-defaults the working line's description and price from the product. On
+     * success the resolved product and defaulted price are reflected into the open editor and the totals
+     * recompute; an id that is not a real product is rejected with a clear message on the field (the
+     * Forms {@code NO_DATA_FOUND → RAISE}).
+     */
+    private void applyProductChange(long productId) {
+        EditableLine line = lineItems.getEditor().getItem();
+        if (line == null) {
+            return;
+        }
+        if (!presenter.applyProductDefaults(line, productId)) {
+            rejectProduct(String.valueOf(productId));
+            return;
+        }
+        productField.setInvalid(false);
+        // Reflect the resolved product row and the defaulted price back into the open editor.
+        syncingProduct = true;
+        try {
+            productField.setValue(productsById.get(productId));
+        } finally {
+            syncingProduct = false;
+        }
+        priceField.setValue(line.getPrice());
+        onLineEdited();
+    }
+
+    /** Rejects an unknown / non-numeric product entry with a clear message on the LOV field. */
+    private void rejectProduct(String entered) {
+        productField.setErrorMessage("No product with id " + entered);
+        productField.setInvalid(true);
     }
 
     /**
@@ -491,6 +604,11 @@ public class OrderView extends VerticalLayout {
     /** Renders a money amount with two decimals; a null amount shows blank. */
     private static String money(BigDecimal amount) {
         return amount == null ? "" : String.format("%.2f", amount);
+    }
+
+    /** The Product column's read-only display — the id, blank for an unproducted (new) line. */
+    private static String productDisplay(long productId) {
+        return productId == 0 ? "" : String.valueOf(productId);
     }
 
     private static String paymentTypeLabel(String code) {
