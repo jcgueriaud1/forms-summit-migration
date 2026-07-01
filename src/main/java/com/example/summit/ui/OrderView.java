@@ -10,7 +10,10 @@ import com.vaadin.flow.component.datepicker.DatePicker;
 import com.vaadin.flow.component.formlayout.FormLayout;
 import com.vaadin.flow.component.grid.Grid;
 import com.vaadin.flow.component.grid.ColumnTextAlign;
+import com.vaadin.flow.component.html.Div;
+import com.vaadin.flow.component.html.H2;
 import com.vaadin.flow.component.html.Paragraph;
+import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.radiobutton.RadioButtonGroup;
 import com.vaadin.flow.component.textfield.TextField;
@@ -21,25 +24,47 @@ import java.math.BigDecimal;
 import java.util.List;
 
 /**
- * The ORDERS view — the first real form migration (PRD #38, Step 1a). A clerk quick-
- * searches by order id / customer / sales rep, picks a suggestion, and that single
- * {@code S_ORD} order loads into a <strong>read-only header {@link FormLayout}</strong>.
+ * The ORDERS view — the faithful web rendering of Forms' {@code CV_ORDER} canvas
+ * (PRD #38). A clerk quick-searches by order id / customer / sales rep, picks a
+ * suggestion, and that single {@code S_ORD} order loads into a read-only header with
+ * its {@code S_ITEM} line items coordinated below ({@code S_ORD_S_ITEM}).
  *
- * <p>This is the faithful web rendering of Forms' single-record Enter-Query on the
- * {@code S_ORD} master (Variant A, {@code block-master-single}): a lookup that loads
- * one record, not a grid of orders. Below the header, the order's {@code S_ITEM} line
- * items load automatically into a <strong>read-only {@link Grid}</strong> coordinated on
- * the same order ({@code S_ORD_S_ITEM}, #40) — picking a different order reloads header
- * and lines together. The layout shell, pager, and advanced search (#41), editing,
- * totals, and commit all arrive in later slices. The view holds no SQL — it talks only
- * to the {@link OrderPresenter} (View &larr; Presenter &larr; Service &larr; Domain
- * &larr; Data).
+ * <p><strong>Layout topology (per {@code migration-rules.yaml}).</strong> The view nests
+ * in the AppLayout {@link MainLayout}. The {@code CV_ORDER} Content canvas becomes this
+ * top-level {@link VerticalLayout} (rule {@code canvas-content}); the Forms Toolbar
+ * canvas becomes a {@link HorizontalLayout} docked at the top (rule
+ * {@code canvas-horizontal-toolbar}), here holding the query affordance that replaces
+ * Execute/Enter-Query. The non-DB {@code CONTROL} block is a {@code LayoutHost}
+ * (rule {@code block-control}): it is <em>not</em> rendered as a container — its items
+ * are hoisted into the surrounding layout. Its buttons (stock, image, help, exit,
+ * product-LOV) are all out of this slice, so none surface yet.
  *
- * <p><strong>Read-only is a state, not a component type (ADR-0013).</strong> Each
- * header field renders as the control the classifier mapped for it, put into a
- * read-only state — Payment Type stays a {@link RadioButtonGroup} (Cash/Credit),
- * Order Filled a {@link Checkbox}, the dates {@link DatePicker}s — never flattened to
- * a {@link TextField}. The later editable slice flips the state, not the component.
+ * <p><strong>Structural layout fidelity (ADR-0012, {@code graphicsClassifiers}).</strong>
+ * Structure is migrated even though visual styling is dropped (ADR-0008):
+ * <ul>
+ *   <li>The {@code CV_ORDER} boilerplate static text <strong>"Order Information"</strong>
+ *       ({@code role: heading}, {@code headingLevel: h2}) renders as an {@link H2}
+ *       (rule {@code boilerplate-heading}), heading the header group.</li>
+ *   <li>The Forms frame <strong>{@code RECT59}</strong> (which encloses the header
+ *       fields) becomes a titled grouping section — a sub-{@link FormLayout} under that
+ *       heading (rule {@code frame-group}); <strong>{@code RECT60}</strong> groups the
+ *       payment type and the line-item region.</li>
+ *   <li>Header fields are placed in <strong>{@code layoutPlan} order</strong> (Y-then-X),
+ *       never declaration order: Order Id (outside any frame); then, inside {@code RECT59},
+ *       Date Ordered, Customer Id, Customer Name; Sales Rep Id, Sales Rep Name; Date
+ *       Shipped, Order Filled; then, inside {@code RECT60}, Payment Type.</li>
+ * </ul>
+ *
+ * <p><strong>Read-only is a state, not a component type (ADR-0013).</strong> Each header
+ * field renders as the control the classifier mapped for it, put into a read-only state —
+ * Payment Type stays a {@link RadioButtonGroup} (Cash/Credit), Order Filled a
+ * {@link Checkbox}, the dates {@link DatePicker}s — never flattened to a
+ * {@link TextField}. The later editable slice flips the state, not the component.
+ *
+ * <p>Visual styling is the Aura theme's (ADR-0008): the frame borders/fills are dropped
+ * and re-expressed through the shared {@code .panel} treatment; no Lumo utilities or
+ * {@code --lumo-*} properties are used. The view holds no SQL — it talks only to the
+ * {@link OrderPresenter} (View &larr; Presenter &larr; Service &larr; Domain &larr; Data).
  */
 @Route(value = "orders", layout = MainLayout.class)
 @PageTitle("Orders | Summit Migration POC")
@@ -50,28 +75,50 @@ public class OrderView extends VerticalLayout {
 
     private final OrderPresenter presenter;
 
+    // Order Id sits outside any Forms frame (layoutPlan section: null) — it is the
+    // order's identifier at the top of the canvas, above the RECT59 group.
     private final TextField orderId = new TextField("Order Id");
+    // RECT59-enclosed header fields (S_ORD), in layoutPlan (Y-then-X) order.
+    private final DatePicker dateOrdered = new DatePicker("Date Ordered");
     private final TextField customerId = new TextField("Customer Id");
     private final TextField customerName = new TextField("Customer Name");
-    private final DatePicker dateOrdered = new DatePicker("Date Ordered");
-    private final DatePicker dateShipped = new DatePicker("Date Shipped");
     private final TextField salesRepId = new TextField("Sales Rep Id");
     private final TextField salesRepName = new TextField("Sales Rep Name");
-    private final RadioButtonGroup<String> paymentType = new RadioButtonGroup<>("Payment Type");
+    private final DatePicker dateShipped = new DatePicker("Date Shipped");
     private final Checkbox orderFilled = new Checkbox("Order Filled");
+    // RECT60-enclosed header field (S_ORD): payment type, grouped with the line items.
+    private final RadioButtonGroup<String> paymentType = new RadioButtonGroup<>("Payment Type");
 
-    private final FormLayout header = new FormLayout();
+    private final HorizontalLayout toolbar = new HorizontalLayout();
+    private final H2 orderInformationHeading = new H2("Order Information");
+    private final FormLayout headerFields = new FormLayout();
+    private final Div orderInformationSection = new Div();
+    private final Div itemsSection = new Div();
     private final Grid<OrderLine> lineItems = new Grid<>();
     private final Paragraph emptyHint = new Paragraph("Search for an order to load its header.");
 
     public OrderView(OrderPresenter presenter) {
         this.presenter = presenter;
 
+        buildToolbar();
         buildHeader();
         buildLineItems();
-        header.setVisible(false);
-        lineItems.setVisible(false);
-        add(buildSearch(), emptyHint, header, lineItems);
+        buildSections();
+
+        // The loaded-order regions stay hidden until a suggestion is picked.
+        setOrderVisible(false);
+
+        add(toolbar, emptyHint, orderId, orderInformationSection, itemsSection);
+    }
+
+    /**
+     * The Forms Toolbar canvas → {@link HorizontalLayout} docked at the top
+     * (rule {@code canvas-horizontal-toolbar}). It holds the Variant A quick search that
+     * replaces Forms' Execute/Enter-Query on the single-record {@code S_ORD} master.
+     */
+    private void buildToolbar() {
+        toolbar.setWidthFull();
+        toolbar.add(buildSearch());
     }
 
     private ComboBox<OrderSummary> buildSearch() {
@@ -120,10 +167,31 @@ public class OrderView extends VerticalLayout {
         paymentType.setReadOnly(true);
         orderFilled.setReadOnly(true);
 
-        header.add(orderId, customerId, customerName,
-                dateOrdered, dateShipped,
+        // Fields placed in layoutPlan order (Y-then-X), never declaration order (ADR-0012).
+        headerFields.add(dateOrdered, customerId, customerName,
                 salesRepId, salesRepName,
-                paymentType, orderFilled);
+                dateShipped, orderFilled);
+    }
+
+    /**
+     * Assembles the two Forms frames into titled grouping sections (ADR-0012,
+     * {@code frame-group}). {@code RECT59} → the "Order Information" section (heading +
+     * header sub-form); {@code RECT60} → the items section (payment type + line-items
+     * grid). The frame border/fill is Aura's to own (ADR-0008) — re-expressed through the
+     * shared {@code .panel} treatment, not translated field-by-field.
+     */
+    private void buildSections() {
+        // RECT59 — titled by the CV_ORDER "Order Information" H2 boilerplate heading.
+        orderInformationSection.setId("order-information-section");
+        orderInformationSection.addClassName("panel");
+        headerFields.setId("order-header-fields");
+        orderInformationSection.add(orderInformationHeading, headerFields);
+
+        // RECT60 — groups the payment type and the coordinated line-item region. No Forms
+        // frame title / boilerplate heading sits on it, so the section carries no heading.
+        itemsSection.setId("order-items-section");
+        itemsSection.addClassName("panel");
+        itemsSection.add(paymentType, lineItems);
     }
 
     /**
@@ -181,15 +249,20 @@ public class OrderView extends VerticalLayout {
         lineItems.setItems(order.lines());
 
         emptyHint.setVisible(false);
-        header.setVisible(true);
-        lineItems.setVisible(true);
+        setOrderVisible(true);
     }
 
     private void clearHeader() {
-        header.setVisible(false);
-        lineItems.setVisible(false);
+        setOrderVisible(false);
         lineItems.setItems(List.of());
         emptyHint.setVisible(true);
+    }
+
+    /** Shows or hides the loaded-order regions (Order Id + both frame sections) together. */
+    private void setOrderVisible(boolean visible) {
+        orderId.setVisible(visible);
+        orderInformationSection.setVisible(visible);
+        itemsSection.setVisible(visible);
     }
 
     private static String nullSafe(String value) {

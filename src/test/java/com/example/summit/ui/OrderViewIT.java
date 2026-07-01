@@ -2,6 +2,7 @@ package com.example.summit.ui;
 
 import com.example.summit.it.support.OracleSpringPlaywrightIT;
 import com.microsoft.playwright.Page;
+import com.microsoft.playwright.options.AriaRole;
 import org.junit.jupiter.api.Test;
 import org.vaadin.addons.dramafinder.element.CheckboxElement;
 import org.vaadin.addons.dramafinder.element.ComboBoxElement;
@@ -18,10 +19,9 @@ import static com.microsoft.playwright.assertions.PlaywrightAssertions.assertTha
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
- * UI integration test for {@link OrderView} — the first real form migration (PRD #38,
- * Step 1a). Drives the running app in a real browser (Playwright + DramaFinder) against
- * a real Summit-seeded Oracle container and asserts both dimensions of the migrated
- * construct:
+ * UI integration test for {@link OrderView} (PRD #38). Drives the running app in a real
+ * browser (Playwright + DramaFinder) against a real Summit-seeded Oracle container and
+ * asserts both dimensions of the migrated construct:
  *
  * <ul>
  *   <li><strong>Behavioural parity</strong> — quick-search a single {@code S_ORD}
@@ -35,6 +35,13 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  *       {@link DatePickerElement}. Locating those elements at all proves the type
  *       survived the read-only slice.</li>
  * </ul>
+ *
+ * <p>{@link #testLayoutFidelityGate()} is the <strong>layout-fidelity UI gate</strong>
+ * (ADR-0012): it asserts the {@code CV_ORDER} structure survived the migration — the
+ * "Order Information" {@code H2} heading is present, the header fields sit in
+ * {@code layoutPlan} order inside the titled {@code RECT59} section, Order Id sits
+ * outside that frame, and the payment type is grouped with the line items in the
+ * {@code RECT60} section as its mapped {@code RadioButtonGroup}.
  */
 public class OrderViewIT extends OracleSpringPlaywrightIT {
 
@@ -46,6 +53,48 @@ public class OrderViewIT extends OracleSpringPlaywrightIT {
     @Test
     public void testTitle() {
         assertThat(page).hasTitle("Orders | Summit Migration POC");
+    }
+
+    /**
+     * Layout-fidelity UI gate (ADR-0012). Loads an order and asserts the {@code CV_ORDER}
+     * structure survived: the "Order Information" H2 boilerplate heading renders as an
+     * {@code <h2>}; the header fields sit in {@code layoutPlan} order inside the titled
+     * {@code RECT59} section; Order Id sits outside that frame (layoutPlan section null);
+     * and the payment type is grouped with the line items in the {@code RECT60} section
+     * as its mapped {@code RadioButtonGroup}. Complements the per-field component-type
+     * assertions in {@link #testPickingASuggestionLoadsTheReadOnlyHeaderAsMappedControls()}.
+     */
+    @Test
+    @SuppressWarnings("unchecked")
+    public void testLayoutFidelityGate() {
+        ComboBoxElement search = ComboBoxElement.getByLabel(page, "Find order");
+        search.filterAndSelectItem("50001", "#50001 — Unisports (Magee)");
+        TextFieldElement.getByLabel(page, "Order Id").assertValue("50001");
+
+        // The CV_ORDER "Order Information" boilerplate static text (role: heading,
+        // headingLevel h2) renders as a real <h2>, not a dropped label (boilerplate-heading).
+        assertThat(page.getByRole(AriaRole.HEADING,
+                new Page.GetByRoleOptions().setName("Order Information").setLevel(2))).isVisible();
+
+        // RECT59 → titled grouping section (frame-group): the enclosed header fields sit in
+        // layoutPlan (Y-then-X) order, never declaration order.
+        List<String> headerFieldOrder = (List<String>) page.locator("#order-header-fields > *")
+                .evaluateAll("els => els.map(e => e.label).filter(label => label)");
+        assertEquals(
+                List.of("Date Ordered", "Customer Id", "Customer Name",
+                        "Sales Rep Id", "Sales Rep Name",
+                        "Date Shipped", "Order Filled"),
+                headerFieldOrder);
+
+        // Order Id is outside the RECT59 frame (layoutPlan section null) — present in the
+        // view but not inside the "Order Information" section.
+        assertEquals(0, page.locator("#order-information-section")
+                .getByLabel("Order Id").count());
+
+        // RECT60 → groups the payment type with the line-item region; Payment Type keeps
+        // its mapped RadioButtonGroup shape (ADR-0013), located inside the items section.
+        assertEquals(1, page.locator("#order-items-section vaadin-radio-group").count());
+        assertEquals(1, page.locator("#order-items-section vaadin-grid").count());
     }
 
     @Test
