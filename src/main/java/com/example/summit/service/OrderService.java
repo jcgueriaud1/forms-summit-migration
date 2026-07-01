@@ -99,6 +99,11 @@ public class OrderService {
         if (order.customerId() <= 0) {
             return new CommitResult.Rejected("A customer is required.");
         }
+        // Each S_ITEM line needs a product (mandatory FK): a blank line the clerk added but never
+        // filled is refused here rather than crashing the insert on the FK (ORA-02291).
+        if (order.lines().stream().anyMatch(line -> !line.hasProduct())) {
+            return new CommitResult.Rejected("Each line must have a product.");
+        }
         if (order.isNew()) {
             long newId = orderRepository.insertOrder(order);
             order.lines().forEach(line -> orderRepository.insertItem(newId, line));

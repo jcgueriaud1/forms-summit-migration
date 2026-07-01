@@ -29,4 +29,14 @@ public record OrderLine(
     public BigDecimal itemTotal() {
         return price == null ? BigDecimal.ZERO : price.multiply(BigDecimal.valueOf(quantityShipped));
     }
+
+    /**
+     * Whether this line has a product yet — {@code S_ITEM.product_id} is a mandatory FK, so a line
+     * with none (a blank line the clerk added but never filled) is invalid and cannot be persisted.
+     * The whole-graph commit gate uses this to refuse such a line cleanly rather than letting the
+     * insert fail on the FK ({@code ORA-02291}).
+     */
+    public boolean hasProduct() {
+        return productId > 0;
+    }
 }

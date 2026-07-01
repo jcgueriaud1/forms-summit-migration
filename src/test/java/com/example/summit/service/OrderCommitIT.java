@@ -154,6 +154,22 @@ class OrderCommitIT extends SummitDbIT {
         assertInstanceOf(CommitResult.Rejected.class, result);
     }
 
+    @Test
+    void aLineWithoutAProductIsRefusedNotLeftAsAConstraintError() {
+        Order loaded = createFixtureOrder();
+
+        // The clerk added a blank line (no product) and committed — S_ITEM.product_id is a mandatory
+        // FK, so the gate refuses it cleanly rather than letting the insert crash on ORA-02291.
+        List<OrderLine> working = new ArrayList<>(loaded.lines());
+        working.add(new OrderLine(3, 0, "", null, 0, 0)); // blank added line
+
+        CommitResult result = service.save(withLines(loaded, working));
+
+        assertInstanceOf(CommitResult.Rejected.class, result);
+        // Nothing changed: the order still has exactly its two original lines.
+        assertEquals(List.of(1L, 2L), itemIds(repository.loadGraph(loaded.id()).orElseThrow()));
+    }
+
     // ---- fixtures ------------------------------------------------------------------------------
 
     /** A new (unpersisted) order with the given lines — customer 201 / rep 1, CASH, filled. */

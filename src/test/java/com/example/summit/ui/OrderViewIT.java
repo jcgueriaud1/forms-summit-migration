@@ -590,6 +590,21 @@ public class OrderViewIT extends OracleSpringPlaywrightIT {
     }
 
     @Test
+    public void testCommittingABlankAddedLineIsRefusedNotCrashed() {
+        // The reported repro: Add line, leave it unfilled, Commit. S_ITEM.product_id is a mandatory
+        // FK, so the commit gate refuses the blank line with a clear message instead of crashing on
+        // ORA-02291 — and the loaded order is left untouched (rejected before any write).
+        loadOrder(); // 50001 (two lines)
+        ButtonElement.getByText(page, "Add line").click();
+        GridElement grid = GridElement.get(page);
+        page.waitForCondition(() -> grid.getTotalRowCount() == 3);
+
+        commitButton().click();
+
+        NotificationElement.getByText(page, "Each line must have a product.").assertOpen();
+    }
+
+    @Test
     public void testCreatingANewOrderCommitsItWithASequenceAssignedId() {
         // New order: a blank editable form (no order id yet), the S_ORD PRE-INSERT reachable from the UI.
         new ButtonElement(page.locator("#order-new")).click();
