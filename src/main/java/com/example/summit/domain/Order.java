@@ -1,5 +1,6 @@
 package com.example.summit.domain;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 
@@ -19,6 +20,11 @@ import java.util.List;
  * <p>{@code salesRepId} / {@code salesRepName} are nullable: {@code S_ORD.sales_rep_id}
  * is a nullable column, so an order with no assigned rep is a valid load. {@code lines}
  * is never null — an order with no line items carries an empty list.
+ *
+ * <p>{@link #total()} is the {@code TOTAL} summary as a <strong>pure domain method</strong>
+ * (ADR-0001): the sum of the lines' {@link OrderLine#itemTotal() ITEM_TOTAL}s — so it
+ * inherits the same shipped-not-ordered truth, with no Spring, Vaadin, or DB dependency.
+ * The read-only line-items grid binds its {@code Total} footer to this method.
  */
 public record Order(
         long id,
@@ -31,4 +37,16 @@ public record Order(
         String paymentType,
         boolean orderFilled,
         List<OrderLine> lines) {
+
+    /**
+     * The order total — the sum of every line's {@link OrderLine#itemTotal()}, the Forms
+     * {@code TOTAL} summary (Summary = Sum). An order with no lines totals to zero, and
+     * because {@code itemTotal()} already treats a null price as zero, a half-entered line
+     * contributes nothing rather than throwing.
+     */
+    public BigDecimal total() {
+        return lines.stream()
+                .map(OrderLine::itemTotal)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
 }
