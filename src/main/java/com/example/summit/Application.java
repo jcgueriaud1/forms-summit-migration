@@ -12,8 +12,11 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
  *
  * <p>The Aura theme owns all visual styling (typography, colour, spacing, borders);
  * see ADR-0008. It must be the first {@code @StyleSheet} so app stylesheets load after it.
+ * {@code styles.css} (served from {@code META-INF/resources}) layers the compact Summit
+ * brand theme on top of Aura.
  */
 @StyleSheet(Aura.STYLESHEET)
+@StyleSheet("styles.css")
 @SpringBootApplication
 public class Application implements AppShellConfigurator {
 
