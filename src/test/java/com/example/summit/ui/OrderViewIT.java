@@ -368,6 +368,96 @@ public class OrderViewIT extends OracleSpringPlaywrightIT {
                 .getCellContentLocator().innerText().trim();
     }
 
+    // ---- Master-header editing behaviours (issue #47) -------------------------------------------
+    // The header becomes editable in place (a state flip on the mapped controls, ADR-0013): entering a
+    // customer id defaults the name + sales rep, an unknown id is rejected, a CREDIT payment a
+    // customer's rating cannot support is reset to CASH with a notice, and a ship date before the order
+    // date is flagged. The rules are pure Domain; the data is fetched by the Service (ADR-0001/0002).
+
+    @Test
+    public void testEnteringACustomerIdDefaultsTheNameAndSalesRep() {
+        ComboBoxElement search = ComboBoxElement.getByLabel(page, "Find order");
+        search.filterAndSelectItem("50001", "#50001 — Unisports (Magee)");
+        TextFieldElement.getByLabel(page, "Order Id").assertValue("50001");
+        // Loaded as customer 201 Unisports / rep Magee.
+        TextFieldElement.getByLabel(page, "Customer Name").assertValue("Unisports");
+
+        // Retype the customer id as 202 (Womansport, rep 2 Giljum): the WHEN-VALIDATE-ITEM lookup
+        // defaults the name and sales rep onto the (read-only) display fields.
+        TextFieldElement customerId = TextFieldElement.getByLabel(page, "Customer Id");
+        customerId.setValue("202");
+
+        TextFieldElement.getByLabel(page, "Customer Name").assertValue("Womansport");
+        TextFieldElement.getByLabel(page, "Sales Rep Id").assertValue("2");
+        TextFieldElement.getByLabel(page, "Sales Rep Name").assertValue("Giljum");
+        customerId.assertValid();
+    }
+
+    @Test
+    public void testAnUnknownCustomerIdIsRejected() {
+        ComboBoxElement search = ComboBoxElement.getByLabel(page, "Find order");
+        search.filterAndSelectItem("50001", "#50001 — Unisports (Magee)");
+        TextFieldElement.getByLabel(page, "Order Id").assertValue("50001");
+
+        // An id that is not a real customer is the Forms NO_DATA_FOUND — rejected with a clear message.
+        TextFieldElement customerId = TextFieldElement.getByLabel(page, "Customer Id");
+        customerId.setValue("999999");
+
+        customerId.assertInvalid();
+        customerId.assertErrorMessage("No customer with id 999999");
+    }
+
+    @Test
+    public void testCreditPaymentIsRefusedAndResetToCashForAPoorlyRatedCustomer() {
+        ComboBoxElement search = ComboBoxElement.getByLabel(page, "Find order");
+        search.filterAndSelectItem("50001", "#50001 — Unisports (Magee)");
+        TextFieldElement.getByLabel(page, "Order Id").assertValue("50001");
+
+        // Switch to customer 290 (Kam's Sporting Goods, POOR) then try to pay by CREDIT.
+        TextFieldElement.getByLabel(page, "Customer Id").setValue("290");
+        TextFieldElement.getByLabel(page, "Customer Name").assertValue("Kam's Sporting Goods");
+
+        RadioButtonGroupElement payment = RadioButtonGroupElement.getByLabel(page, "Payment Type");
+        // setValue checks the radio (fires the server-side value-change), unlike selectByValue.
+        payment.setValue("Credit");
+
+        // The credit guard refuses it: the payment is reset to CASH and a notice is shown.
+        payment.assertValue("Cash");
+        assertThat(page.getByText("Credit is not available for this customer", new Page.GetByTextOptions().setExact(false)))
+                .isVisible();
+    }
+
+    @Test
+    public void testCreditPaymentIsAllowedForAWellRatedCustomer() {
+        ComboBoxElement search = ComboBoxElement.getByLabel(page, "Find order");
+        // 50001 is customer 201 Unisports (EXCELLENT) — CREDIT is allowed, so it sticks.
+        search.filterAndSelectItem("50001", "#50001 — Unisports (Magee)");
+        TextFieldElement.getByLabel(page, "Order Id").assertValue("50001");
+
+        RadioButtonGroupElement payment = RadioButtonGroupElement.getByLabel(page, "Payment Type");
+        payment.setValue("Credit");
+
+        // A GOOD/EXCELLENT customer keeps the CREDIT choice — the guard does not fire.
+        payment.assertValue("Credit");
+    }
+
+    @Test
+    public void testShipDateBeforeOrderDateIsFlagged() {
+        ComboBoxElement search = ComboBoxElement.getByLabel(page, "Find order");
+        // 50001: ordered 1992-08-31, shipped 1992-09-10.
+        search.filterAndSelectItem("50001", "#50001 — Unisports (Magee)");
+        TextFieldElement.getByLabel(page, "Order Id").assertValue("50001");
+
+        DatePickerElement dateShipped = DatePickerElement.getByLabel(page, "Date Shipped");
+        dateShipped.assertValid();
+
+        // Set the ship date before the order date — the WHEN-VALIDATE-RECORD guard flags it invalid.
+        dateShipped.setValue(LocalDate.of(1992, 8, 30));
+
+        dateShipped.assertInvalid();
+        dateShipped.assertErrorMessage("Ship date cannot be before the order date");
+    }
+
     @Test
     public void testCreditOrderShowsCreditRadioSelected() {
         ComboBoxElement search = ComboBoxElement.getByLabel(page, "Find order");

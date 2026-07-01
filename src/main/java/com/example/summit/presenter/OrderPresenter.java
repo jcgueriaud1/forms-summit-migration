@@ -1,10 +1,13 @@
 package com.example.summit.presenter;
 
+import com.example.summit.domain.CustomerHeader;
 import com.example.summit.domain.Order;
 import com.example.summit.domain.OrderSearchCriteria;
 import com.example.summit.domain.OrderSummary;
+import com.example.summit.domain.PaymentEligibility;
 import com.example.summit.domain.Product;
 import com.example.summit.domain.ProductDefaults;
+import com.example.summit.service.CustomerService;
 import com.example.summit.service.OrderService;
 import com.example.summit.service.ProductService;
 import org.springframework.stereotype.Component;
@@ -40,12 +43,21 @@ import java.util.Optional;
  * and writes the product's name and suggested price onto the working line's description and price.
  * An id that is not a real product is rejected (the Forms {@code NO_DATA_FOUND → RAISE}); the view
  * turns the rejection into a message on the field.
+ *
+ * <p><strong>Master-header editing (issue #47).</strong> The presenter orchestrates the two
+ * {@code S_ORD} header behaviours that need the database: the {@code WHEN-VALIDATE-ITEM} customer
+ * lookup ({@link #lookupCustomer}), which defaults the customer name and sales rep onto the header,
+ * and the credit guard ({@link #paymentAllowed}), which fetches the customer's credit rating through
+ * the {@link CustomerService} and hands it to the pure Domain {@link PaymentEligibility} rule. The
+ * ship-date guard needs no service — it is the pure {@link Order#shipDateValid} check the view mirrors
+ * to a Binder validator (ADR-0002).
  */
 @Component
 public class OrderPresenter {
 
     private final OrderService orderService;
     private final ProductService productService;
+    private final CustomerService customerService;
 
     /** The result set the pager walks — the orders the committed search returned. */
     private List<OrderSummary> resultSet = List.of();
@@ -54,9 +66,11 @@ public class OrderPresenter {
     /** The mutable working copies of the loaded order's lines — the editable grid's items. */
     private List<EditableLine> workingLines = new ArrayList<>();
 
-    public OrderPresenter(OrderService orderService, ProductService productService) {
+    public OrderPresenter(OrderService orderService, ProductService productService,
+                          CustomerService customerService) {
         this.orderService = orderService;
         this.productService = productService;
+        this.customerService = customerService;
     }
 
     /** Quick-search suggestions for the term the clerk has typed so far. */
@@ -171,6 +185,31 @@ public class OrderPresenter {
         line.setDescription(defaults.get().name());
         line.setPrice(defaults.get().suggestedPrice());
         return true;
+    }
+
+    // ---- Master-header editing behaviours (issue #47) -----------------------------------------
+
+    /**
+     * The {@code S_ORD} {@code WHEN-VALIDATE-ITEM} customer lookup — the {@code name} and default sales
+     * rep a chosen customer defaults onto the order header, fetched through the {@link CustomerService}.
+     * An id that is not a real customer returns {@link Optional#empty()} (the Forms {@code NO_DATA_FOUND}),
+     * which the view surfaces as a rejection on the customer-id field.
+     */
+    public Optional<CustomerHeader> lookupCustomer(long customerId) {
+        return customerService.findCustomerHeader(customerId);
+    }
+
+    /**
+     * The credit guard: whether {@code paymentType} is allowed for the given customer. The presenter
+     * fetches the customer's credit rating through the {@link CustomerService} (the <em>data</em>) and
+     * hands it to the pure Domain {@link PaymentEligibility#allows} rule (the <em>decision</em>, ADR-0001).
+     * A {@code CASH} payment is always allowed and needs no fetch decision; a {@code CREDIT} payment is
+     * allowed only when the customer's rating is {@code GOOD} or {@code EXCELLENT}. An unknown customer
+     * carries no creditworthy rating, so {@code CREDIT} is refused.
+     */
+    public boolean paymentAllowed(long customerId, String paymentType) {
+        String creditRating = customerService.findCreditRating(customerId).orElse(null);
+        return PaymentEligibility.allows(creditRating, paymentType);
     }
 
     /**

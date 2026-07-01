@@ -1,8 +1,10 @@
 package com.example.summit.ui;
 
+import com.example.summit.domain.CustomerHeader;
 import com.example.summit.domain.Order;
 import com.example.summit.domain.OrderSummary;
 import com.example.summit.domain.Product;
+import com.example.summit.presenter.EditableHeader;
 import com.example.summit.presenter.EditableLine;
 import com.example.summit.presenter.OrderPresenter;
 import com.vaadin.flow.component.button.Button;
@@ -19,6 +21,7 @@ import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.H2;
 import com.vaadin.flow.component.html.Paragraph;
 import com.vaadin.flow.component.html.Span;
+import com.vaadin.flow.component.notification.Notification;
 import com.vaadin.flow.component.orderedlayout.FlexComponent.Alignment;
 import com.vaadin.flow.component.orderedlayout.FlexComponent.JustifyContentMode;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
@@ -74,10 +77,26 @@ import java.util.Optional;
  * </ul>
  *
  * <p><strong>Read-only is a state, not a component type (ADR-0013).</strong> Each header
- * field renders as the control the classifier mapped for it, put into a read-only state —
- * Payment Type stays a {@link RadioButtonGroup} (Cash/Credit), Order Filled a
- * {@link Checkbox}, the dates {@link DatePicker}s — never flattened to a
- * {@link TextField}. The later editable slice flips the state, not the component.
+ * field renders as the control the classifier mapped for it — Payment Type a
+ * {@link RadioButtonGroup} (Cash/Credit), Order Filled a {@link Checkbox}, the dates
+ * {@link DatePicker}s — never flattened to a {@link TextField}. Making the header editable
+ * (issue #47) is a <em>state flip</em> on those same mapped controls, not a component swap: the
+ * editable fields (customer id, the two dates, payment type, order-filled) leave the read-only
+ * state, while the lookup-filled display fields (order id, customer name, sales rep id/name) stay
+ * read-only.
+ *
+ * <p><strong>Header editing behaviours (issue #47).</strong> The editable fields bind to an
+ * {@link EditableHeader} working copy through a {@link Binder} (ADR-0002, no Signals), which folds in
+ * the {@code S_ORD} Forms validation behaviours. Entering a <em>customer id</em> runs the
+ * {@code WHEN-VALIDATE-ITEM} lookup ({@link OrderPresenter#lookupCustomer}): a real customer defaults
+ * its name and sales rep onto the header; an id that is not a real customer is rejected with a clear
+ * message on the field. Selecting a <em>CREDIT</em> payment runs the credit guard
+ * ({@link OrderPresenter#paymentAllowed}, delegating to the pure Domain
+ * {@link com.example.summit.domain.PaymentEligibility}): a customer whose rating is not GOOD or
+ * EXCELLENT has the payment refused and reset to CASH with a notice. The <em>ship date</em> is guarded
+ * by a Binder validator delegating to {@link Order#shipDateValid(java.time.LocalDate, java.time.LocalDate)}
+ * — a ship date before the order date is flagged invalid. Persisting these edits is the commit slice's
+ * job (#48); this slice keeps the header editing in memory.
  *
  * <p>Visual styling is the Aura theme's (ADR-0008): the frame borders/fills are dropped
  * and re-expressed through the shared {@code .panel} treatment; no Lumo utilities or
@@ -106,6 +125,16 @@ public class OrderView extends VerticalLayout {
     private final Checkbox orderFilled = new Checkbox("Order Filled");
     // RECT60-enclosed header field (S_ORD): payment type, grouped with the line items.
     private final RadioButtonGroup<String> paymentType = new RadioButtonGroup<>("Payment Type");
+
+    // The editable header (issue #47): a Binder over the working EditableHeader copy folds in the
+    // S_ORD Forms validation behaviours (customer lookup, credit guard, ship-date guard). ADR-0002:
+    // Binder + value-change listeners, no Signals. The bean is seeded on load and edited in memory.
+    private final Binder<EditableHeader> headerBinder = new Binder<>(EditableHeader.class);
+    private EditableHeader header;
+    // Guards the header's value-change listeners (customer lookup, credit guard) while the view seeds
+    // the fields on load or resets a refused payment, so those programmatic writes do not re-fire the
+    // behaviours as if the clerk had made the edit.
+    private boolean syncingHeader = false;
 
     private final HorizontalLayout toolbar = new HorizontalLayout();
     private final ComboBox<OrderSummary> search = new ComboBox<>("Find order");
@@ -271,26 +300,148 @@ public class OrderView extends VerticalLayout {
 
     private void buildHeader() {
         // Payment Type is a Forms Radio Group (radio-group classifier) — a small fixed
-        // choice — so it stays a RadioButtonGroup even read-only (ADR-0013), showing the
-        // Forms labels "Cash"/"Credit" over the S_ORD.PAYMENT_TYPE codes.
+        // choice — so it stays a RadioButtonGroup (ADR-0013), showing the Forms labels
+        // "Cash"/"Credit" over the S_ORD.PAYMENT_TYPE codes.
         paymentType.setItems(PAYMENT_TYPES);
         paymentType.setItemLabelGenerator(OrderView::paymentTypeLabel);
 
-        // Read-only is a runtime state on the mapped control, not a component swap.
+        // The lookup-filled display fields stay read-only: Order Id is the PK, and Customer Name /
+        // Sales Rep Id / Sales Rep Name are defaulted by the customer lookup, never typed (ADR-0013 —
+        // a read-only state on the mapped control, not a component swap).
         orderId.setReadOnly(true);
-        customerId.setReadOnly(true);
         customerName.setReadOnly(true);
-        dateOrdered.setReadOnly(true);
-        dateShipped.setReadOnly(true);
         salesRepId.setReadOnly(true);
         salesRepName.setReadOnly(true);
-        paymentType.setReadOnly(true);
-        orderFilled.setReadOnly(true);
+        // The editable fields (issue #47) are the same mapped controls, flipped out of read-only:
+        // customer id, the two dates, payment type, order-filled — a state flip, not a component swap.
+        customerId.setId("order-customer-id");
+
+        buildHeaderBinder();
 
         // Fields placed in layoutPlan order (Y-then-X), never declaration order (ADR-0012).
         headerFields.add(dateOrdered, customerId, customerName,
                 salesRepId, salesRepName,
                 dateShipped, orderFilled);
+    }
+
+    /**
+     * Wires the header {@link Binder} and the {@code S_ORD} Forms editing behaviours (issue #47),
+     * following ADR-0002 (Binder + value-change listeners, no Signals):
+     * <ul>
+     *   <li><strong>Customer lookup</strong> ({@code WHEN-VALIDATE-ITEM}) — customer id is driven by a
+     *       value-change listener rather than a Binder write, because a customer change re-defaults
+     *       several fields at once (name, sales rep). A real customer defaults them in; an unknown id
+     *       is rejected on the field.</li>
+     *   <li><strong>Credit guard</strong> — a listener on the payment radio refuses a CREDIT payment a
+     *       customer's rating does not support, resetting it to CASH with a notice.</li>
+     *   <li><strong>Ship-date guard</strong> ({@code WHEN-VALIDATE-RECORD}) — a Binder validator on the
+     *       ship date delegates to the pure Domain {@link Order#shipDateValid}; a change to the order
+     *       date re-validates it so the cross-field rule stays live.</li>
+     * </ul>
+     */
+    private void buildHeaderBinder() {
+        headerBinder.forField(dateOrdered).bind(EditableHeader::getDateOrdered, EditableHeader::setDateOrdered);
+        headerBinder.forField(dateShipped)
+                .withValidator(shipped -> Order.shipDateValid(dateOrdered.getValue(), shipped),
+                        "Ship date cannot be before the order date")
+                .bind(EditableHeader::getDateShipped, EditableHeader::setDateShipped);
+        headerBinder.forField(paymentType).bind(EditableHeader::getPaymentType, EditableHeader::setPaymentType);
+        headerBinder.forField(orderFilled).bind(EditableHeader::isOrderFilled, EditableHeader::setOrderFilled);
+
+        // The order date is one half of the cross-field ship-date rule: when it changes, re-run
+        // validation so the ship-date field's error reflects the new comparison (it is the validated
+        // field, so its own change already re-validates).
+        dateOrdered.addValueChangeListener(event -> {
+            if (!syncingHeader) {
+                headerBinder.validate();
+            }
+        });
+
+        // Customer id (not bound): a change re-defaults name + sales rep, so it runs the lookup
+        // defaulter, mirroring the product LOV's handling of a multi-field defaulter.
+        customerId.addValueChangeListener(event -> {
+            if (!syncingHeader) {
+                onCustomerIdChanged(event.getValue());
+            }
+        });
+
+        // Payment type (bound): the credit guard runs after the Binder has written the choice.
+        paymentType.addValueChangeListener(event -> {
+            if (!syncingHeader) {
+                enforceCreditEligibility();
+            }
+        });
+    }
+
+    /**
+     * The {@code S_ORD} {@code WHEN-VALIDATE-ITEM} customer lookup as the view drives it: parse the
+     * entered id, look the customer up through the presenter, and on success default its name and sales
+     * rep onto the header (then re-check credit eligibility, since a CREDIT order may no longer be
+     * allowed for the new customer). A non-numeric or unknown id is the Forms {@code NO_DATA_FOUND}:
+     * rejected with a clear message on the customer-id field.
+     */
+    private void onCustomerIdChanged(String entered) {
+        if (header == null) {
+            return;
+        }
+        String text = entered == null ? "" : entered.trim();
+        long customerId;
+        try {
+            customerId = Long.parseLong(text);
+        } catch (NumberFormatException notAnId) {
+            rejectCustomer(text);
+            return;
+        }
+        Optional<CustomerHeader> found = presenter.lookupCustomer(customerId);
+        if (found.isEmpty()) {
+            rejectCustomer(text);
+            return;
+        }
+        this.customerId.setInvalid(false);
+        header.setCustomerId(customerId);
+        applyCustomerDisplay(found.get());
+        enforceCreditEligibility();
+    }
+
+    /** Rejects an unknown / non-numeric customer entry with a clear message on the customer-id field. */
+    private void rejectCustomer(String entered) {
+        customerId.setErrorMessage("No customer with id " + entered);
+        customerId.setInvalid(true);
+    }
+
+    /** Defaults the looked-up customer's name and sales rep onto the (read-only) display fields and bean. */
+    private void applyCustomerDisplay(CustomerHeader customer) {
+        header.setCustomerName(customer.name());
+        header.setSalesRepId(customer.salesRepId());
+        header.setSalesRepName(customer.salesRepName());
+        customerName.setValue(nullSafe(customer.name()));
+        salesRepId.setValue(customer.salesRepId() == null ? "" : String.valueOf(customer.salesRepId()));
+        salesRepName.setValue(nullSafe(customer.salesRepName()));
+    }
+
+    /**
+     * The credit guard: a CREDIT payment the current customer's rating does not support is refused and
+     * reset to CASH with a notice (the Forms credit check). The decision is the pure Domain
+     * {@link com.example.summit.domain.PaymentEligibility} rule, reached through
+     * {@link OrderPresenter#paymentAllowed}; CASH is never gated. Runs on both a payment change and a
+     * customer change, so switching to a poorly-rated customer also drops an outstanding CREDIT choice.
+     */
+    private void enforceCreditEligibility() {
+        if (header == null || !"CREDIT".equals(paymentType.getValue())) {
+            return;
+        }
+        if (presenter.paymentAllowed(header.getCustomerId(), "CREDIT")) {
+            return;
+        }
+        syncingHeader = true;
+        try {
+            paymentType.setValue("CASH");
+            header.setPaymentType("CASH");
+        } finally {
+            syncingHeader = false;
+        }
+        Notification.show("Credit is not available for this customer (rating not GOOD or EXCELLENT). "
+                + "Payment type reset to Cash.");
     }
 
     /**
@@ -620,15 +771,23 @@ public class OrderView extends VerticalLayout {
     }
 
     private void showOrder(Order order) {
-        orderId.setValue(String.valueOf(order.id()));
-        customerId.setValue(String.valueOf(order.customerId()));
-        customerName.setValue(nullSafe(order.customerName()));
-        dateOrdered.setValue(order.dateOrdered());
-        dateShipped.setValue(order.dateShipped());
-        salesRepId.setValue(order.salesRepId() == null ? "" : String.valueOf(order.salesRepId()));
-        salesRepName.setValue(nullSafe(order.salesRepName()));
-        paymentType.setValue(order.paymentType());
-        orderFilled.setValue(order.orderFilled());
+        // Seed the header working copy and reflect it into the fields. syncingHeader guards the
+        // customer-lookup and credit-guard listeners so seeding a loaded (already-valid) order does not
+        // re-fire them as if the clerk had typed the values — a loaded CREDIT order must not be reset.
+        syncingHeader = true;
+        try {
+            header = new EditableHeader(order);
+            orderId.setValue(String.valueOf(order.id()));
+            customerId.setValue(String.valueOf(order.customerId()));
+            customerId.setInvalid(false);
+            salesRepId.setValue(order.salesRepId() == null ? "" : String.valueOf(order.salesRepId()));
+            customerName.setValue(nullSafe(order.customerName()));
+            salesRepName.setValue(nullSafe(order.salesRepName()));
+            // The Binder populates the editable fields (dates, payment type, order-filled) from the bean.
+            headerBinder.setBean(header);
+        } finally {
+            syncingHeader = false;
+        }
 
         // S_ORD_S_ITEM coordination: the editable grid is reloaded with the picked order's working
         // lines (the presenter seeded a fresh working set on load); any open editor is discarded.
@@ -644,6 +803,16 @@ public class OrderView extends VerticalLayout {
 
     private void clearHeader() {
         presenter.reset();
+        // Detach the header working copy so the editing listeners have nothing to act on until the
+        // next order loads, and clear any stale customer-id rejection.
+        syncingHeader = true;
+        try {
+            headerBinder.removeBean();
+            header = null;
+            customerId.setInvalid(false);
+        } finally {
+            syncingHeader = false;
+        }
         lineItems.getEditor().closeEditor();
         setOrderVisible(false);
         lineItems.setItems(List.of());

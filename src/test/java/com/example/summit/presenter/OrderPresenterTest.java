@@ -1,8 +1,10 @@
 package com.example.summit.presenter;
 
+import com.example.summit.domain.CustomerHeader;
 import com.example.summit.domain.Order;
 import com.example.summit.domain.OrderSearchCriteria;
 import com.example.summit.domain.OrderSummary;
+import com.example.summit.service.CustomerService;
 import com.example.summit.service.OrderService;
 import com.example.summit.service.ProductService;
 import org.junit.jupiter.api.BeforeEach;
@@ -38,12 +40,14 @@ class OrderPresenterTest {
     private static final List<OrderSummary> RESULT_SET = List.of(ORDER_A, ORDER_B, ORDER_C);
 
     private OrderService orderService;
+    private CustomerService customerService;
     private OrderPresenter presenter;
 
     @BeforeEach
     void setUp() {
         orderService = mock(OrderService.class);
-        presenter = new OrderPresenter(orderService, mock(ProductService.class));
+        customerService = mock(CustomerService.class);
+        presenter = new OrderPresenter(orderService, mock(ProductService.class), customerService);
         when(orderService.search(any(OrderSearchCriteria.class))).thenReturn(RESULT_SET);
         when(orderService.load(anyLong())).thenAnswer(call -> Optional.of(order(call.getArgument(0))));
     }
@@ -130,6 +134,49 @@ class OrderPresenterTest {
 
         assertEquals(2, presenter.currentRecord());
         assertEquals(3, presenter.resultCount());
+    }
+
+    // ---- Master-header editing lookups (issue #47) ----------------------------------------------
+
+    @Test
+    void lookupCustomerReturnsTheCustomerHeaderFromTheService() {
+        CustomerHeader unisports = new CustomerHeader("Unisports", 1L, "Magee");
+        when(customerService.findCustomerHeader(201L)).thenReturn(Optional.of(unisports));
+
+        assertEquals(unisports, presenter.lookupCustomer(201L).orElseThrow());
+    }
+
+    @Test
+    void lookupCustomerIsEmptyForAnUnknownCustomer() {
+        when(customerService.findCustomerHeader(anyLong())).thenReturn(Optional.empty());
+
+        assertTrue(presenter.lookupCustomer(999999L).isEmpty());
+    }
+
+    @Test
+    void paymentAllowedFetchesTheRatingAndDelegatesToTheDomainRule() {
+        // CREDIT is allowed for a GOOD/EXCELLENT rating, refused for POOR — the Service fetches the
+        // rating (the data), PaymentEligibility judges it (the rule).
+        when(customerService.findCreditRating(201L)).thenReturn(Optional.of("EXCELLENT"));
+        when(customerService.findCreditRating(290L)).thenReturn(Optional.of("POOR"));
+
+        assertTrue(presenter.paymentAllowed(201L, "CREDIT"));
+        assertFalse(presenter.paymentAllowed(290L, "CREDIT"));
+    }
+
+    @Test
+    void cashIsAllowedWithoutRegardToTheRating() {
+        when(customerService.findCreditRating(290L)).thenReturn(Optional.of("POOR"));
+
+        assertTrue(presenter.paymentAllowed(290L, "CASH"));
+    }
+
+    @Test
+    void creditIsRefusedForAnUnknownCustomer() {
+        // No rating comes back for a customer that does not exist — CREDIT is refused.
+        when(customerService.findCreditRating(anyLong())).thenReturn(Optional.empty());
+
+        assertFalse(presenter.paymentAllowed(999999L, "CREDIT"));
     }
 
     private static OrderSummary summary(long id) {

@@ -5,6 +5,7 @@ import com.example.summit.domain.OrderLine;
 import com.example.summit.domain.OrderSearchCriteria;
 import com.example.summit.domain.OrderSummary;
 import com.example.summit.domain.ProductDefaults;
+import com.example.summit.service.CustomerService;
 import com.example.summit.service.OrderService;
 import com.example.summit.service.ProductService;
 import org.junit.jupiter.api.Test;
@@ -64,7 +65,9 @@ class OrderPresenterEditingTest {
                         : Optional.empty();
             }
         };
-        OrderPresenter presenter = new OrderPresenter(orderService, productService);
+        // The header lookups (issue #47) are not exercised here — a bare CustomerService suffices.
+        CustomerService customerService = new CustomerService(null);
+        OrderPresenter presenter = new OrderPresenter(orderService, productService, customerService);
         presenter.select("Unisports", ORDER.id());
         return presenter;
     }
