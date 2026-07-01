@@ -32,7 +32,7 @@ class OrderPresenterHeaderTest {
 
     private static final Order ORDER = new Order(
             50001, 201, "Unisports", LocalDate.of(1992, 8, 31), LocalDate.of(1992, 9, 10),
-            1L, "Magee", "CASH", true, List.of());
+            1L, "Magee", "CASH", true, List.of(), 1L);
 
     /** A presenter with the order loaded (working header seeded) and a two-customer master. */
     private static OrderPresenter loadedPresenter() {

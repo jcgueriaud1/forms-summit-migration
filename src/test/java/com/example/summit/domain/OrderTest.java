@@ -21,7 +21,7 @@ class OrderTest {
 
     private static Order orderWith(List<OrderLine> lines) {
         return new Order(50001, 201, "Unisports", LocalDate.of(1992, 3, 16), null,
-                12L, "Magee", "CREDIT", false, lines);
+                12L, "Magee", "CREDIT", false, lines, 1L);
     }
 
     @Test
@@ -127,7 +127,7 @@ class OrderTest {
         OrderLine one = new OrderLine(1, 41010, "Ski Boots", new BigDecimal("50.00"), 5, 5);
         Order shippedBeforeOrdered = new Order(50001, 201, "Unisports",
                 LocalDate.of(1992, 9, 10), LocalDate.of(1992, 8, 31),
-                12L, "Magee", "CASH", false, List.of(one));
+                12L, "Magee", "CASH", false, List.of(one), 1L);
 
         assertFalse(shippedBeforeOrdered.shipDateValid());
         assertTrue(orderWith(List.of(one)).shipDateValid()); // orderWith has a null ship date

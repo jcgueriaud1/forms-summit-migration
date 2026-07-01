@@ -540,6 +540,35 @@ public class OrderViewIT extends OracleSpringPlaywrightIT {
         dateShipped.assertErrorMessage("Ship date cannot be before the order date.");
     }
 
+    // ---- Whole-graph commit: the COMMIT_FORM save (issue #19) -------------------------------
+    // One Commit action persists the header + all line items as a single @Transactional save. The
+    // button is the KEY-COMMIT action, enabled only while an order is loaded; the deep proof of the
+    // save/optimistic-locking semantics lives in the service ITs (OrderCommitIT).
+
+    private ButtonElement commitButton() {
+        return new ButtonElement(page.locator("#order-commit"));
+    }
+
+    @Test
+    public void testCommitButtonIsDisabledUntilAnOrderIsLoaded() {
+        // Nothing loaded → nothing to commit, so the action is disabled.
+        commitButton().assertDisabled();
+
+        loadOrder();
+        commitButton().assertEnabled();
+    }
+
+    @Test
+    public void testCommittingALoadedOrderReportsSuccess() {
+        // Load 50001 and commit it unchanged: the whole-graph save runs end-to-end (view → presenter
+        // → service → Oracle) and reports the committed order. Committing the order as-loaded rewrites
+        // the same values, so the shared seed data other tests rely on is left intact.
+        loadOrder();
+        commitButton().click();
+
+        NotificationElement.getByText(page, "Order #50001 committed.").assertOpen();
+    }
+
     @Test
     public void testClearResetsTheAdvancedCriteriaAndNavigation() {
         openAdvancedSearch();

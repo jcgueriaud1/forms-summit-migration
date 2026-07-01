@@ -1,5 +1,6 @@
 package com.example.summit.ui;
 
+import com.example.summit.domain.CommitResult;
 import com.example.summit.domain.Customer;
 import com.example.summit.domain.Order;
 import com.example.summit.domain.OrderSearchCriteria;
@@ -9,7 +10,10 @@ import com.example.summit.presenter.EditableHeader;
 import com.example.summit.presenter.EditableLine;
 import com.example.summit.presenter.OrderPresenter;
 import com.vaadin.flow.component.Component;
+import com.vaadin.flow.component.Key;
+import com.vaadin.flow.component.KeyModifier;
 import com.vaadin.flow.component.button.Button;
+import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.checkbox.Checkbox;
 import com.vaadin.flow.component.combobox.ComboBox;
 import com.vaadin.flow.component.datepicker.DatePicker;
@@ -126,6 +130,11 @@ public class OrderView extends VerticalLayout {
     private final Button removeLine = new Button("Remove line");
     private final HorizontalLayout lineActions = new HorizontalLayout(addLine, removeLine);
 
+    // The KEY-COMMIT action (COMMIT_FORM → transaction-commit-form, issue #19): one Commit persists
+    // the header + all line items as one transaction. Enabled only while an order is loaded; also
+    // bound to Ctrl+S (the keystroke Forms' KEY-COMMIT trapped, per trigger-key-commit).
+    private final Button commit = new Button("Commit");
+
     // Quick search (autocomplete picker) — by order id / customer / sales rep.
     private final ComboBox<OrderSummary> quickSearch = new ComboBox<>("Find order");
 
@@ -175,7 +184,17 @@ public class OrderView extends VerticalLayout {
         HorizontalLayout toolbar = new HorizontalLayout();
         toolbar.setWidthFull();
         toolbar.setPadding(false);
+
+        // The real KEY-COMMIT action (unlike the deferred CONTROL buttons below): one Commit runs
+        // the whole-graph @Transactional save. Disabled until an order is loaded; Ctrl+S triggers it.
+        commit.setId("order-commit");
+        commit.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
+        commit.setEnabled(false);
+        commit.addClickListener(event -> onCommit());
+        commit.addClickShortcut(Key.KEY_S, KeyModifier.CONTROL);
+
         toolbar.add(
+                commit,
                 deferredButton("Stock",
                         "Stock view for the current line's product (S_INVENTORY) — deferred to its own follow-up PRD."),
                 deferredButton("Image On",
@@ -633,6 +652,40 @@ public class OrderView extends VerticalLayout {
         itemTotalColumn.setFooter(presenter.currentTotal().toPlainString());
     }
 
+    /**
+     * The Commit action ({@code COMMIT_FORM}, issue #19): hands the working header + lines to the
+     * presenter's whole-graph save and surfaces its typed {@link CommitResult}. The Service is the
+     * authoritative gate (ADR-0002); this only reflects the outcome. On success the form is rebound
+     * to the reloaded (fresh {@code ORA_ROWSCN}) working state so a second commit does not falsely
+     * conflict; a conflict or a gate rejection leaves the clerk's edits on screen to reconcile.
+     */
+    private void onCommit() {
+        switch (presenter.commit()) {
+            case CommitResult.Committed committed -> {
+                rebindAfterCommit();
+                Notification.show("Order #" + committed.orderId() + " committed.");
+            }
+            case CommitResult.Conflict ignored -> Notification.show(
+                    "This order was changed by someone else since you loaded it — reload and try again.");
+            case CommitResult.Rejected rejected -> Notification.show(rejected.message());
+        }
+    }
+
+    /**
+     * Rebinds the form to the reloaded working state after a successful commit: the presenter has
+     * re-seeded a fresh working header + lines (with the moved {@code ORA_ROWSCN}), so the header
+     * Binder and the grid must point at those new instances for any further editing to target — and
+     * re-check against — the committed state.
+     */
+    private void rebindAfterCommit() {
+        suppressHeaderListeners = true;
+        headerBinder.setBean(presenter.editableHeader());
+        suppressHeaderListeners = false;
+        lineItems.getEditor().closeEditor();
+        lineItems.setItems(presenter.editableLines());
+        refreshOrderTotal();
+    }
+
     private void showOrder(Order order) {
         // Seed the form from the loaded order. The bound fields (dates, payment type, order-filled)
         // come from the working header via setBean; the PK and the lookup-defaulted display fields
@@ -662,6 +715,7 @@ public class OrderView extends VerticalLayout {
         headerSection.setVisible(true);
         lineItems.setVisible(true);
         lineActions.setVisible(true);
+        commit.setEnabled(true);
         refreshPager();
     }
 
@@ -670,6 +724,7 @@ public class OrderView extends VerticalLayout {
         headerSection.setVisible(false);
         lineItems.setVisible(false);
         lineActions.setVisible(false);
+        commit.setEnabled(false);
         lineItems.getEditor().closeEditor();
         lineItems.setItems(java.util.Collections.emptyList());
         emptyHint.setText(NO_ORDER_HINT);
@@ -685,6 +740,7 @@ public class OrderView extends VerticalLayout {
         headerSection.setVisible(false);
         lineItems.setVisible(false);
         lineActions.setVisible(false);
+        commit.setEnabled(false);
         lineItems.getEditor().closeEditor();
         lineItems.setItems(java.util.Collections.emptyList());
         emptyHint.setText(NO_MATCH_HINT);

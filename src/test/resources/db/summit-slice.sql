@@ -92,4 +92,16 @@ INSERT INTO s_product (id, name, short_desc, suggested_whlsl_price) VALUES (4101
 INSERT INTO s_item (ord_id, item_id, product_id, price, quantity, quantity_shipped) VALUES (50001, 1, 41010,   50.00,  5,  5);
 INSERT INTO s_item (ord_id, item_id, product_id, price, quantity, quantity_shipped) VALUES (50001, 2, 20108,   13.00, 27, 27);
 INSERT INTO s_item (ord_id, item_id, product_id, price, quantity, quantity_shipped) VALUES (50002, 1, 30421, 1000.00,  8,  8);
-INSERT INTO s_item (ord_id, item_id, product_id, price, quantity, quantity_shipped) VALUES (50002, 2, 10011,   56.60,  1,  1)
+INSERT INTO s_item (ord_id, item_id, product_id, price, quantity, quantity_shipped) VALUES (50002, 2, 10011,   56.60,  1,  1);
+
+-- Whole-graph commit slice (issue #19). The S_ORD PRE-INSERT draws new order ids from this
+-- sequence; it starts well above the seeded orders (50001-50003) and the delete IT's throwaway
+-- (59999) so a nextval-assigned insert never collides with fixed test data.
+CREATE SEQUENCE s_ord_id START WITH 70000 INCREMENT BY 1 NOCACHE;
+
+-- The AUDIT_S_ITEM trigger target (S_ITEM_AUDIT.A NUMBER — captures no actor, per orders-form-spec).
+-- The trigger itself is a PL/SQL block, so it is created by the container harness rather than here
+-- (the init-script splitter cannot parse the inner statement terminators); see SummitOracleContainer.
+CREATE TABLE s_item_audit (
+  a NUMBER
+)

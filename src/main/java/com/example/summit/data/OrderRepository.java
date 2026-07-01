@@ -51,7 +51,7 @@ public class OrderRepository {
                         SELECT o.id, o.customer_id, c.name AS customer_name,
                                o.date_ordered, o.date_shipped,
                                o.sales_rep_id, e.last_name AS sales_rep_name,
-                               o.payment_type, o.order_filled,
+                               o.payment_type, o.order_filled, o.ORA_ROWSCN AS row_scn,
                                i.item_id, i.product_id, p.name AS product_name,
                                i.price, i.quantity, i.quantity_shipped
                         FROM s_ord o
@@ -77,6 +77,12 @@ public class OrderRepository {
                     String salesRepName = rs.getString("sales_rep_name");
                     String paymentType = rs.getString("payment_type");
                     boolean orderFilled = "Y".equals(rs.getString("order_filled"));
+                    // The optimistic-locking token: the S_ORD row's ORA_ROWSCN as of load, re-checked
+                    // by updateOrderHeader on save (concurrency-pessimistic-to-scn, issue #19).
+                    // Caveat (disclosed): S_ORD is not created with ROWDEPENDENCIES, so ORA_ROWSCN is
+                    // block-level (coarser than per-row) and could in principle raise a false conflict
+                    // when an unrelated row in the same block changes — accepted for the POC, no schema change.
+                    long rowScn = rs.getLong("row_scn");
 
                     List<OrderLine> lines = new ArrayList<>();
                     do {
@@ -96,7 +102,7 @@ public class OrderRepository {
 
                     return Optional.of(new Order(
                             id, customerId, customerName, dateOrdered, dateShipped,
-                            salesRepId, salesRepName, paymentType, orderFilled, List.copyOf(lines)));
+                            salesRepId, salesRepName, paymentType, orderFilled, List.copyOf(lines), rowScn));
                 });
     }
 
@@ -185,6 +191,119 @@ public class OrderRepository {
     public int deleteOrder(long orderId) {
         return jdbcClient.sql("DELETE FROM s_ord WHERE id = :id")
                 .param("id", orderId)
+                .update();
+    }
+
+    // ---- Whole-graph commit (COMMIT_FORM → transaction-commit-form, issue #19) ------------------
+    // The SQL half of the whole-graph save. Policy (the commit gate, conflict decision, line diff)
+    // lives one layer up in OrderService.save; these methods carry only SQL, as elsewhere here.
+
+    /**
+     * Inserts a new {@code S_ORD} header and returns its assigned id — the {@code S_ORD}
+     * {@code PRE-INSERT} rule {@code :S_ORD.id := S_ORD_ID.nextval}, rendered as fetch-then-insert so
+     * the generated id comes back to the caller. {@code total} is persisted from the domain
+     * {@code Sum} ({@link Order#total()}, ADR-0001) so the denormalized column stays reconciled with
+     * the lines. The order's lines are inserted separately by {@link #insertItem}.
+     */
+    public long insertOrder(Order order) {
+        long id = jdbcClient.sql("SELECT s_ord_id.nextval FROM dual")
+                .query(Long.class)
+                .single();
+        jdbcClient.sql("""
+                        INSERT INTO s_ord (id, customer_id, date_ordered, date_shipped,
+                                           sales_rep_id, total, payment_type, order_filled)
+                        VALUES (:id, :customerId, :dateOrdered, :dateShipped,
+                                :salesRepId, :total, :paymentType, :orderFilled)
+                        """)
+                .param("id", id)
+                .param("customerId", order.customerId())
+                .param("dateOrdered", order.dateOrdered())
+                .param("dateShipped", order.dateShipped())
+                .param("salesRepId", order.salesRepId())
+                .param("total", order.total())
+                .param("paymentType", order.paymentType())
+                .param("orderFilled", order.orderFilled() ? "Y" : "N")
+                .update();
+        return id;
+    }
+
+    /**
+     * Updates an existing {@code S_ORD} header <strong>only if its {@code ORA_ROWSCN} still matches
+     * the value read at load</strong> — the optimistic lock ({@code concurrency-pessimistic-to-scn}).
+     * Returns the number of rows updated: {@code 1} on success, {@code 0} when a concurrent change
+     * moved the scn since load (the caller turns that into a {@link com.example.summit.domain.CommitResult.Conflict}).
+     * This runs first in the commit so a conflict aborts before any line is touched. {@code total}
+     * is re-persisted from the domain {@code Sum}.
+     */
+    public int updateOrderHeader(Order order) {
+        return jdbcClient.sql("""
+                        UPDATE s_ord
+                           SET customer_id = :customerId, date_ordered = :dateOrdered,
+                               date_shipped = :dateShipped, sales_rep_id = :salesRepId,
+                               total = :total, payment_type = :paymentType, order_filled = :orderFilled
+                         WHERE id = :id AND ORA_ROWSCN = :scn
+                        """)
+                .param("id", order.id())
+                .param("customerId", order.customerId())
+                .param("dateOrdered", order.dateOrdered())
+                .param("dateShipped", order.dateShipped())
+                .param("salesRepId", order.salesRepId())
+                .param("total", order.total())
+                .param("paymentType", order.paymentType())
+                .param("orderFilled", order.orderFilled() ? "Y" : "N")
+                .param("scn", order.rowScn())
+                .update();
+    }
+
+    /** The {@code item_id}s currently persisted for an order — the base for the line reconcile diff. */
+    public List<Long> currentItemIds(long orderId) {
+        return jdbcClient.sql("SELECT item_id FROM s_item WHERE ord_id = :ordId")
+                .param("ordId", orderId)
+                .query(Long.class)
+                .list();
+    }
+
+    /**
+     * Inserts one {@code S_ITEM} line. This is the write the DB {@code AUDIT_S_ITEM} trigger fires
+     * after (AFTER INSERT FOR EACH ROW) — inside the same commit transaction, zero Java, exactly as
+     * in Forms ({@code orders-form-spec.md}).
+     */
+    public void insertItem(long orderId, OrderLine line) {
+        jdbcClient.sql("""
+                        INSERT INTO s_item (ord_id, item_id, product_id, price, quantity, quantity_shipped)
+                        VALUES (:ordId, :itemId, :productId, :price, :quantity, :quantityShipped)
+                        """)
+                .param("ordId", orderId)
+                .param("itemId", line.itemId())
+                .param("productId", line.productId())
+                .param("price", line.price())
+                .param("quantity", line.quantity())
+                .param("quantityShipped", line.quantityShipped())
+                .update();
+    }
+
+    /** Updates one existing {@code S_ITEM} line (matched on the {@code (ord_id, item_id)} PK). */
+    public void updateItem(long orderId, OrderLine line) {
+        jdbcClient.sql("""
+                        UPDATE s_item
+                           SET product_id = :productId, price = :price,
+                               quantity = :quantity, quantity_shipped = :quantityShipped
+                         WHERE ord_id = :ordId AND item_id = :itemId
+                        """)
+                .param("ordId", orderId)
+                .param("itemId", line.itemId())
+                .param("productId", line.productId())
+                .param("price", line.price())
+                .param("quantity", line.quantity())
+                .param("quantityShipped", line.quantityShipped())
+                .update();
+    }
+
+    /** Deletes one {@code S_ITEM} line — the detail delete half of the whole-graph save. */
+    public void deleteItem(long orderId, long itemId) {
+        jdbcClient.sql("DELETE FROM s_item WHERE ord_id = :ordId AND item_id = :itemId")
+                .param("ordId", orderId)
+                .param("itemId", itemId)
                 .update();
     }
 }

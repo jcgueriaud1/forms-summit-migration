@@ -32,7 +32,7 @@ class OrderPresenterEditingTest {
 
     private static final Order ORDER = new Order(
             50001, 201, "Unisports", LocalDate.of(1992, 8, 31), LocalDate.of(1992, 9, 10),
-            1L, "Magee", "CASH", true, List.of(BOOTS, POLE));
+            1L, "Magee", "CASH", true, List.of(BOOTS, POLE), 1L);
 
     /** A presenter wired to a stub service that always returns {@link #ORDER}, loaded and positioned. */
     private static OrderPresenter loadedPresenter() {

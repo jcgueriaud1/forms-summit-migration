@@ -29,6 +29,9 @@ public class EditableHeader {
     private String salesRepName;
     private String paymentType;
     private boolean orderFilled;
+    // The optimistic-locking token captured at load (S_ORD.ORA_ROWSCN) — carried untouched through
+    // the editing session so the commit can re-check it (concurrency-pessimistic-to-scn, issue #19).
+    private final Long rowScn;
 
     /** Wraps a loaded order's header for editing. */
     public EditableHeader(Order order) {
@@ -41,6 +44,7 @@ public class EditableHeader {
         this.salesRepName = order.salesRepName();
         this.paymentType = order.paymentType();
         this.orderFilled = order.orderFilled();
+        this.rowScn = order.rowScn();
     }
 
     public long getId() {
@@ -109,5 +113,10 @@ public class EditableHeader {
 
     public void setOrderFilled(boolean orderFilled) {
         this.orderFilled = orderFilled;
+    }
+
+    /** The {@code ORA_ROWSCN} version captured at load — the commit re-checks it (issue #19). */
+    public Long getRowScn() {
+        return rowScn;
     }
 }
