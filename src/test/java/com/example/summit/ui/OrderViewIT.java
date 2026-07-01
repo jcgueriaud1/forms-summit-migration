@@ -468,6 +468,78 @@ public class OrderViewIT extends OracleSpringPlaywrightIT {
         assertThat(page.locator("#line-description")).hasText("Ski Boots");
     }
 
+    // ---- Editable master header: customer lookup, credit guard, ship-date guard (issue #18) -----
+    // The header becomes editable and folds in the S_ORD Forms validation behaviours: a customer-id
+    // change re-defaults the name + sales rep (WHEN-VALIDATE-ITEM); an invalid id is rejected; a
+    // CREDIT payment is refused and reset to CASH for a non-creditworthy customer (WHEN-RADIO-
+    // CHANGED); and a ship date before the order date is flagged invalid (WHEN-VALIDATE-RECORD).
+
+    @Test
+    public void testEditingCustomerIdReDefaultsNameAndSalesRep() {
+        loadOrder(); // 50001, customer 201 Unisports / rep Magee
+
+        // Type a different customer id: the defaulter re-fills name + sales rep from the master.
+        TextFieldElement.getByLabel(page, "Customer Id").setValue("202");
+
+        TextFieldElement.getByLabel(page, "Customer Name").assertValue("Womansport");
+        TextFieldElement.getByLabel(page, "Sales Rep Id").assertValue("2");
+        TextFieldElement.getByLabel(page, "Sales Rep Name").assertValue("Giljum");
+    }
+
+    @Test
+    public void testInvalidCustomerIdIsRejectedWithAMessage() {
+        loadOrder();
+
+        // An unknown id is the Forms NO_DATA_FOUND reject: a clear message, and the dependent
+        // display is cleared rather than left showing a stale name beside the bad id.
+        TextFieldElement.getByLabel(page, "Customer Id").setValue("999999");
+
+        NotificationElement.getByText(page, "Invalid Customer Id!").assertOpen();
+        TextFieldElement.getByLabel(page, "Customer Name").assertValue("");
+    }
+
+    @Test
+    public void testCreditPaymentIsRefusedAndResetForANonCreditworthyCustomer() {
+        loadOrder();
+        // Switch to the POOR-rated customer (290) — CREDIT is not available for it.
+        TextFieldElement.getByLabel(page, "Customer Id").setValue("290");
+
+        // Selecting CREDIT is refused: the guard resets the radio to CASH and shows the notice.
+        // setValue clicks the radio by its label (a real user change that reaches the server),
+        // unlike selectByValue which only sets the client-side property and fires no change event.
+        RadioButtonGroupElement payment = RadioButtonGroupElement.getByLabel(page, "Payment Type");
+        payment.setValue("Credit");
+
+        NotificationElement.getByText(page,
+                "Credit is not available for this customer — payment reset to Cash.").assertOpen();
+        payment.assertValue("CASH");
+    }
+
+    @Test
+    public void testCreditPaymentIsAllowedForACreditworthyCustomer() {
+        loadOrder(); // customer 201 Unisports is EXCELLENT
+
+        // A creditworthy customer can pay by CREDIT — the selection sticks, no reset. setValue
+        // clicks the radio by label (a real user change reaching the server), unlike selectByValue.
+        RadioButtonGroupElement payment = RadioButtonGroupElement.getByLabel(page, "Payment Type");
+        payment.setValue("Credit");
+
+        payment.assertValue("CREDIT");
+    }
+
+    @Test
+    public void testShipDateBeforeOrderDateIsFlaggedInvalid() {
+        loadOrder(); // 50001 ordered 1992-08-31
+
+        // A ship date before the order date violates the WHEN-VALIDATE-RECORD guard: the web model
+        // flags the field invalid with a message rather than focus-trapping (ADR-0002).
+        DatePickerElement dateShipped = DatePickerElement.getByLabel(page, "Date Shipped");
+        dateShipped.setValue(LocalDate.of(1992, 8, 1));
+
+        dateShipped.assertInvalid();
+        dateShipped.assertErrorMessage("Ship date cannot be before the order date.");
+    }
+
     @Test
     public void testClearResetsTheAdvancedCriteriaAndNavigation() {
         openAdvancedSearch();

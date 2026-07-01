@@ -94,4 +94,42 @@ class OrderTest {
     void hasLineItemsIsFalseForAnEmptyOrder() {
         assertFalse(orderWith(List.of()).hasLineItems());
     }
+
+    // ---- shipDateValid: the S_ORD WHEN-VALIDATE-RECORD ship-date guard (issue #18) --------------
+    // Forms: IF :date_shipped < :date_ordered THEN RAISE. Only an *earlier* ship date is rejected.
+
+    @Test
+    void shipDateAfterOrderDateIsValid() {
+        assertTrue(Order.shipDateValid(LocalDate.of(1992, 8, 31), LocalDate.of(1992, 9, 10)));
+    }
+
+    @Test
+    void equalShipAndOrderDatesAreValid() {
+        // date_shipped = date_ordered is not "before", so the guard allows it.
+        LocalDate sameDay = LocalDate.of(1992, 9, 1);
+        assertTrue(Order.shipDateValid(sameDay, sameDay));
+    }
+
+    @Test
+    void aNullShipDateIsValid() {
+        // Not yet shipped: in Oracle NULL < date_ordered is unknown, so the guard never fired.
+        assertTrue(Order.shipDateValid(LocalDate.of(1992, 9, 1), null));
+    }
+
+    @Test
+    void shipDateBeforeOrderDateIsRejected() {
+        assertFalse(Order.shipDateValid(LocalDate.of(1992, 9, 10), LocalDate.of(1992, 8, 31)));
+    }
+
+    @Test
+    void instanceShipDateValidUsesTheOrdersOwnDates() {
+        // The instance check reads the order's own date_ordered / date_shipped.
+        OrderLine one = new OrderLine(1, 41010, "Ski Boots", new BigDecimal("50.00"), 5, 5);
+        Order shippedBeforeOrdered = new Order(50001, 201, "Unisports",
+                LocalDate.of(1992, 9, 10), LocalDate.of(1992, 8, 31),
+                12L, "Magee", "CASH", false, List.of(one));
+
+        assertFalse(shippedBeforeOrdered.shipDateValid());
+        assertTrue(orderWith(List.of(one)).shipDateValid()); // orderWith has a null ship date
+    }
 }

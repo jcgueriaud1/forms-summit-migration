@@ -48,6 +48,10 @@ INSERT INTO s_emp (id, last_name, first_name) VALUES (2, 'Giljum', 'Henry');
 
 INSERT INTO s_customer (id, name, credit_rating, sales_rep_id) VALUES (201, 'Unisports', 'EXCELLENT', 1);
 INSERT INTO s_customer (id, name, credit_rating, sales_rep_id) VALUES (202, 'Womansport', 'GOOD', 2);
+-- A POOR-rated customer (no orders of its own) — the foil for the WHEN-RADIO-CHANGED credit guard
+-- (issue #18): typing this id and selecting CREDIT is refused and reset to CASH. 'POOR' exists in
+-- the full Summit dump; this slice carries one such customer so the guard can be proven end-to-end.
+INSERT INTO s_customer (id, name, credit_rating, sales_rep_id) VALUES (290, 'Kam''s Sporting Goods', 'POOR', 1);
 
 INSERT INTO s_ord (id, customer_id, date_ordered, date_shipped, sales_rep_id, total, payment_type, order_filled)
   VALUES (50001, 201, DATE '1992-08-31', DATE '1992-09-10', 1, 601.00, 'CASH', 'Y');
