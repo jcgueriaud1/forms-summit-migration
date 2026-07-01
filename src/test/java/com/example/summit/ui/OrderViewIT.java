@@ -1,9 +1,11 @@
 package com.example.summit.ui;
 
 import com.example.summit.it.support.OracleSpringPlaywrightIT;
+import com.microsoft.playwright.Locator;
 import com.microsoft.playwright.Page;
 import com.microsoft.playwright.options.AriaRole;
 import org.junit.jupiter.api.Test;
+import org.vaadin.addons.dramafinder.element.BigDecimalFieldElement;
 import org.vaadin.addons.dramafinder.element.ButtonElement;
 import org.vaadin.addons.dramafinder.element.CheckboxElement;
 import org.vaadin.addons.dramafinder.element.ComboBoxElement;
@@ -249,6 +251,85 @@ public class OrderViewIT extends OracleSpringPlaywrightIT {
         assertThat(page.locator("#order-record-indicator")).hasText("Record 1 of 1");
         assertThat(ButtonElement.getByText(page, "Previous").getLocator()).isDisabled();
         assertThat(ButtonElement.getByText(page, "Next").getLocator()).isDisabled();
+    }
+
+    // ---- Inline line-item editing + New / Duplicate / Delete + live totals (issue #45) ----------
+    // The S_ITEM detail block becomes editable: the clerk edits price/qty in place, adds a line
+    // (assigned MAX(item_id)+1), duplicates one (KEY-DUPREC clear-list), and deletes one behind a
+    // confirm — with the order TOTAL footer recomputing live.
+
+    @Test
+    public void testNewLineAssignsTheNextItemIdForThatOrder() {
+        ComboBoxElement search = ComboBoxElement.getByLabel(page, "Find order");
+        search.filterAndSelectItem("50001", "#50001 — Unisports (Magee)");
+        TextFieldElement.getByLabel(page, "Order Id").assertValue("50001");
+
+        GridElement grid = GridElement.get(page);
+        assertEquals(2, grid.getTotalRowCount());
+
+        // New line: 50001 has items 1 and 2, so the new line is item 3 (per-order MAX+1).
+        ButtonElement.getByText(page, "New line").click();
+        // The click round-trips to the server (addLine + grid refresh) before the row count updates.
+        page.waitForCondition(() -> grid.getTotalRowCount() == 3);
+        assertThat(grid.findRow(2).orElseThrow().getCell(0).getCellContentLocator()).hasText("3");
+    }
+
+    @Test
+    public void testDuplicatingALineClonesItWithTheNextItemId() {
+        ComboBoxElement search = ComboBoxElement.getByLabel(page, "Find order");
+        search.filterAndSelectItem("50001", "#50001 — Unisports (Magee)");
+        TextFieldElement.getByLabel(page, "Order Id").assertValue("50001");
+
+        GridElement grid = GridElement.get(page);
+        assertEquals(2, grid.getTotalRowCount());
+
+        // Select the boots line and duplicate it — the copy is a new line (item 3), KEY-DUPREC cleared.
+        grid.select(0);
+        ButtonElement.getByText(page, "Duplicate line").click();
+        page.waitForCondition(() -> grid.getTotalRowCount() == 3);
+        assertThat(grid.findRow(2).orElseThrow().getCell(0).getCellContentLocator()).hasText("3");
+    }
+
+    @Test
+    public void testDeletingALineAsksForConfirmationThenDropsIt() {
+        ComboBoxElement search = ComboBoxElement.getByLabel(page, "Find order");
+        search.filterAndSelectItem("50001", "#50001 — Unisports (Magee)");
+        TextFieldElement.getByLabel(page, "Order Id").assertValue("50001");
+
+        GridElement grid = GridElement.get(page);
+        assertEquals(2, grid.getTotalRowCount());
+
+        // Select the first line and delete it — the KEY-DELREC caution alert as a ConfirmDialog.
+        grid.select(0);
+        ButtonElement.getByText(page, "Delete line").click();
+        assertThat(page.getByText("Do you want to delete this line order?")).isVisible();
+
+        // Confirm ("Yes") performs the in-memory detail delete.
+        ButtonElement.getByText(page, "Yes").click();
+        page.waitForCondition(() -> grid.getTotalRowCount() == 1);
+    }
+
+    @Test
+    public void testEditingAPriceRecomputesTheOrderTotalLive() {
+        ComboBoxElement search = ComboBoxElement.getByLabel(page, "Find order");
+        search.filterAndSelectItem("50001", "#50001 — Unisports (Magee)");
+        TextFieldElement.getByLabel(page, "Order Id").assertValue("50001");
+
+        // On load: 5 * 50.00 + 27 * 13.00 = 601.00 (the Domain TOTAL, via the presenter's live sum).
+        assertThat(page.locator("#order-total")).hasText("601.00");
+
+        // Double-click the first line's Price cell (column 3) to open the inline editor on the row.
+        GridElement grid = GridElement.get(page);
+        grid.findRow(0).orElseThrow().getCell(3).getCellContentLocator().dblclick();
+
+        // The unbuffered editor's price field appears (the only big-decimal field on the page).
+        Locator priceFieldLocator = page.locator("vaadin-big-decimal-field");
+        assertThat(priceFieldLocator).isVisible();
+
+        // Re-price the boots at 60: the bound field writes the edit (unbuffered) and the value-change
+        // listeners re-total live, so the footer reflects 5 * 60.00 + 27 * 13.00 = 651.00.
+        new BigDecimalFieldElement(priceFieldLocator).setValue("60");
+        assertThat(page.locator("#order-total")).hasText("651.00");
     }
 
     /** Reads the trimmed text of a body cell addressed by row index and column header. */

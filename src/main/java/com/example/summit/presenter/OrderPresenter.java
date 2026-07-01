@@ -6,6 +6,8 @@ import com.example.summit.domain.OrderSummary;
 import com.example.summit.service.OrderService;
 import org.springframework.stereotype.Component;
 
+import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -21,6 +23,12 @@ import java.util.Optional;
  * through it, each reusing the single-order load path ({@link #load}). {@link #hasPrevious()}
  * is false at the first match, {@link #hasNext()} false at the last, and
  * {@link #currentRecord()}/{@link #resultCount()} feed the "record N of M" indicator.
+ *
+ * <p><strong>In-memory line editing (issue #45).</strong> Loading an order also seeds a fresh set of
+ * mutable {@link EditableLine} working copies; the editable grid binds to them and the order
+ * {@link #currentTotal() total} is summed over them live as the clerk edits, adds, duplicates, or
+ * removes lines. ADR-0002: the presenter orchestrates the recompute (the view's Binder listeners
+ * call back in), no Signals. Persisting the working set is the commit slice's job.
  */
 @Component
 public class OrderPresenter {
@@ -31,6 +39,8 @@ public class OrderPresenter {
     private List<OrderSummary> resultSet = List.of();
     /** Zero-based index into {@link #resultSet}; {@code -1} when no order is loaded. */
     private int position = -1;
+    /** The mutable working copies of the loaded order's lines — the editable grid's items. */
+    private List<EditableLine> workingLines = new ArrayList<>();
 
     public OrderPresenter(OrderService orderService) {
         this.orderService = orderService;
@@ -72,10 +82,62 @@ public class OrderPresenter {
         return load(currentOrderId());
     }
 
-    /** Clears the result-set position — the pager has nothing to walk until the next search. */
+    /** Clears the result-set position and working lines — nothing to walk or edit until the next search. */
     public void reset() {
         resultSet = List.of();
         position = -1;
+        workingLines = new ArrayList<>();
+    }
+
+    // ---- In-memory line editing (issue #45) ---------------------------------------------------
+
+    /** The working lines of the loaded order — the editable grid's items. */
+    public List<EditableLine> editableLines() {
+        return workingLines;
+    }
+
+    /**
+     * Appends a blank new line with its assigned {@code item_id} — {@code NVL(MAX(item_id),0)+1} over
+     * the <em>working</em> lines, so an id added after other new lines still follows the per-order
+     * Forms {@code PRE-INSERT} rule ({@link Order#nextItemId(java.util.stream.LongStream)}). Returns
+     * the new line so the view can open the editor on it.
+     */
+    public EditableLine addLine() {
+        EditableLine line = EditableLine.blank(nextWorkingItemId());
+        workingLines.add(line);
+        return line;
+    }
+
+    /**
+     * Duplicates a line for insert — the {@code KEY-DUPREC} row action. The clear-list is the
+     * Domain's ({@link com.example.summit.domain.OrderLine#duplicateForInsert()}): {@code item_id},
+     * {@code product_id}, {@code description} and {@code price} are cleared and the quantities carried
+     * over; the copy is then given the next per-order {@code item_id} so it commits as an insert.
+     */
+    public EditableLine duplicateLine(EditableLine selected) {
+        EditableLine copy = new EditableLine(selected.toOrderLine().duplicateForInsert());
+        copy.setItemId(nextWorkingItemId());
+        workingLines.add(copy);
+        return copy;
+    }
+
+    /** Removes a line from the working set (the in-memory detail delete). */
+    public void removeLine(EditableLine line) {
+        workingLines.remove(line);
+    }
+
+    /**
+     * The live order {@code TOTAL} — the {@code Sum} over the working lines' {@code ITEM_TOTAL},
+     * recomputed from the current edits via the authoritative Domain formula
+     * ({@link Order#total(List)}, ADR-0001). The view calls this to refresh the footer on every edit,
+     * add, duplicate, and delete.
+     */
+    public BigDecimal currentTotal() {
+        return Order.total(workingLines.stream().map(EditableLine::toOrderLine).toList());
+    }
+
+    private long nextWorkingItemId() {
+        return Order.nextItemId(workingLines.stream().mapToLong(EditableLine::getItemId));
     }
 
     /** True when a previous match exists — false at the first record (Prev disabled). */
@@ -103,9 +165,18 @@ public class OrderPresenter {
         return position < 0 ? Optional.empty() : Optional.of(resultSet.get(position));
     }
 
-    /** Loads the picked order's header, with customer and sales-rep names joined. */
+    /**
+     * Loads the picked order's header (customer and sales-rep names joined) and seeds a fresh set of
+     * {@link EditableLine} working copies for the editable grid — a failed load leaves an empty set.
+     * All the load paths ({@link #select}, {@link #previous()}, {@link #next()}) funnel through here,
+     * so switching orders always re-seeds the working lines.
+     */
     public Optional<Order> load(long orderId) {
-        return orderService.load(orderId);
+        Optional<Order> loaded = orderService.load(orderId);
+        workingLines = loaded
+                .map(order -> new ArrayList<>(order.lines().stream().map(EditableLine::new).toList()))
+                .orElseGet(ArrayList::new);
+        return loaded;
     }
 
     private long currentOrderId() {
