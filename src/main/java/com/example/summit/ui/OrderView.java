@@ -11,6 +11,7 @@ import com.vaadin.flow.component.datepicker.DatePicker;
 import com.vaadin.flow.component.formlayout.FormLayout;
 import com.vaadin.flow.component.grid.Grid;
 import com.vaadin.flow.component.grid.ColumnTextAlign;
+import com.vaadin.flow.component.grid.FooterRow;
 import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.H2;
 import com.vaadin.flow.component.html.Paragraph;
@@ -110,6 +111,9 @@ public class OrderView extends VerticalLayout {
     private final Div orderInformationSection = new Div();
     private final Div itemsSection = new Div();
     private final Grid<OrderLine> lineItems = new Grid<>();
+    // The order Total footer value (ADR-0001 TOTAL summary) — a loaded order pushes its
+    // Domain-computed total (Order.total()) into this cell; the grid never sums.
+    private final Span orderTotalValue = new Span();
     private final Paragraph emptyHint = new Paragraph("Search for an order to load its header.");
 
     // The quick term behind the current suggestion list, captured from the autocomplete's
@@ -284,7 +288,9 @@ public class OrderView extends VerticalLayout {
      * Product, Description, Price, Qty, Qty Shipped, Item Total — the {@code S_ITEM}
      * block as the clerk reads it. Read-only is the Grid's default state here (no editor,
      * no Grid Pro); the editable slice adds inline editing later. {@code Item Total} binds
-     * to the pure {@link OrderLine#itemTotal()} domain method, not a view-side formula.
+     * to the pure {@link OrderLine#itemTotal()} domain method, not a view-side formula, and
+     * the order {@code Total} footer binds to {@link Order#total()} — the Forms {@code TOTAL}
+     * summary, computed in the Domain (ADR-0001), never summed in the view.
      */
     private void buildLineItems() {
         lineItems.addColumn(OrderLine::itemId).setHeader("Item").setAutoWidth(true);
@@ -294,10 +300,18 @@ public class OrderView extends VerticalLayout {
                 .setTextAlign(ColumnTextAlign.END).setAutoWidth(true);
         lineItems.addColumn(OrderLine::quantity).setHeader("Qty")
                 .setTextAlign(ColumnTextAlign.END).setAutoWidth(true);
-        lineItems.addColumn(OrderLine::quantityShipped).setHeader("Qty Shipped")
-                .setTextAlign(ColumnTextAlign.END).setAutoWidth(true);
-        lineItems.addColumn(line -> money(line.itemTotal())).setHeader("Item Total")
-                .setTextAlign(ColumnTextAlign.END).setAutoWidth(true);
+        Grid.Column<OrderLine> quantityShippedColumn = lineItems.addColumn(OrderLine::quantityShipped)
+                .setHeader("Qty Shipped").setTextAlign(ColumnTextAlign.END).setAutoWidth(true);
+        Grid.Column<OrderLine> itemTotalColumn = lineItems.addColumn(line -> money(line.itemTotal()))
+                .setHeader("Item Total").setTextAlign(ColumnTextAlign.END).setAutoWidth(true);
+
+        // The TOTAL summary as a grid footer: a static "Order Total" label over the shipped
+        // column, and the Domain-computed amount under the Item Total column. The amount is
+        // filled per loaded order in showOrder (Order.total()), never summed here.
+        FooterRow footer = lineItems.appendFooterRow();
+        footer.getCell(quantityShippedColumn).setText("Order Total");
+        orderTotalValue.setId("order-total");
+        footer.getCell(itemTotalColumn).setComponent(orderTotalValue);
 
         // A short, header-coordinated detail block — size to its rows rather than scroll
         // inside a fixed viewport, so the whole order reads at a glance.
@@ -332,6 +346,8 @@ public class OrderView extends VerticalLayout {
         // S_ORD_S_ITEM coordination: the grid always shows the loaded order's lines, so
         // switching orders replaces the contents outright.
         lineItems.setItems(order.lines());
+        // The order Total footer binds to the Domain TOTAL summary (ADR-0001), not a view sum.
+        orderTotalValue.setText(money(order.total()));
 
         emptyHint.setVisible(false);
         setOrderVisible(true);

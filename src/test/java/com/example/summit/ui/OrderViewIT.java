@@ -159,6 +159,9 @@ public class OrderViewIT extends OracleSpringPlaywrightIT {
         assertEquals("Ski Pole", cell(grid, 1, "Description"));
         assertEquals("351.00", cell(grid, 1, "Item Total"));
 
+        // The order Total footer is the Domain TOTAL summary (ADR-0001): 250.00 + 351.00.
+        assertThat(page.locator("#order-total")).hasText("601.00");
+
         page.screenshot(new Page.ScreenshotOptions()
                 .setPath(Paths.get("target/orders-view.png"))
                 .setFullPage(true));
@@ -179,6 +182,9 @@ public class OrderViewIT extends OracleSpringPlaywrightIT {
         assertEquals(2, grid.getTotalRowCount());
         assertEquals("Pro Ski Boot", cell(grid, 0, "Description"));
         assertEquals("8000.00", cell(grid, 0, "Item Total"));
+
+        // The Total footer recomputes for the switched order: 8000.00 + 56.60.
+        assertThat(page.locator("#order-total")).hasText("8056.60");
     }
 
     @Test
@@ -189,6 +195,8 @@ public class OrderViewIT extends OracleSpringPlaywrightIT {
         TextFieldElement.getByLabel(page, "Order Id").assertValue("50003");
 
         assertEquals(0, GridElement.get(page).getTotalRowCount());
+        // An order with no lines totals to zero (Order.total() over an empty line list).
+        assertThat(page.locator("#order-total")).hasText("0.00");
     }
 
     /**
