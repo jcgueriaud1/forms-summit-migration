@@ -4,6 +4,7 @@ import com.example.summit.it.support.OracleSpringPlaywrightIT;
 import com.microsoft.playwright.Page;
 import com.microsoft.playwright.options.AriaRole;
 import org.junit.jupiter.api.Test;
+import org.vaadin.addons.dramafinder.element.ButtonElement;
 import org.vaadin.addons.dramafinder.element.CheckboxElement;
 import org.vaadin.addons.dramafinder.element.ComboBoxElement;
 import org.vaadin.addons.dramafinder.element.DatePickerElement;
@@ -188,6 +189,58 @@ public class OrderViewIT extends OracleSpringPlaywrightIT {
         TextFieldElement.getByLabel(page, "Order Id").assertValue("50003");
 
         assertEquals(0, GridElement.get(page).getTotalRowCount());
+    }
+
+    /**
+     * Prev/next pager (issue #42) — the record-scrollbar replacement. Searching "Unisports"
+     * returns two orders (50001, 50003, ordered by id). Picking the first lands at "Record 1
+     * of 2" with Prev disabled; Next steps to the second order (its header and grid reload),
+     * lands at "Record 2 of 2" with Next disabled; Prev steps back. The indicator and the
+     * end-of-set disabling both reflect the presenter-owned position.
+     */
+    @Test
+    public void testPrevNextPagerStepsThroughTheResultSet() {
+        ComboBoxElement search = ComboBoxElement.getByLabel(page, "Find order");
+        // Two orders share the customer "Unisports" — a multi-record result set to walk.
+        search.filterAndSelectItem("Unisports", "#50001 — Unisports (Magee)");
+        TextFieldElement.getByLabel(page, "Order Id").assertValue("50001");
+
+        ButtonElement previous = ButtonElement.getByText(page, "Previous");
+        ButtonElement next = ButtonElement.getByText(page, "Next");
+
+        // First record: Prev disabled at the front, Next open, indicator reads "1 of 2".
+        assertThat(page.locator("#order-record-indicator")).hasText("Record 1 of 2");
+        assertThat(previous.getLocator()).isDisabled();
+        assertThat(next.getLocator()).isEnabled();
+
+        // Step to the last record: the whole graph reloads onto order 50003.
+        next.click();
+        TextFieldElement.getByLabel(page, "Order Id").assertValue("50003");
+        assertThat(page.locator("#order-record-indicator")).hasText("Record 2 of 2");
+        assertThat(next.getLocator()).isDisabled();
+        assertThat(previous.getLocator()).isEnabled();
+
+        // Step back to the first record.
+        previous.click();
+        TextFieldElement.getByLabel(page, "Order Id").assertValue("50001");
+        assertThat(page.locator("#order-record-indicator")).hasText("Record 1 of 2");
+        assertThat(previous.getLocator()).isDisabled();
+    }
+
+    /**
+     * A single-match search still shows the pager, but with both ends disabled — one record
+     * is record 1 of 1, nowhere to step. Order 50002 (Womansport) is the only order for that
+     * customer.
+     */
+    @Test
+    public void testPagerAtBothEndsForASingleMatch() {
+        ComboBoxElement search = ComboBoxElement.getByLabel(page, "Find order");
+        search.filterAndSelectItem("Womansport", "#50002 — Womansport (Giljum)");
+        TextFieldElement.getByLabel(page, "Order Id").assertValue("50002");
+
+        assertThat(page.locator("#order-record-indicator")).hasText("Record 1 of 1");
+        assertThat(ButtonElement.getByText(page, "Previous").getLocator()).isDisabled();
+        assertThat(ButtonElement.getByText(page, "Next").getLocator()).isDisabled();
     }
 
     /** Reads the trimmed text of a body cell addressed by row index and column header. */
