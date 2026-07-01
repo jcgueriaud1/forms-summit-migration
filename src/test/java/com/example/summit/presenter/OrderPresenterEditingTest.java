@@ -47,9 +47,10 @@ class OrderPresenterEditingTest {
                 return Optional.of(ORDER);
             }
         };
-        // This slice exercises only the line working-set; the product LOV/defaulter (issue #17) has
-        // its own test, so a null ProductService is enough — none of these tests reach it.
-        OrderPresenter presenter = new OrderPresenter(service, null);
+        // This slice exercises only the line working-set; the product LOV/defaulter (issue #17) and
+        // the customer lookup (issue #18) have their own tests, so null Product/Customer services are
+        // enough — loading seeds the working header from the order itself, none of these reach them.
+        OrderPresenter presenter = new OrderPresenter(service, null, null);
         presenter.search(new OrderSearchCriteria("Unisports"));
         return presenter;
     }

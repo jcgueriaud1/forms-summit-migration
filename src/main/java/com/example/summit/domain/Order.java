@@ -79,4 +79,31 @@ public record Order(
     public boolean hasLineItems() {
         return !lines.isEmpty();
     }
+
+    /**
+     * The {@code S_ORD} {@code WHEN-VALIDATE-RECORD} ship-date guard (issue #18): an order is
+     * valid only while its {@code date_shipped} is not before its {@code date_ordered}. The Forms
+     * body is {@code IF :S_ORD.date_shipped < :S_ORD.date_ordered THEN ... RAISE}, so the
+     * invariant kept here is the negation.
+     */
+    public boolean shipDateValid() {
+        return shipDateValid(dateOrdered, dateShipped);
+    }
+
+    /**
+     * The ship-date guard over an <em>arbitrary</em> date pair — the same rule as
+     * {@link #shipDateValid()}, exposed so the editing session can validate the working header live
+     * (through a Binder validator, ADR-0002) without first rebuilding a whole {@link Order}. Keeping
+     * it here keeps the guard authoritative in the domain (ADR-0001).
+     *
+     * <p>A {@code null} ship date (not yet shipped) is allowed, and an equal date is allowed —
+     * only an <em>earlier</em> ship date is rejected. This mirrors the Forms PL/SQL exactly: in
+     * Oracle {@code NULL < date_ordered} is unknown, so the guard never fired for a null ship date.
+     */
+    public static boolean shipDateValid(LocalDate dateOrdered, LocalDate dateShipped) {
+        if (dateShipped == null || dateOrdered == null) {
+            return true;
+        }
+        return !dateShipped.isBefore(dateOrdered);
+    }
 }

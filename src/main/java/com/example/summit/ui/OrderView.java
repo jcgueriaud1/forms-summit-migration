@@ -1,9 +1,11 @@
 package com.example.summit.ui;
 
+import com.example.summit.domain.Customer;
 import com.example.summit.domain.Order;
 import com.example.summit.domain.OrderSearchCriteria;
 import com.example.summit.domain.OrderSummary;
 import com.example.summit.domain.Product;
+import com.example.summit.presenter.EditableHeader;
 import com.example.summit.presenter.EditableLine;
 import com.example.summit.presenter.OrderPresenter;
 import com.vaadin.flow.component.Component;
@@ -32,12 +34,15 @@ import com.vaadin.flow.router.Route;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * The ORDERS view — the faithful web rendering of Summit's {@code ORDERS} Forms window.
  * A clerk quick-searches by order id / customer / sales rep, picks a suggestion, and that
- * one {@code S_ORD} order loads into a <strong>read-only header</strong> with its
- * {@code S_ITEM} line items below.
+ * one {@code S_ORD} order loads into an <strong>editable header</strong> with its
+ * {@code S_ITEM} line items below. The header folds in the {@code S_ORD} Forms validation
+ * behaviours (issue #18): the customer-id lookup ({@code WHEN-VALIDATE-ITEM}), the credit
+ * guard ({@code WHEN-RADIO-CHANGED}) and the ship-date guard ({@code WHEN-VALIDATE-RECORD}).
  *
  * <h2>Layout topology (PRD #8, Step 1c — {@code migration-rules.yaml})</h2>
  * The view nests in the {@link MainLayout} {@code AppLayout} shell and lays the form's two
@@ -63,8 +68,8 @@ import java.util.Map;
  *       a titled section ({@code frame-group}), headed by the boilerplate text
  *       <em>"Order Information"</em> ({@code boilerplate-heading} &rarr; {@link H2}).</li>
  *   <li><b>Component type</b>: {@code PAYMENT_TYPE} is a Forms Radio Group, so it renders as a
- *       {@link RadioButtonGroup} ({@code Cash} / {@code Credit}) — read-only here, not collapsed
- *       to a text field. Read-only is a <em>state</em>, not a type (ADR-0013).</li>
+ *       {@link RadioButtonGroup} ({@code Cash} / {@code Credit}), not collapsed to a text field —
+ *       the component type is preserved whether the field is read-only or editable (ADR-0013).</li>
  * </ul>
  *
  * <p>The view holds no SQL — it talks only to the {@link OrderPresenter}
@@ -91,6 +96,13 @@ public class OrderView extends VerticalLayout {
 
     private final H2 orderInfoHeading = new H2("Order Information");
     private final VerticalLayout headerSection = new VerticalLayout();
+    // The editable header is bound to the working header bean, unbuffered (ADR-0002, no Signals):
+    // the Binder writes the clerk's edits straight in and runs the ship-date validator live.
+    private final Binder<EditableHeader> headerBinder = new Binder<>(EditableHeader.class);
+    // Guards the header listeners while an order is loaded into the form: the customer-id defaulter
+    // and the credit guard must fire only on a clerk's edit, not when setBean / setValue seed the
+    // fields from the loaded order (Forms fires WHEN-VALIDATE-* on validation, not on query).
+    private boolean suppressHeaderListeners;
     private final Grid<EditableLine> lineItems = new Grid<>();
     private Grid.Column<EditableLine> descriptionColumn;
     private Grid.Column<EditableLine> itemTotalColumn;
@@ -306,26 +318,29 @@ public class OrderView extends VerticalLayout {
     }
 
     /**
-     * Builds the read-only "Order Information" section — the Forms frame ({@code RECT59})
+     * Builds the editable "Order Information" section — the Forms frame ({@code RECT59})
      * rendered as a titled grouping section ({@code frame-group}, ADR-0012). The header fields
      * are placed in the {@code S_ORD} {@code layoutPlan} order and grouped into the rows the
      * clerk reads them in. {@code PAYMENT_TYPE} stays a {@link RadioButtonGroup} (its Forms
-     * type), read-only via state, not flattened to a text field (ADR-0013).
+     * type), not flattened to a text field (ADR-0013). The editable fields fold in the
+     * {@code S_ORD} Forms validation behaviours through {@link #bindHeader()} (issue #18).
      */
     private void buildHeader() {
+        // Order id is the PK (display only); customer name and the sales-rep id/name are
+        // lookup-defaulted outputs the clerk never types — read-only, re-defaulted from the
+        // customer master when CUSTOMER_ID changes (WHEN-VALIDATE-ITEM). Everything else is now
+        // editable (issue #18): customer id, both dates, payment type and order-filled.
         orderId.setReadOnly(true);
-        customerId.setReadOnly(true);
         customerName.setReadOnly(true);
-        dateOrdered.setReadOnly(true);
-        dateShipped.setReadOnly(true);
         salesRepId.setReadOnly(true);
         salesRepName.setReadOnly(true);
-        orderFilled.setReadOnly(true);
+        customerId.setId("order-customer-id");
 
         // Forms Radio Group → RadioButtonGroup (radio-group rule); options Cash=CASH, Credit=CREDIT.
         paymentType.setItems("CASH", "CREDIT");
         paymentType.setItemLabelGenerator(value -> "CASH".equals(value) ? "Cash" : "Credit");
-        paymentType.setReadOnly(true);
+
+        bindHeader();
 
         headerSection.setId("order-information");
         headerSection.setPadding(false);
@@ -344,6 +359,87 @@ public class OrderView extends VerticalLayout {
         HorizontalLayout row = new HorizontalLayout(fields);
         row.setWidthFull();
         return row;
+    }
+
+    /**
+     * Binds the editable header fields to the working header bean and folds in the {@code S_ORD}
+     * Forms validation behaviours (issue #18). Binding is unbuffered (ADR-0002, no Signals): each
+     * edit writes straight into the bean. The customer-id defaulter and the credit guard are
+     * value-change listeners (the {@code WHEN-VALIDATE-ITEM} / {@code WHEN-RADIO-CHANGED} idioms);
+     * the ship-date guard is a Binder field validator delegating to the authoritative domain check.
+     */
+    private void bindHeader() {
+        headerBinder.forField(dateOrdered)
+                .bind(EditableHeader::getDateOrdered, EditableHeader::setDateOrdered);
+        // The S_ORD WHEN-VALIDATE-RECORD ship-date guard, mirrored to a Binder validator that
+        // delegates to the authoritative domain check (Order.shipDateValid, ADR-0001/0002). The web
+        // model flags rather than focus-traps: an earlier ship date stays on screen, invalid, with
+        // its message, until the clerk fixes it (a null or equal date is allowed).
+        headerBinder.forField(dateShipped)
+                .withValidator(shipped -> Order.shipDateValid(dateOrdered.getValue(), shipped),
+                        "Ship date cannot be before the order date.")
+                .bind(EditableHeader::getDateShipped, EditableHeader::setDateShipped);
+        // The ship-date guard is cross-field, so a change to the order date re-checks the ship date.
+        dateOrdered.addValueChangeListener(event -> headerBinder.validate());
+
+        headerBinder.forField(paymentType)
+                .bind(EditableHeader::getPaymentType, EditableHeader::setPaymentType);
+        headerBinder.forField(orderFilled)
+                .bind(EditableHeader::isOrderFilled, EditableHeader::setOrderFilled);
+
+        // The WHEN-VALIDATE-ITEM customer-id defaulter: typing a customer id resolves it against the
+        // customer master and re-defaults the name + sales rep; an unknown id is the NO_DATA_FOUND
+        // "Invalid Customer Id!" reject. customerId is not bound (it is the lookup's source, not a
+        // plain field) — the listener writes the resolved id into the working header.
+        customerId.addValueChangeListener(event -> {
+            if (suppressHeaderListeners) {
+                return;
+            }
+            onCustomerIdEntered(event.getValue());
+        });
+
+        // The WHEN-RADIO-CHANGED credit guard: a CREDIT selection the customer is not eligible for
+        // (credit rating not GOOD/EXCELLENT) is refused and reset to CASH with a notice — the web
+        // counterpart of the Forms Payment_Type_Alert.
+        paymentType.addValueChangeListener(event -> {
+            if (suppressHeaderListeners) {
+                return;
+            }
+            if ("CREDIT".equals(event.getValue()) && !presenter.paymentAllowed("CREDIT")) {
+                suppressHeaderListeners = true;
+                paymentType.setValue("CASH");
+                suppressHeaderListeners = false;
+                Notification.show("Credit is not available for this customer — payment reset to Cash.");
+            }
+        });
+    }
+
+    /**
+     * The customer-id defaulter's body: resolves the typed id through the presenter and either fills
+     * the name + sales-rep display fields from the customer master, or rejects an unknown / non-numeric
+     * id with the Forms <em>"Invalid Customer Id!"</em> message, clearing the dependent display.
+     */
+    private void onCustomerIdEntered(String raw) {
+        Long id = parseId(raw);
+        Optional<Customer> resolved = id == null ? Optional.empty() : presenter.applyCustomerDefaults(id);
+        if (resolved.isPresent()) {
+            Customer customer = resolved.get();
+            customerId.setInvalid(false);
+            customerId.setErrorMessage(null);
+            customerName.setValue(nullSafe(customer.name()));
+            salesRepId.setValue(customer.salesRepId() == null ? "" : String.valueOf(customer.salesRepId()));
+            salesRepName.setValue(nullSafe(customer.salesRepName()));
+        } else {
+            // Forms NO_DATA_FOUND → "Invalid Customer Id!" (RAISE FORM_TRIGGER_FAILURE). The web model
+            // flags rather than focus-traps: the field stays invalid with the message and the
+            // dependent display is cleared so a stale name/rep cannot linger beside a bad id.
+            customerId.setInvalid(true);
+            customerId.setErrorMessage("Invalid Customer Id!");
+            customerName.clear();
+            salesRepId.clear();
+            salesRepName.clear();
+            Notification.show("Invalid Customer Id!");
+        }
     }
 
     /**
@@ -448,7 +544,7 @@ public class OrderView extends VerticalLayout {
         // listener above); an unknown one is the Forms NO_DATA_FOUND reject — cleared, with a message.
         productCombo.addCustomValueSetListener(event -> {
             String raw = event.getDetail() == null ? "" : event.getDetail().trim();
-            Long id = parseProductId(raw);
+            Long id = parseId(raw);
             Product match = id == null ? null : productsById.get(id);
             if (match != null) {
                 productCombo.setValue(match);
@@ -538,20 +634,20 @@ public class OrderView extends VerticalLayout {
     }
 
     private void showOrder(Order order) {
+        // Seed the form from the loaded order. The bound fields (dates, payment type, order-filled)
+        // come from the working header via setBean; the PK and the lookup-defaulted display fields
+        // (customer/sales-rep names + sales-rep id) are set directly. Listeners are suppressed
+        // throughout so seeding never fires the customer defaulter or the credit guard.
+        suppressHeaderListeners = true;
         orderId.setValue(String.valueOf(order.id()));
         customerId.setValue(String.valueOf(order.customerId()));
+        customerId.setInvalid(false);
+        customerId.setErrorMessage(null);
         customerName.setValue(nullSafe(order.customerName()));
-        dateOrdered.setValue(order.dateOrdered());
-        dateShipped.setValue(order.dateShipped());
         salesRepId.setValue(order.salesRepId() == null ? "" : String.valueOf(order.salesRepId()));
         salesRepName.setValue(nullSafe(order.salesRepName()));
-        String pt = order.paymentType();
-        if ("CASH".equals(pt) || "CREDIT".equals(pt)) {
-            paymentType.setValue(pt);
-        } else {
-            paymentType.clear();
-        }
-        orderFilled.setValue(order.orderFilled());
+        headerBinder.setBean(presenter.editableHeader());
+        suppressHeaderListeners = false;
 
         // S_ORD_S_ITEM coordination: the editable grid is reloaded with the picked order's working
         // lines (the presenter seeded a fresh working set on load).
@@ -613,11 +709,11 @@ public class OrderView extends VerticalLayout {
         return value == null ? "" : value;
     }
 
-    /** Parses a typed product id, or {@code null} if it is not a number (then rejected as invalid). */
-    private static Long parseProductId(String raw) {
+    /** Parses a typed id (customer or product), or {@code null} if it is not a number (then rejected). */
+    private static Long parseId(String raw) {
         try {
-            return Long.valueOf(raw);
-        } catch (NumberFormatException notANumber) {
+            return Long.valueOf(raw.trim());
+        } catch (NumberFormatException | NullPointerException notANumber) {
             return null;
         }
     }

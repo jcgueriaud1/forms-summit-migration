@@ -1,10 +1,13 @@
 package com.example.summit.presenter;
 
+import com.example.summit.domain.Customer;
 import com.example.summit.domain.Order;
 import com.example.summit.domain.OrderSearchCriteria;
 import com.example.summit.domain.OrderSummary;
+import com.example.summit.domain.PaymentEligibility;
 import com.example.summit.domain.Product;
 import com.example.summit.domain.ProductDefaults;
+import com.example.summit.service.CustomerService;
 import com.example.summit.service.OrderService;
 import com.example.summit.service.ProductService;
 import org.springframework.beans.factory.config.ConfigurableBeanFactory;
@@ -41,6 +44,7 @@ public class OrderPresenter {
 
     private final OrderService orderService;
     private final ProductService productService;
+    private final CustomerService customerService;
 
     /** The quick-search result set the clerk is stepping through (the Forms query result). */
     private List<OrderSummary> resultSet = List.of();
@@ -55,9 +59,18 @@ public class OrderPresenter {
      */
     private List<EditableLine> workingLines = new ArrayList<>();
 
-    public OrderPresenter(OrderService orderService, ProductService productService) {
+    /**
+     * The mutable working copy of the loaded order's header — the editable header form's bean and
+     * the target of the {@code WHEN-VALIDATE-ITEM} customer-id defaulter (issue #18). Loading an
+     * order seeds it; {@code null} when nothing is loaded.
+     */
+    private EditableHeader workingHeader;
+
+    public OrderPresenter(OrderService orderService, ProductService productService,
+                          CustomerService customerService) {
         this.orderService = orderService;
         this.productService = productService;
+        this.customerService = customerService;
     }
 
     /** Search suggestions for the criteria the clerk has built so far (quick term + advanced). */
@@ -145,6 +158,7 @@ public class OrderPresenter {
         this.resultSet = List.of();
         this.position = -1;
         this.workingLines = new ArrayList<>();
+        this.workingHeader = null;
     }
 
     // ---- In-memory line editing (issue #16) ---------------------------------------------------
@@ -213,6 +227,57 @@ public class OrderPresenter {
         return defaults;
     }
 
+    // ---- Editable master header (issue #18) ----------------------------------------------------
+    // The header becomes editable and folds in the S_ORD WHEN-VALIDATE-ITEM customer lookup and the
+    // WHEN-RADIO-CHANGED credit guard. The rules are pure Domain (PaymentEligibility, ADR-0001); the
+    // data (customer header + credit rating) is the Service's; the orchestration is here.
+
+    /** The working header of the loaded order — the editable header form's bean (issue #18). */
+    public EditableHeader editableHeader() {
+        return workingHeader;
+    }
+
+    /**
+     * The {@code S_ORD} {@code WHEN-VALIDATE-ITEM} customer-id defaulter: resolves {@code customerId}
+     * against the customer master and re-defaults the working header's {@code customer_name},
+     * {@code sales_rep_id} and {@code sales_rep_name} from it (the dissolved Forms {@code SELECT
+     * ... INTO}). Returns the resolved {@link Customer} so the view can fill its display fields, or
+     * {@link Optional#empty()} — the Forms {@code NO_DATA_FOUND} <em>"Invalid Customer Id!"</em>
+     * reject — when the id is unknown, in which case the header is left untouched so the caller can
+     * reject it.
+     */
+    public Optional<Customer> applyCustomerDefaults(long customerId) {
+        Optional<Customer> found = customerService.findById(customerId);
+        found.ifPresent(customer -> {
+            workingHeader.setCustomerId(customer.id());
+            workingHeader.setCustomerName(customer.name());
+            workingHeader.setSalesRepId(customer.salesRepId());
+            workingHeader.setSalesRepName(customer.salesRepName());
+        });
+        return found;
+    }
+
+    /**
+     * Whether {@code paymentType} is allowed for the working header's current customer — the
+     * {@code WHEN-RADIO-CHANGED} credit guard. The rule is the pure domain
+     * {@link PaymentEligibility#allows(String, String)} (ADR-0001); the credit rating it reasons
+     * over is fetched here from the customer master. A {@code CREDIT} selection the customer is not
+     * eligible for returns {@code false}, on which the view resets the field to {@code CASH} with a
+     * notice (the Forms {@code Payment_Type_Alert}). {@code CASH} is always allowed, so no lookup
+     * runs for it.
+     */
+    public boolean paymentAllowed(String paymentType) {
+        if (!"CREDIT".equals(paymentType)) {
+            return true;
+        }
+        String creditRating = workingHeader == null
+                ? null
+                : customerService.findById(workingHeader.getCustomerId())
+                        .map(Customer::creditRating)
+                        .orElse(null);
+        return PaymentEligibility.allows(creditRating, paymentType);
+    }
+
     private Optional<Order> loadCurrent() {
         if (position < 0 || position >= resultSet.size()) {
             return Optional.empty();
@@ -222,6 +287,8 @@ public class OrderPresenter {
         this.workingLines = loaded
                 .map(order -> new ArrayList<>(order.lines().stream().map(EditableLine::new).toList()))
                 .orElseGet(ArrayList::new);
+        // ...and a fresh working header for the editable form (issue #18).
+        this.workingHeader = loaded.map(EditableHeader::new).orElse(null);
         return loaded;
     }
 

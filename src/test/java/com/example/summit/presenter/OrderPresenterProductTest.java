@@ -44,7 +44,9 @@ class OrderPresenterProductTest {
                 return Optional.empty();
             }
         };
-        return new OrderPresenter(null, products);
+        // This slice exercises only the product LOV/defaulter; the customer lookup (issue #18) has
+        // its own test, so a null CustomerService is enough — none of these tests reach it.
+        return new OrderPresenter(null, products, null);
     }
 
     @Test
