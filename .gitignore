@@ -21,3 +21,6 @@ types.d.ts
 
 # OS
 .DS_Store
+
+# Claude Code — runtime scratch (skills symlinks are tracked, worktrees are not)
+.claude/worktrees/

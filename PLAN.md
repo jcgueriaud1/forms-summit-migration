@@ -140,6 +140,18 @@ non-tickets and keeps each ticket independently reviewable/testable.
 the **markdown body is authored by the planner** so content is portable (a
 GitLab/Jira shop reuses the same spec + bodies, different `create` call).
 
+**Review tickets (HITL) — a sibling output** *(the `migration-review` skill; ADR-0014).*
+The construct-grain build tickets are `ready-for-agent`. Alongside them, the same
+spec + ruleset seed three kinds of `ready-for-human` review ticket — work that turns
+on a judgment the AI cannot make: (1) **careful-review / manual-test** (behavioural
+parity + layout fidelity, side-by-side against live Forms); (2) **out-of-slice /
+deferred follow-up** (the spec's `status: undecided` dependencies become tracked
+forward work — a follow-up issue or PRD — not a silent drop; distinct from the
+`.out-of-scope/` *rejection* lane); (3) **generalization-review** (generic Forms
+affordances the ruleset put in a form's view — block-CRUD record actions, the filter
+bar, the `ORA_ROWSCN` path — recommended for a reusable layer). See CONTEXT.md for
+the vocabulary.
+
 ---
 
 ## The build loop (regenerate → validate → sort)
@@ -153,7 +165,10 @@ Per **construct**, not whole-POC. Riskiest construct first.
    - execution wrong (ticket right, code buggy) → fix the **execution skill/prompt**;
    - form quirk no skill should generalize → **hand-fix, touch no skill**.
 3. **Sort every fix**: generalizable → push into the skill and regenerate
-   (works for every form); one-off → stay manual, log in the scorecard.
+   (works for every form); one-off → stay manual, log in the scorecard. The
+   **generalization-review ticket** (ADR-0014) is the *proactive* entry point to
+   this same sort — a generic affordance flagged for a reusable layer at design
+   time, captured before it is ever hand-fixed in a view.
 4. **Stopping gate:** compiles **+ behavioral parity on the spine flow**, checked
    side-by-side against the live Forms app. Cap planner-refinement at **~2 passes
    per construct**. If a construct won't converge — **stop and write it up**.

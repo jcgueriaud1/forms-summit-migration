@@ -78,6 +78,38 @@ the _Layout-fidelity gate_). _Avoid_: treating unit tests of the domain formula 
 sufficient — they prove the calculation, not that the construct works in the view;
 and behaviour-only assertions, which pass even when the screen looks wrong.
 
+**Build ticket** / **Review ticket (HITL ticket)**:
+A migration emits two kinds of ticket. A **build ticket** is `ready-for-agent`,
+construct-grain, 1:1 with a scorecard row — what an AFK agent can build. A **review
+ticket** is `ready-for-human` (HITL — human-in-the-loop): work that turns on a
+judgment the AI is not entitled to make. The `migration-review` skill emits three
+review-ticket subtypes (ADR-0014): a **careful-review / manual-test** ticket (what a
+human must certify by driving the construct side-by-side against live Forms — the
+_UI test_'s two dimensions, plus ruleset `Refactor`/`Unsupported`/`escalate`
+outcomes); a **deferred follow-up** ticket (see _Out-of-slice surface_); and a
+**generalization-review** ticket (see _Generalization candidate_). _Avoid_:
+smuggling HITL work into a `ready-for-agent` ticket — that label promises an agent
+can finish it.
+
+**Out-of-slice surface** vs **Out-of-scope rejection**:
+An **out-of-slice surface** is a form dependency (a called form, menu module,
+attached library, object-library subclass) accepted for the eventual migration but
+**deferred out of this slice** — it becomes tracked forward work (a follow-up issue
+or PRD), never a silent drop. An **out-of-scope rejection** is a feature decided
+*not to build at all*, recorded in the `.out-of-scope/` KB for dedup. Two distinct
+lanes; a human makes the defer-vs-reject call. _Avoid_: recording a deferred surface
+in `.out-of-scope/` — it poisons rejection dedup with a false rejection.
+
+**Generalization candidate** / **Generic layer**:
+A construct the ruleset derives *into a form's view* that is really a generic Oracle
+Forms affordance — record actions from a block's CRUD capability, the Execute-Query
+filter bar, the optimistic-lock commit path — and so belongs in a **generic layer**
+(a reusable component/service), not the specific form view. A candidate earns
+generalization only when the rule can be **stated in form-construct terms**
+(_Generalizable fix_'s bar); otherwise it is **specific by default** and stays in the
+view. This is the generalizable-vs-specific sort applied *proactively at design
+time*, the counterpart to the reactive fix-time sort in the build loop.
+
 ### Architectural layers
 
 **Domain**:
@@ -100,6 +132,9 @@ The persistence boundary (Spring `JdbcClient`).
 - The **Mapping ruleset** maps each **Construct** to a Vaadin target and to one
   scorecard row.
 - Each correction is sorted into a **Generalizable fix** or a **Specific fix**.
+- A **Construct** yields a **Build ticket** and may also yield **Review tickets** —
+  a careful-review, a deferred follow-up (from an **Out-of-slice surface**), or a
+  **Generalization candidate** (a design-time **Generalizable fix**).
 
 ## Flagged ambiguities
 

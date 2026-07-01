@@ -5,6 +5,14 @@ The `.out-of-scope/` directory in a repo stores persistent records of rejected f
 1. **Institutional memory** — why a feature was rejected, so the reasoning isn't lost when the issue is closed
 2. **Deduplication** — when a new issue comes in that matches a prior rejection, the skill can surface the previous decision instead of re-litigating it
 
+> **Sibling lane — deferred is not rejected.** In a Forms→Vaadin migration, a
+> feature the form depends on that is *accepted for the eventual migration but not
+> built in this slice* is a **deferred out-of-slice surface**, not an out-of-scope
+> rejection. Those become tracked forward work (a follow-up issue or PRD), owned by
+> the `migration-review` skill (ADR-0014) — **do not** record them here, as that
+> would poison rejection dedup with false rejections. Only a feature decided *not to
+> build at all* belongs in `.out-of-scope/`.
+
 ## Directory structure
 
 ```
