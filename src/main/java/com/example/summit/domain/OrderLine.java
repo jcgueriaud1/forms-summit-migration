@@ -37,4 +37,17 @@ public record OrderLine(
         }
         return price.multiply(BigDecimal.valueOf(quantityShipped));
     }
+
+    /**
+     * A copy of this line prepared to insert as a <em>new</em> {@code S_ITEM} — the pure encoding of
+     * the Forms {@code KEY-DUPREC} clear-list (issue #45, {@code blockActionClassifiers}
+     * {@code block-action-duplicate}). The Duplicate row action clones the selected line, then clears
+     * exactly the fields the {@code KEY-DUPREC} body nulls so the copy commits as an insert rather
+     * than colliding with the original: the {@code item_id} (reassigned {@code MAX+1} per order), the
+     * {@code product_id}, its joined {@code description}, and the {@code price}. The
+     * <em>quantities</em> are deliberately carried over — they are what the clerk is duplicating.
+     */
+    public OrderLine duplicateForInsert() {
+        return new OrderLine(0L, 0L, null, null, quantity, quantityShipped);
+    }
 }

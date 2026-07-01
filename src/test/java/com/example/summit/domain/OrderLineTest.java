@@ -5,11 +5,12 @@ import org.junit.jupiter.api.Test;
 import java.math.BigDecimal;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 /**
- * Unit test for {@link OrderLine} — the {@code ITEM_TOTAL} formula as a pure domain
- * method (ADR-0001). No DB, no Spring: {@code quantity_shipped * price}, computed and
- * asserted in isolation.
+ * Unit test for {@link OrderLine} — the {@code ITEM_TOTAL} formula and the {@code KEY-DUPREC}
+ * clear-list as pure domain methods (ADR-0001). No DB, no Spring: {@code quantity_shipped * price}
+ * and {@link OrderLine#duplicateForInsert()}, computed and asserted in isolation.
  */
 class OrderLineTest {
 
@@ -34,5 +35,24 @@ class OrderLineTest {
         OrderLine line = new OrderLine(3, 30421, "Pro Ski Boot", null, 4, 4);
 
         assertEquals(0, BigDecimal.ZERO.compareTo(line.itemTotal()));
+    }
+
+    // ---- duplicateForInsert: the KEY-DUPREC clear-list (issue #45) -------------------------------
+
+    @Test
+    void duplicateForInsertClearsTheKeyDuprecFieldsButKeepsQuantities() {
+        OrderLine original = new OrderLine(2, 41010, "Ski Boots", new BigDecimal("50.00"), 5, 3);
+
+        OrderLine copy = original.duplicateForInsert();
+
+        // Cleared so the copy commits as an insert, not a collision: item_id, product_id,
+        // description and price (exactly the fields the Forms KEY-DUPREC body nulls).
+        assertEquals(0L, copy.itemId());
+        assertEquals(0L, copy.productId());
+        assertNull(copy.description());
+        assertNull(copy.price());
+        // Carried over — the quantities are what the clerk is duplicating.
+        assertEquals(5L, copy.quantity());
+        assertEquals(3L, copy.quantityShipped());
     }
 }
