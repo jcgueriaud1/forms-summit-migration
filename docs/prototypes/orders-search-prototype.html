@@ -1,10 +1,14 @@
 <!--
-  THROWAWAY PROTOTYPE — Summit ORDERS view, search-UX decision (variant a vs b).
+  DECISION RECORD (was a throwaway prototype) — Summit ORDERS view, search-UX decision.
   Question: faithful web rendering of Forms' single-record Execute/Enter-Query on S_ORD.
-    A = lookup search -> load ONE order (ruleset-faithful, block-master-single)
-    B = results grid -> click a row to load (diverges; resurrects PLAN's master Grid)
-  Read-only mock. Styled to Vaadin Lumo so the choice is judged in the shipping medium.
-  Delete or fold the winner into the real view once decided.
+
+  Resolved 2026-06-29 to VARIANT A — lookup search -> load ONE order (ruleset-faithful,
+  block-master-single). See docs/prototypes/NOTES.md and docs/orders-form-spec.md.
+
+  The losing variants (B = results grid -> inline detail; C = search page -> routed
+  detail page) and the variant switcher have been removed now that Variant A is folded
+  into the real Vaadin view (src/main/java/com/example/summit/ui/OrderView.java, #41).
+  Only Variant A remains here, as the record of what was chosen and why. Read-only mock.
 -->
 <style>
   :root {
@@ -108,7 +112,6 @@
     color: var(--body);
   }
   .aside.faithful  { --note-accent: var(--success); --note-bg: var(--success-10); }
-  .aside.diverges  { --note-accent: var(--idle);    --note-bg: var(--idle-10); }
   .aside .tag {
     display: inline-block;
     font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
@@ -210,11 +213,6 @@
   .grid tfoot td { font-weight: 700; border-top: 2px solid var(--border-strong); border-bottom: none; background: var(--shade-3); }
   .grid-scroll { overflow-x: auto; }
 
-  /* master grid clickable rows */
-  .grid.selectable tbody tr { cursor: pointer; }
-  .grid.selectable tbody tr.selected { background: var(--primary-10); box-shadow: inset 3px 0 0 var(--primary); }
-  .grid.selectable tbody tr.selected:hover { background: var(--primary-20); }
-
   /* ---------- Badges ---------- */
   .badge {
     display: inline-flex; align-items: center; gap: 5px;
@@ -272,38 +270,6 @@
   select.input { appearance: none; background-image: linear-gradient(45deg, transparent 50%, var(--secondary) 50%), linear-gradient(135deg, var(--secondary) 50%, transparent 50%); background-position: calc(100% - 16px) 15px, calc(100% - 11px) 15px; background-size: 5px 5px; background-repeat: no-repeat; padding-right: 30px; cursor: pointer; }
   input[type=date].input { cursor: text; }
 
-  /* ---------- Variant C: list page -> detail page ---------- */
-  .backlink {
-    background: none; border: none; color: var(--primary); font: inherit; font-size: 14px;
-    font-weight: 600; cursor: pointer; padding: 0; display: inline-flex; align-items: center; gap: 6px;
-    margin-bottom: 14px;
-  }
-  .backlink:hover { text-decoration: underline; }
-  .detail-pager { display: flex; align-items: center; gap: 10px; }
-  .row-open { color: var(--primary); font-weight: 600; }
-  .grid.selectable tbody tr:hover .row-open { text-decoration: underline; }
-
-  /* ---------- Floating prototype switcher ---------- */
-  .switcher {
-    position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
-    z-index: 100;
-    display: flex; align-items: center; gap: 4px;
-    background: hsl(214, 38%, 14%); color: #fff;
-    border-radius: 100px; padding: 6px 8px;
-    box-shadow: 0 6px 30px hsl(214 40% 10% / .35);
-    font-size: 13px;
-  }
-  .switcher button {
-    width: 30px; height: 30px; border-radius: 50%; border: none;
-    background: hsl(214 30% 24%); color: #fff; cursor: pointer; font-size: 15px;
-    display: grid; place-items: center;
-  }
-  .switcher button:hover { background: hsl(214 90% 52%); }
-  .switcher .label { padding: 0 12px; min-width: 190px; text-align: center; }
-  .switcher .label .k { font-weight: 700; }
-  .switcher .label .n { color: hsl(214 30% 75%); }
-  .switcher .hint { font-size: 11px; color: hsl(214 25% 62%); padding-right: 6px; }
-
   .hidden { display: none !important; }
 </style>
 
@@ -323,13 +289,6 @@
     <div id="aside-slot"></div>
     <div id="variant-slot"></div>
   </main>
-</div>
-
-<div class="switcher">
-  <button id="prev" aria-label="Previous variant">&#8249;</button>
-  <div class="label"><span class="k" id="vk">A</span> &mdash; <span class="n" id="vn"></span></div>
-  <button id="next" aria-label="Next variant">&#8250;</button>
-  <span class="hint">&larr; &rarr;</span>
 </div>
 
 <script>
@@ -471,7 +430,7 @@
       "Find one order, then step through matches with the pager — single-record, like the original form.";
     document.getElementById("aside-slot").innerHTML = `
       <div class="aside faithful">
-        <span class="tag">Variant A · ruleset-faithful</span>
+        <span class="tag">Variant A · ruleset-faithful (chosen)</span>
         <div><b>Lookup &rarr; load one order.</b> Mirrors Forms' single-record Execute Query on <code>S_ORD</code>
         (<code>block-master-single</code> &rarr; <code>FormLayout</code>). Search/filter narrows to matches; you pick one; prev/next walks the set.</div>
         <div class="loss" style="margin-top:6px"><b>Honest losses:</b> arbitrary QBE &rarr; curated filter (Id / customer); the record scrollbar &rarr; a prev/next pager. No grid-of-orders.</div>
@@ -618,237 +577,5 @@
     if (!commit) { const el = document.getElementById("searchA"); if (el) { el.focus(); moveCaretEnd(); } }
   }
 
-  // ---------------- VARIANT B — results grid -> click a row ----------------
-  const stateB = { query: "", selectedId: ORDERS[0].id };
-
-  function renderB() {
-    const slot = document.getElementById("variant-slot");
-    document.getElementById("subhead").textContent =
-      "Search returns a list of orders; click a row to load its details below — a master/detail grid.";
-    document.getElementById("aside-slot").innerHTML = `
-      <div class="aside diverges">
-        <span class="tag">Variant B · diverges from ruleset</span>
-        <div><b>Results grid &rarr; click to load.</b> More webby, but it resurrects PLAN's “master Grid” that
-        <code>block-master-single</code> deliberately rejected, and breaks the single-record fidelity the rest of the slice relies on.</div>
-        <div class="loss" style="margin-top:6px"><b>If chosen:</b> record an ADR superseding <code>block-master-single</code> for this form.</div>
-      </div>`;
-
-    const q = stateB.query.trim().toLowerCase();
-    const matches = q
-      ? ORDERS.filter(o => String(o.id).includes(q) || o.customer.toLowerCase().includes(q) || o.rep.toLowerCase().includes(q))
-      : ORDERS.slice();
-    if (!matches.some(o => o.id === stateB.selectedId)) stateB.selectedId = matches[0] ? matches[0].id : null;
-    const sel = ORDERS.find(o => o.id === stateB.selectedId);
-
-    const masterRows = matches.map(o => `
-      <tr class="${o.id === stateB.selectedId ? "selected" : ""}" data-row="${o.id}">
-        <td class="num">${o.id}</td>
-        <td>${esc(o.customer)}</td>
-        <td>${fmtDate(o.ordered)}</td>
-        <td>${fmtDate(o.shipped)}</td>
-        <td>${esc(o.rep)}</td>
-        <td>${o.pay === "CREDIT" ? "Credit" : "Cash"}</td>
-        <td>${statusBadge(o)}</td>
-        <td class="num">${money(orderTotal(o))}</td>
-      </tr>`).join("");
-
-    slot.innerHTML = `
-      <div class="card">
-        <div class="card-body">
-          <div class="searchbar">
-            <div class="field">
-              <label>Search orders &mdash; by Id, customer or rep</label>
-              <input class="input" id="searchB" placeholder="Filter the list…" autocomplete="off" value="${esc(stateB.query)}">
-            </div>
-            <button class="btn btn-tertiary" id="clearB">Clear</button>
-          </div>
-        </div>
-      </div>
-
-      <div class="card">
-        <div class="card-head"><h2>Orders</h2><span class="sub">${matches.length} result(s) · click a row to open</span></div>
-        <div class="grid-scroll">
-          <table class="grid selectable">
-            <thead><tr>
-              <th class="num">Id</th><th>Customer</th><th>Ordered</th><th>Shipped</th>
-              <th>Sales Rep</th><th>Payment</th><th>Status</th><th class="num">Total</th>
-            </tr></thead>
-            <tbody>${masterRows || `<tr><td colspan="8"><div class="empty">No matching orders.</div></td></tr>`}</tbody>
-          </table>
-        </div>
-      </div>
-
-      ${sel ? `
-      <div class="card">
-        <div class="card-head"><h2>Order #${sel.id}</h2>${statusBadge(sel)}<span class="sub" style="margin-left:8px">${esc(sel.customer)}</span></div>
-        <div class="card-body">${headerForm(sel)}</div>
-      </div>
-      <div class="card">
-        <div class="card-head"><h2>Line items</h2><span class="sub">${sel.lines.length} item(s)</span></div>
-        <div class="card-body" style="padding:0 4px 4px">${lineGrid(sel)}</div>
-      </div>` : ""}
-    `;
-
-    const input = document.getElementById("searchB");
-    if (input) input.addEventListener("input", e => { stateB.query = e.target.value; renderB(); const el = document.getElementById("searchB"); el.focus(); const v = el.value; el.value = ""; el.value = v; });
-    const clr = document.getElementById("clearB");
-    if (clr) clr.addEventListener("click", () => { stateB.query = ""; renderB(); });
-    slot.querySelectorAll("[data-row]").forEach(tr =>
-      tr.addEventListener("click", () => { stateB.selectedId = +tr.getAttribute("data-row"); renderB(); }));
-  }
-
-  // ---------------- VARIANT C — search/list page -> navigate to detail page ----------------
-  const stateC = { screen: "list", query: "", selectedId: null };
-
-  function matchesC() {
-    const q = stateC.query.trim().toLowerCase();
-    return q
-      ? ORDERS.filter(o => String(o.id).includes(q) || o.customer.toLowerCase().includes(q) || o.rep.toLowerCase().includes(q))
-      : ORDERS.slice();
-  }
-
-  function renderC() {
-    const slot = document.getElementById("variant-slot");
-    document.getElementById("aside-slot").innerHTML = `
-      <div class="aside diverges">
-        <span class="tag">Variant C · partial divergence</span>
-        <div><b>Search page &rarr; navigate to a detail page.</b> The most conventional web CRUD shape: a results list is a
-        <i>search index</i> you navigate <i>from</i>, and the order opens on its own focused route — the detail surface itself stays a single-record <code>FormLayout</code>.</div>
-        <div class="loss" style="margin-top:6px"><b>Tradeoff:</b> still surfaces a list of orders (softer divergence than B — it's a landing index, not a coordinated master block), and adds a route + navigation the original form never had. <b>If chosen:</b> note in an ADR how the search index relates to <code>block-master-single</code>.</div>
-      </div>`;
-
-    const matches = matchesC();
-
-    if (stateC.screen === "list") {
-      setCrumbs(`Summit&nbsp; / &nbsp;<b>Orders</b>`);
-      document.getElementById("subhead").textContent =
-        "Search for orders, then open one on its own page — a list view that routes to a detail view.";
-
-      const rows = matches.map(o => `
-        <tr data-open="${o.id}">
-          <td class="num">${o.id}</td>
-          <td>${esc(o.customer)}</td>
-          <td>${fmtDate(o.ordered)}</td>
-          <td>${fmtDate(o.shipped)}</td>
-          <td>${esc(o.rep)}</td>
-          <td>${o.pay === "CREDIT" ? "Credit" : "Cash"}</td>
-          <td>${statusBadge(o)}</td>
-          <td class="num">${money(orderTotal(o))}</td>
-          <td class="num"><span class="row-open">Open &#8250;</span></td>
-        </tr>`).join("");
-
-      slot.innerHTML = `
-        <div class="card">
-          <div class="card-body">
-            <div class="searchbar">
-              <div class="field">
-                <label>Search orders &mdash; by Id, customer or rep</label>
-                <input class="input" id="searchC" placeholder="Filter the list…" autocomplete="off" value="${esc(stateC.query)}">
-              </div>
-              <button class="btn btn-tertiary" id="clearC">Clear</button>
-            </div>
-          </div>
-        </div>
-        <div class="card">
-          <div class="card-head"><h2>Orders</h2><span class="sub">${matches.length} result(s)</span></div>
-          <div class="grid-scroll">
-            <table class="grid selectable">
-              <thead><tr>
-                <th class="num">Id</th><th>Customer</th><th>Ordered</th><th>Shipped</th>
-                <th>Sales Rep</th><th>Payment</th><th>Status</th><th class="num">Total</th><th></th>
-              </tr></thead>
-              <tbody>${rows || `<tr><td colspan="9"><div class="empty">No matching orders.</div></td></tr>`}</tbody>
-            </table>
-          </div>
-        </div>`;
-
-      const input = document.getElementById("searchC");
-      if (input) input.addEventListener("input", e => { stateC.query = e.target.value; renderC(); const el = document.getElementById("searchC"); el.focus(); const v = el.value; el.value = ""; el.value = v; });
-      const clr = document.getElementById("clearC");
-      if (clr) clr.addEventListener("click", () => { stateC.query = ""; renderC(); });
-      slot.querySelectorAll("[data-open]").forEach(tr =>
-        tr.addEventListener("click", () => { stateC.selectedId = +tr.getAttribute("data-open"); stateC.screen = "detail"; renderC(); window.scrollTo(0, 0); }));
-
-    } else {
-      // detail page
-      const pos = matches.findIndex(o => o.id === stateC.selectedId);
-      const o = ORDERS.find(x => x.id === stateC.selectedId);
-      setCrumbs(`Summit&nbsp; / &nbsp;<span style="cursor:pointer;text-decoration:underline" id="crumbBack">Orders</span>&nbsp; / &nbsp;<b>#${o.id}</b>`);
-      document.getElementById("subhead").textContent =
-        "Detail page — opened from the search list. Single-record, with a path back to results.";
-
-      slot.innerHTML = `
-        <button class="backlink" id="backC">&#8249; Back to results</button>
-        <div class="card">
-          <div class="card-head">
-            <h2>Order #${o.id}</h2>
-            ${statusBadge(o)}
-            <span class="sub" style="margin-left:8px">${esc(o.customer)}</span>
-            <span class="spacer"></span>
-            <div class="detail-pager">
-              <button class="btn-icon" id="cPrev" ${pos <= 0 ? "disabled" : ""} aria-label="Previous result">&#8249;</button>
-              <span class="pager count">Result <b>${pos + 1}</b> of <b>${matches.length}</b></span>
-              <button class="btn-icon" id="cNext" ${pos >= matches.length - 1 ? "disabled" : ""} aria-label="Next result">&#8250;</button>
-            </div>
-          </div>
-          <div class="card-body">${headerForm(o)}</div>
-        </div>
-        <div class="card">
-          <div class="card-head"><h2>Line items</h2><span class="sub">${o.lines.length} item(s)</span></div>
-          <div class="card-body" style="padding:0 4px 4px">${lineGrid(o)}</div>
-        </div>`;
-
-      const back = () => { stateC.screen = "list"; renderC(); window.scrollTo(0, 0); };
-      document.getElementById("backC").addEventListener("click", back);
-      const cb = document.getElementById("crumbBack");
-      if (cb) cb.addEventListener("click", back);
-      const cp = document.getElementById("cPrev");
-      if (cp) cp.addEventListener("click", () => { if (pos > 0) { stateC.selectedId = matches[pos - 1].id; renderC(); window.scrollTo(0, 0); } });
-      const cn = document.getElementById("cNext");
-      if (cn) cn.addEventListener("click", () => { if (pos < matches.length - 1) { stateC.selectedId = matches[pos + 1].id; renderC(); window.scrollTo(0, 0); } });
-    }
-  }
-
-  function setCrumbs(html) {
-    const el = document.querySelector(".appbar .crumbs");
-    if (el) el.innerHTML = html;
-  }
-
-  // ---------------- Variant switcher ----------------
-  const VARIANTS = [
-    { key: "A", name: "Lookup search → one order", render: renderA },
-    { key: "B", name: "Results grid → load below", render: renderB },
-    { key: "C", name: "Search page → detail page", render: renderC },
-  ];
-
-  function currentVariant() {
-    const p = new URLSearchParams(location.search).get("variant");
-    const i = VARIANTS.findIndex(v => v.key === (p || "").toUpperCase());
-    return i >= 0 ? i : 0;
-  }
-
-  function show(i) {
-    const v = VARIANTS[(i + VARIANTS.length) % VARIANTS.length];
-    document.getElementById("vk").textContent = v.key;
-    document.getElementById("vn").textContent = v.name;
-    setCrumbs(`Summit&nbsp; / &nbsp;<b>Orders</b>`);   // reset; C overrides on its detail page
-    try {
-      const u = new URL(location.href);
-      u.searchParams.set("variant", v.key);
-      history.replaceState(null, "", u);
-    } catch (e) { /* sandboxed: ignore */ }
-    v.render();
-  }
-
-  let cur = currentVariant();
-  document.getElementById("prev").addEventListener("click", () => { cur = (cur - 1 + VARIANTS.length) % VARIANTS.length; show(cur); });
-  document.getElementById("next").addEventListener("click", () => { cur = (cur + 1) % VARIANTS.length; show(cur); });
-  document.addEventListener("keydown", e => {
-    const t = e.target;
-    if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
-    if (e.key === "ArrowLeft")  { cur = (cur - 1 + VARIANTS.length) % VARIANTS.length; show(cur); }
-    if (e.key === "ArrowRight") { cur = (cur + 1) % VARIANTS.length; show(cur); }
-  });
-
-  show(cur);
+  renderA();
 </script>
