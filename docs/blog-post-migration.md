@@ -263,8 +263,109 @@ real Oracle (Testcontainers), exercised end-to-end through all five layers:
   delete lines, per-order id assignment, live total recompute, and a
   cascade-delete guard (`CascadeDeleteBlockedException`).
 
-The remaining spine — product swap via the LOV (re-defaulting price and
-description) and the `ORA_ROWSCN` commit path — is next.
+That was **v1's** endpoint: inline editing in progress, and the remaining spine —
+product swap via the LOV (re-defaulting price and description) and the `ORA_ROWSCN`
+commit path — still ahead. Which is exactly where the interesting part begins,
+because we then ran the whole migration a second time.
+
+---
+
+## Running it twice: what v2 changed
+
+The sharpest possible test of "generalizable fixes compound" is to run the migration
+twice and watch the second pass inherit the first pass's lessons. So we did. **v1**
+was the first full attempt at the ORDERS slice. We sorted every correction, pushed
+the generalizable ones back into the ruleset and skills — then **regenerated the
+whole slice from scratch as v2**, keeping v1 as a side-by-side baseline. v2 is not a
+patched v1; it is what the *smarter tool* produces on the same form.
+
+Three of v1's corrections were generalizable, and you can trace each one from a v1
+hand-fix, into the tool, to a v2 payoff.
+
+### 1. Layout fidelity: discovered late in v1, designed-in for v2
+
+The *counted ≠ rendered* gap described above was found **mid-build** in v1 — the
+header had already drifted (fields reordered, the "Order Information" group and its
+title gone, `PAYMENT_TYPE` flattened to a text field) before anything caught it. v1's
+fix was a retrofit: restore the header by hand, then bolt a layout-fidelity gate onto
+the method after the fact ([ADR-0012](adr/0012-structural-layout-fidelity.md) /
+[ADR-0013](adr/0013-read-only-is-a-state-not-a-type.md)), and record the correction
+in a regenerated *v2 PRD* kept alongside the original as evidence.
+
+In v2 that gate is **front-loaded**: structural fidelity ships *inside* the first
+structural slice — the app-shell + layout-topology ticket (#41) — instead of being
+patched in later. The lesson stopped being a scar and became a starting condition.
+
+### 2. Record actions: a v1 hand-fix that became a ruleset rule
+
+This is the cleanest single demonstration of the whole thesis.
+
+In v1, "create a new order" was a **one-off, hand-written** flow on the presenter
+(`newOrder()` builds a blank header). There was **no Duplicate at all**, and although
+a delete path existed in the service it was never wired to a visible control — a
+deletable block shipped with no Delete affordance. A classic *un-sorted* hand-fix: it
+made *this* form work and taught the tool nothing.
+
+So we sorted it — and the rule behind it *can* be stated in form-construct terms:
+**"any base-table block whose CRUD capability permits insert/delete gets New /
+Duplicate / Delete record actions, whether or not a `KEY-CREREC` / `KEY-DUPREC` /
+`KEY-DELREC` trigger exists."** That earned it generalizable status. It landed as a
+new `blockActionClassifiers` section in `migration-rules.yaml` (the `METHOD: derive
+record actions (Delete/Duplicate/New) from block CRUD` commit). The `KEY-*` triggers
+were demoted from being *the* create/delete path to mere **refinements** — a confirm
+dialog, a field-reset clear-list, a keystroke binding.
+
+v2 regenerated against that rule and got the full **New / Duplicate / Delete** family
+for free — master *and* line level, the Delete action correctly composed with the
+Non-Isolated `S_ORD_S_ITEM` cascade-delete guard, and the Duplicate clear-list
+encoded as pure domain factories (`Order.duplicateForInsert()`). One hand-fix in v1
+became a capability every future form inherits.
+
+### 3. Human-judgment work: from reactive to a first-class output
+
+v1 handled the work only a human can sign off on **reactively** — drift was caught
+during the build; deferred dependencies stayed implicit. v2 makes it an explicit,
+up-front deliverable. A new `migration-review` skill
+([ADR-0014](adr/0014-hitl-review-tickets.md)) emits **`ready-for-human` review
+tickets** alongside the `ready-for-agent` build tickets, in three kinds:
+
+- **Careful-review / manual-test** — the behavioural-parity and layout-fidelity
+  checks a human must certify side-by-side against live Forms. The AI can compile and
+  unit-test a construct; it cannot certify the screen *behaves* and *reads* like Forms.
+- **Out-of-slice / deferred follow-up** — the form's accepted-but-deferred
+  dependencies (the `m_summit` menu, the `pick` called form, the `CALENDAR` library)
+  become tracked forward work, not a silent drop — and deliberately kept in a
+  *different lane* from `.out-of-scope/` *rejections*. A human makes the
+  defer-vs-reject call.
+- **Generalization-review** — generic Forms affordances the ruleset put into a
+  *specific* view (the record actions above, the Execute-Query filter bar, the
+  `ORA_ROWSCN` commit path, the `CLIENT_IDENTIFIER` audit bridge) flagged for a
+  reusable layer.
+
+That third kind is the key move: it applies the generalizable-vs-specific sort
+**proactively, at design time** — flagging a generalizable fix *before* it is ever
+hand-coded into a view, which is precisely the entry point v1's reactive, fix-time
+sort lacked. The "nothing dropped silently" guarantee now extends to the *slice
+boundary*, not just the form-object census.
+
+### And v2 finished the spine
+
+v1 stopped with inline editing in progress. v2 closed the rest: the product LOV +
+`WHEN-VALIDATE-ITEM` defaulter (#46), master-header editing with the credit-check and
+ship-date guards (#47), the whole-graph `COMMIT_FORM` save under the `ORA_ROWSCN`
+check (#48), and the record actions (#49). The architecture tightened along the way —
+the presenter no longer holds header working-state (`commit`, `lookupCustomer`,
+`paymentAllowed` now take explicit arguments and *return* values instead of mutating a
+field), and a successful commit round-trips the whole reloaded graph, so you can keep
+editing and re-commit without a second load.
+
+### The point of running it twice
+
+v1 → v2 is the **ratio made visible**. Every improvement in v2 traces to a v1
+correction that was *sorted correctly* — and the ones that generalized (layout
+fidelity, record actions, the review-ticket discipline) now apply to **every** form,
+not just ORDERS. A Forms shop doesn't get to re-run its own history — but it inherits
+the accumulated ruleset, so its *first* pass starts where our *second* one did.
 
 ---
 
