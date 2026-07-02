@@ -166,6 +166,19 @@ classifiers:
 # (XPosition/YPosition/Width/Height) and the container link
 # (CanvasName/TabPageName/DirtyInfo) are layout concerns owned by the
 # parent container rather than the item itself.
+#
+# Editability pair semantics (forms-updateallowed-to-readonly /
+# forms-insert-only-field). The two Forms flags compose into a *mode*, not a
+# boolean, and the transform target follows ADR 0013 (read-only is a state):
+#   UpdateAllowed=true                -> editable; InsertAllowed is a no-op.
+#   UpdateAllowed=false, Insert=false -> setReadOnly(true) — always read-only.
+#   UpdateAllowed=false, Insert=true  -> INSERT-ONLY: editable while the record
+#     is new (unsaved), read-only once persisted — bind the read-only state to
+#     record-is-not-new (a state flip per record mode, never a component swap).
+# Collapsing insert-only to setReadOnly(true) or leaving it always-editable are
+# both fidelity losses (the v2 QUANTITY_SHIPPED leak); the disposition ledger
+# (ADR 0015) carries a property row for every editability flag the spec sets
+# to false, so the mode decision is always visible and gated.
 targets:
 
   Button:
@@ -236,7 +249,7 @@ targets:
       CalculateMode: { ignore: "Binder converter / read-only field replaces Forms CalculateMode" }
       ItemsDisplay: { ignore: "Vaadin Grid row count is data-driven, not item-declared" }
       UpdateAllowed: { transform: { to: setReadOnly, via: forms-updateallowed-to-readonly } }
-      InsertAllowed: { ignore: "Binder / service-level access control replaces Forms InsertAllowed" }
+      InsertAllowed: { transform: { to: setReadOnly-per-record-mode, via: forms-insert-only-field } }
       QueryAllowed: { ignore: "Filterable Grid columns replace Forms QueryAllowed" }
       KeyboardState: { ignore: "Web focus model — keyboard state is browser-owned" }
       ParentModule: { ignore: "Object Library inheritance is surfaced separately on the inventory row" }
@@ -328,7 +341,7 @@ targets:
       CalculateMode: { ignore: "Binder converter / read-only field replaces Forms CalculateMode" }
       ItemsDisplay: { ignore: "Vaadin Grid row count is data-driven, not item-declared" }
       UpdateAllowed: { transform: { to: setReadOnly, via: forms-updateallowed-to-readonly } }
-      InsertAllowed: { ignore: "Binder / service-level access control replaces Forms InsertAllowed" }
+      InsertAllowed: { transform: { to: setReadOnly-per-record-mode, via: forms-insert-only-field } }
       QueryAllowed: { ignore: "Filterable Grid columns replace Forms QueryAllowed" }
       KeyboardState: { ignore: "Web focus model — keyboard state is browser-owned" }
       ParentModule: { ignore: "Object Library inheritance is surfaced separately on the inventory row" }
@@ -418,7 +431,7 @@ targets:
       CalculateMode: { ignore: "Binder converter / read-only field replaces Forms CalculateMode" }
       ItemsDisplay: { ignore: "Vaadin Grid row count is data-driven, not item-declared" }
       UpdateAllowed: { transform: { to: setReadOnly, via: forms-updateallowed-to-readonly } }
-      InsertAllowed: { ignore: "Binder / service-level access control replaces Forms InsertAllowed" }
+      InsertAllowed: { transform: { to: setReadOnly-per-record-mode, via: forms-insert-only-field } }
       QueryAllowed: { ignore: "Filterable Grid columns replace Forms QueryAllowed" }
       KeyboardState: { ignore: "Web focus model — keyboard state is browser-owned" }
       ParentModule: { ignore: "Object Library inheritance is surfaced separately on the inventory row" }
@@ -507,7 +520,7 @@ targets:
       CalculateMode: { ignore: "Binder converter / read-only field replaces Forms CalculateMode" }
       ItemsDisplay: { ignore: "Vaadin Grid row count is data-driven, not item-declared" }
       UpdateAllowed: { transform: { to: setReadOnly, via: forms-updateallowed-to-readonly } }
-      InsertAllowed: { ignore: "Binder / service-level access control replaces Forms InsertAllowed" }
+      InsertAllowed: { transform: { to: setReadOnly-per-record-mode, via: forms-insert-only-field } }
       QueryAllowed: { ignore: "Filterable Grid columns replace Forms QueryAllowed" }
       KeyboardState: { ignore: "Web focus model — keyboard state is browser-owned" }
       ParentModule: { ignore: "Object Library inheritance is surfaced separately on the inventory row" }
@@ -590,7 +603,7 @@ targets:
       CalculateMode: { ignore: "Binder converter / read-only field replaces Forms CalculateMode" }
       ItemsDisplay: { ignore: "Vaadin Grid row count is data-driven, not item-declared" }
       UpdateAllowed: { transform: { to: setReadOnly, via: forms-updateallowed-to-readonly } }
-      InsertAllowed: { ignore: "Binder / service-level access control replaces Forms InsertAllowed" }
+      InsertAllowed: { transform: { to: setReadOnly-per-record-mode, via: forms-insert-only-field } }
       QueryAllowed: { ignore: "Filterable Grid columns replace Forms QueryAllowed" }
       KeyboardState: { ignore: "Web focus model — keyboard state is browser-owned" }
       ParentModule: { ignore: "Object Library inheritance is surfaced separately on the inventory row" }
@@ -675,7 +688,7 @@ targets:
       CalculateMode: { ignore: "Binder converter / read-only field replaces Forms CalculateMode" }
       ItemsDisplay: { ignore: "Vaadin Grid row count is data-driven, not item-declared" }
       UpdateAllowed: { transform: { to: setReadOnly, via: forms-updateallowed-to-readonly } }
-      InsertAllowed: { ignore: "Binder / service-level access control replaces Forms InsertAllowed" }
+      InsertAllowed: { transform: { to: setReadOnly-per-record-mode, via: forms-insert-only-field } }
       QueryAllowed: { ignore: "Filterable Grid columns replace Forms QueryAllowed" }
       KeyboardState: { ignore: "Web focus model — keyboard state is browser-owned" }
       ParentModule: { ignore: "Object Library inheritance is surfaced separately on the inventory row" }
@@ -758,7 +771,7 @@ targets:
       CalculateMode: { ignore: "Binder converter / read-only field replaces Forms CalculateMode" }
       ItemsDisplay: { ignore: "Vaadin Grid row count is data-driven, not item-declared" }
       UpdateAllowed: { transform: { to: setReadOnly, via: forms-updateallowed-to-readonly } }
-      InsertAllowed: { ignore: "Binder / service-level access control replaces Forms InsertAllowed" }
+      InsertAllowed: { transform: { to: setReadOnly-per-record-mode, via: forms-insert-only-field } }
       QueryAllowed: { ignore: "Filterable Grid columns replace Forms QueryAllowed" }
       KeyboardState: { ignore: "Web focus model — keyboard state is browser-owned" }
       ParentModule: { ignore: "Object Library inheritance is surfaced separately on the inventory row" }
@@ -846,7 +859,7 @@ targets:
       CalculateMode: { ignore: "Binder converter / read-only field replaces Forms CalculateMode" }
       ItemsDisplay: { ignore: "Vaadin Grid row count is data-driven, not item-declared" }
       UpdateAllowed: { transform: { to: setReadOnly, via: forms-updateallowed-to-readonly } }
-      InsertAllowed: { ignore: "Binder / service-level access control replaces Forms InsertAllowed" }
+      InsertAllowed: { transform: { to: setReadOnly-per-record-mode, via: forms-insert-only-field } }
       QueryAllowed: { ignore: "Filterable Grid columns replace Forms QueryAllowed" }
       KeyboardState: { ignore: "Web focus model — keyboard state is browser-owned" }
       ParentModule: { ignore: "Object Library inheritance is surfaced separately on the inventory row" }
@@ -928,7 +941,7 @@ targets:
       CalculateMode: { ignore: "Binder converter / read-only field replaces Forms CalculateMode" }
       ItemsDisplay: { ignore: "Vaadin Grid row count is data-driven, not item-declared" }
       UpdateAllowed: { transform: { to: setReadOnly, via: forms-updateallowed-to-readonly } }
-      InsertAllowed: { ignore: "Binder / service-level access control replaces Forms InsertAllowed" }
+      InsertAllowed: { transform: { to: setReadOnly-per-record-mode, via: forms-insert-only-field } }
       QueryAllowed: { ignore: "Filterable Grid columns replace Forms QueryAllowed" }
       KeyboardState: { ignore: "Web focus model — keyboard state is browser-owned" }
       ParentModule: { ignore: "Object Library inheritance is surfaced separately on the inventory row" }
@@ -1013,7 +1026,7 @@ targets:
       CalculateMode: { ignore: "Binder converter / read-only field replaces Forms CalculateMode" }
       ItemsDisplay: { ignore: "Vaadin Grid row count is data-driven, not item-declared" }
       UpdateAllowed: { transform: { to: setReadOnly, via: forms-updateallowed-to-readonly } }
-      InsertAllowed: { ignore: "Binder / service-level access control replaces Forms InsertAllowed" }
+      InsertAllowed: { transform: { to: setReadOnly-per-record-mode, via: forms-insert-only-field } }
       QueryAllowed: { ignore: "Filterable Grid columns replace Forms QueryAllowed" }
       KeyboardState: { ignore: "Web focus model — keyboard state is browser-owned" }
       ParentModule: { ignore: "Object Library inheritance is surfaced separately on the inventory row" }
@@ -1095,7 +1108,7 @@ targets:
       CalculateMode: { ignore: "Binder converter / read-only field replaces Forms CalculateMode" }
       ItemsDisplay: { ignore: "Vaadin Grid row count is data-driven, not item-declared" }
       UpdateAllowed: { transform: { to: setReadOnly, via: forms-updateallowed-to-readonly } }
-      InsertAllowed: { ignore: "Binder / service-level access control replaces Forms InsertAllowed" }
+      InsertAllowed: { transform: { to: setReadOnly-per-record-mode, via: forms-insert-only-field } }
       QueryAllowed: { ignore: "Filterable Grid columns replace Forms QueryAllowed" }
       KeyboardState: { ignore: "Web focus model — keyboard state is browser-owned" }
       ParentModule: { ignore: "Object Library inheritance is surfaced separately on the inventory row" }
@@ -1184,7 +1197,7 @@ targets:
       CalculateMode: { ignore: "Binder converter / read-only field replaces Forms CalculateMode" }
       ItemsDisplay: { ignore: "Vaadin Grid row count is data-driven, not item-declared" }
       UpdateAllowed: { transform: { to: setReadOnly, via: forms-updateallowed-to-readonly } }
-      InsertAllowed: { ignore: "Binder / service-level access control replaces Forms InsertAllowed" }
+      InsertAllowed: { transform: { to: setReadOnly-per-record-mode, via: forms-insert-only-field } }
       QueryAllowed: { ignore: "Filterable Grid columns replace Forms QueryAllowed" }
       KeyboardState: { ignore: "Web focus model — keyboard state is browser-owned" }
       ParentModule: { ignore: "Object Library inheritance is surfaced separately on the inventory row" }
@@ -1251,7 +1264,7 @@ targets:
       CalculateMode: { ignore: "Binder converter / read-only field replaces Forms CalculateMode" }
       ItemsDisplay: { ignore: "Vaadin Grid row count is data-driven, not item-declared" }
       UpdateAllowed: { transform: { to: setReadOnly, via: forms-updateallowed-to-readonly } }
-      InsertAllowed: { ignore: "Binder / service-level access control replaces Forms InsertAllowed" }
+      InsertAllowed: { transform: { to: setReadOnly-per-record-mode, via: forms-insert-only-field } }
       QueryAllowed: { ignore: "Filterable Grid columns replace Forms QueryAllowed" }
       KeyboardState: { ignore: "Web focus model — keyboard state is browser-owned" }
       ParentModule: { ignore: "Object Library inheritance is surfaced separately on the inventory row" }
@@ -1322,7 +1335,7 @@ targets:
       CalculateMode: { ignore: "Binder converter / read-only field replaces Forms CalculateMode" }
       ItemsDisplay: { ignore: "Vaadin Grid row count is data-driven, not item-declared" }
       UpdateAllowed: { transform: { to: setReadOnly, via: forms-updateallowed-to-readonly } }
-      InsertAllowed: { ignore: "Binder / service-level access control replaces Forms InsertAllowed" }
+      InsertAllowed: { transform: { to: setReadOnly-per-record-mode, via: forms-insert-only-field } }
       QueryAllowed: { ignore: "Filterable Grid columns replace Forms QueryAllowed" }
       KeyboardState: { ignore: "Web focus model — keyboard state is browser-owned" }
       ParentModule: { ignore: "Object Library inheritance is surfaced separately on the inventory row" }
