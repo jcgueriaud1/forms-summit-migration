@@ -56,6 +56,35 @@ _Avoid_: leaning on the spec census ("every node counted") as the fidelity
 guarantee — *counted ≠ described ≠ rendered*; the census proved nothing was dropped
 from the **spec**, not that nothing was dropped from the **view**.
 
+**Disposition** / **Disposition ledger**:
+A disposition is the single recorded fate of one spec fact: **migrated-as** (built,
+with the web behaviour named), **re-decided** (deliberately different from Forms —
+see _Re-decision_), **deferred** (accepted, tracked for later — an _out-of-slice
+surface_), or **obsolete** (Forms-runtime plumbing with no web counterpart). The
+disposition ledger holds one such row for every form object **and every
+decision-prone mapped property** (a default, an editability mode, a visibility, a
+cross-form contract) and gates ticket generation: no build tickets while any row is
+unassigned. It closes the gap the census leaves — the census proves nothing was
+dropped from the *spec*; the ledger proves nothing was dropped from the
+*migration*. _Avoid_: rows for mechanical carries (a max-length, a prompt) — the
+layout-fidelity gate verifies those at runtime, and rows for them drown the
+decision-prone ones.
+
+**Re-decision**:
+A deliberate, recorded deviation from what Forms did — "the spec says X; we chose Y
+because Z, decided by W". It lives on the deviated fact's ledger row, so a
+deviation is always distinguishable from an accident; a generalizable re-decision
+is additionally encoded into the mapping ruleset as the new behaviour. _Avoid_:
+recording re-decisions only in prose (PRD, commit message) — prose predates or
+trails the build and cannot be checked for completeness.
+
+**Cross-form contract**:
+Shared state a form reads or writes to communicate with the form that calls it (or
+forms it calls) — the calling context. Invisible at element grain (it lives only
+inside trigger bodies), so it is extracted and scoped like any other dependency.
+_Avoid_: treating a global as an implementation detail of the trigger that touches
+it — it is an interface of the form.
+
 **Mapping ruleset**:
 The published decision tree that maps Forms constructs to Vaadin targets. The
 substrate of the generalizable-vs-specific sort; maps 1:1 to the scorecard.

@@ -62,6 +62,13 @@ unit tests; it cannot certify that the screen *behaves* and *reads* like Forms).
   1:1, a human must judge the result".
 - **Caution alerts / business rules** the spec surfaces (e.g. `PAYMENT_TYPE_ALERT`,
   "This customer must pay cash!") — confirm the rule still fires and reads right.
+- **Absence claims** (standing check, ADR-0015): grep the built code's comments/
+  javadoc for claims that Forms lacks something ("has no … trigger", "no defaults
+  to apply", "Forms never …") and verify **each named element against the spec**.
+  An absence claim that the spec contradicts is a defect — a confidently-worded
+  false negative tells the next reader not to look (the v2 `Order.blank()` case:
+  it claimed no `WHEN-CREATE-RECORD` existed; the spec had one). Claims without a
+  spec citation are findings even when true.
 
 **Ticket body:** use the [careful-review template](TICKET-TEMPLATES.md#careful-review).
 State *what* to test, *why the AI can't self-certify it*, the concrete side-by-side
@@ -132,6 +139,27 @@ justification, and the explicit specific-by-default caveat.
 > **Not this skill's job:** actually building the reusable layer. The ticket
 > recommends the extraction; once a human approves, an agent builds it from that
 > ticket.
+
+## The ledger re-check (closing the loop)
+
+`to-issues` gated ticket generation on the disposition ledger (ADR-0015); this
+skill **re-checks it at review time**, when the build has happened and the truth
+may have drifted:
+
+```bash
+python3 .agents/skills/forms-xml-analyzer/scripts/disposition_ledger.py \
+    docs/generated/<FORM>.spec.json --merge docs/generated/<FORM>.ledger.json \
+    --out docs/generated/<FORM>.ledger.json --md docs/generated/<FORM>.ledger.md --check
+```
+
+- A row still unassigned, or whose `migrated-as` no ticket/PR actually delivered,
+  becomes a careful-review item.
+- A build that **deliberately deviated** from a row's spec value must have flipped
+  that row to `re-decided` with `reason` + `decidedBy` — the ledger row is where
+  re-decisions live (not the PRD, which predates the build). An undocumented
+  deviation found at review time is recorded there before the review closes.
+- Generalizable re-decisions are additionally encoded into `migration-rules.yaml`
+  as the new behaviour, per the existing convention.
 
 ## Output & relationship to the scorecard
 
