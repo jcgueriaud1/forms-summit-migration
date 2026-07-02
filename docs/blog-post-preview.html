@@ -598,8 +598,112 @@
     <li><span class="num">#16</span><span><strong>Inline line-item editing.</strong> <span class="wip">In progress</span> — editable quantities, add/delete lines, per-order id assignment, live total recompute, and a cascade-delete guard.</span></li>
   </ul>
 
-  <p>The remaining spine — product swap via the LOV (re-defaulting price and description)
-  and the <code>ORA_ROWSCN</code> commit path — is next.</p>
+  <p>That was <strong>v1's</strong> endpoint: inline editing in progress, and the remaining
+  spine — product swap via the LOV (re-defaulting price and description) and the
+  <code>ORA_ROWSCN</code> commit path — still ahead. Which is exactly where the interesting
+  part begins, because we then ran the whole migration a second time.</p>
+
+  <h2>Running it twice: what v2 changed</h2>
+
+  <p>The sharpest possible test of "generalizable fixes compound" is to run the migration
+  twice and watch the second pass inherit the first pass's lessons. So we did. <strong>v1</strong>
+  was the first full attempt at the ORDERS slice. We sorted every correction, pushed the
+  generalizable ones back into the ruleset and skills — then <strong>regenerated the whole
+  slice from scratch as v2</strong>, keeping v1 as a side-by-side baseline. v2 is not a
+  patched v1; it is what the <em>smarter tool</em> produces on the same form.</p>
+
+  <p>Three of v1's corrections were generalizable, and you can trace each one from a v1
+  hand-fix, into the tool, to a v2 payoff.</p>
+
+  <h3>1. Layout fidelity: discovered late in v1, designed-in for v2</h3>
+
+  <p>The <em>counted ≠ rendered</em> gap described above was found <strong>mid-build</strong>
+  in v1 — the header had already drifted (fields reordered, the "Order Information" group and
+  its title gone, <code>PAYMENT_TYPE</code> flattened to a text field) before anything caught
+  it. v1's fix was a retrofit: restore the header by hand, then bolt a layout-fidelity gate
+  onto the method after the fact (ADR-0012 / ADR-0013), and record the correction in a
+  regenerated <em>v2 PRD</em> kept alongside the original as evidence.</p>
+
+  <p>In v2 that gate is <strong>front-loaded</strong>: structural fidelity ships <em>inside</em>
+  the first structural slice — the app-shell + layout-topology ticket (#41) — instead of being
+  patched in later. The lesson stopped being a scar and became a starting condition.</p>
+
+  <h3>2. Record actions: a v1 hand-fix that became a ruleset rule</h3>
+
+  <p>This is the cleanest single demonstration of the whole thesis.</p>
+
+  <div class="seam">
+    <span class="tag">The un-sorted hand-fix</span>
+    <p>In v1, "create a new order" was a <strong>one-off, hand-written</strong> flow on the
+    presenter (<code>newOrder()</code> builds a blank header). There was <strong>no Duplicate
+    at all</strong>, and although a delete path existed in the service it was never wired to a
+    visible control — a deletable block shipped with no Delete affordance. It made <em>this</em>
+    form work and taught the tool nothing.</p>
+  </div>
+
+  <p>So we sorted it — and the rule behind it <em>can</em> be stated in form-construct terms:
+  <strong>"any base-table block whose CRUD capability permits insert/delete gets New /
+  Duplicate / Delete record actions, whether or not a <code>KEY-CREREC</code> /
+  <code>KEY-DUPREC</code> / <code>KEY-DELREC</code> trigger exists."</strong> That earned it
+  generalizable status. It landed as a new <code>blockActionClassifiers</code> section in
+  <code>migration-rules.yaml</code>. The <code>KEY-*</code> triggers were demoted from being
+  <em>the</em> create/delete path to mere <strong>refinements</strong> — a confirm dialog, a
+  field-reset clear-list, a keystroke binding.</p>
+
+  <p>v2 regenerated against that rule and got the full <strong>New / Duplicate / Delete</strong>
+  family for free — master <em>and</em> line level, the Delete action correctly composed with
+  the Non-Isolated <code>S_ORD_S_ITEM</code> cascade-delete guard, and the Duplicate clear-list
+  encoded as pure domain factories (<code>Order.duplicateForInsert()</code>). One hand-fix in
+  v1 became a capability every future form inherits.</p>
+
+  <h3>3. Human-judgment work: from reactive to a first-class output</h3>
+
+  <p>v1 handled the work only a human can sign off on <strong>reactively</strong> — drift was
+  caught during the build; deferred dependencies stayed implicit. v2 makes it an explicit,
+  up-front deliverable. A new <code>migration-review</code> skill (ADR-0014) emits
+  <strong><code>ready-for-human</code> review tickets</strong> alongside the
+  <code>ready-for-agent</code> build tickets, in three kinds:</p>
+
+  <ul>
+    <li><strong>Careful-review / manual-test</strong> — the behavioural-parity and
+    layout-fidelity checks a human must certify side-by-side against live Forms. The AI can
+    compile and unit-test a construct; it cannot certify the screen <em>behaves</em> and
+    <em>reads</em> like Forms.</li>
+    <li><strong>Out-of-slice / deferred follow-up</strong> — the form's accepted-but-deferred
+    dependencies (the <code>m_summit</code> menu, the <code>pick</code> called form, the
+    <code>CALENDAR</code> library) become tracked forward work, not a silent drop — and
+    deliberately kept in a <em>different lane</em> from <code>.out-of-scope/</code>
+    <em>rejections</em>. A human makes the defer-vs-reject call.</li>
+    <li><strong>Generalization-review</strong> — generic Forms affordances the ruleset put into
+    a <em>specific</em> view (the record actions above, the Execute-Query filter bar, the
+    <code>ORA_ROWSCN</code> commit path, the <code>CLIENT_IDENTIFIER</code> audit bridge)
+    flagged for a reusable layer.</li>
+  </ul>
+
+  <p>That third kind is the key move: it applies the generalizable-vs-specific sort
+  <strong>proactively, at design time</strong> — flagging a generalizable fix <em>before</em>
+  it is ever hand-coded into a view, which is precisely the entry point v1's reactive,
+  fix-time sort lacked. The "nothing dropped silently" guarantee now extends to the <em>slice
+  boundary</em>, not just the form-object census.</p>
+
+  <h3>And v2 finished the spine</h3>
+
+  <p>v1 stopped with inline editing in progress. v2 closed the rest: the product LOV +
+  <code>WHEN-VALIDATE-ITEM</code> defaulter (#46), master-header editing with the credit-check
+  and ship-date guards (#47), the whole-graph <code>COMMIT_FORM</code> save under the
+  <code>ORA_ROWSCN</code> check (#48), and the record actions (#49). The architecture tightened
+  along the way — the presenter no longer holds header working-state (<code>commit</code>,
+  <code>lookupCustomer</code>, <code>paymentAllowed</code> now take explicit arguments and
+  <em>return</em> values instead of mutating a field), and a successful commit round-trips the
+  whole reloaded graph, so you can keep editing and re-commit without a second load.</p>
+
+  <div class="thesis">
+    <p>v1 → v2 is the <strong>ratio made visible</strong>. Every improvement in v2 traces to a
+    v1 correction that was <em>sorted correctly</em> — and the ones that generalized (layout
+    fidelity, record actions, the review-ticket discipline) now apply to <strong>every</strong>
+    form, not just ORDERS. A Forms shop doesn't get to re-run its own history — but it inherits
+    the accumulated ruleset, so its <em>first</em> pass starts where our <em>second</em> one did.</p>
+  </div>
 
   <h2>Reproducibility: a guaranteed tier and an honest tier</h2>
 
