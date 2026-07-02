@@ -2267,6 +2267,155 @@
       "source": "Form_Builder_II.olb",
       "via": "ObjectGroup (subclassed)",
       "status": "undecided"
+    },
+    {
+      "type": "global-variable",
+      "name": "GLOBAL.CUSTOMER_ID",
+      "source": null,
+      "via": "trigger-body scan (:GLOBAL/:PARAMETER)",
+      "status": "undecided",
+      "usage": [
+        {
+          "trigger": "S_ORD.PRE-QUERY",
+          "access": "read"
+        },
+        {
+          "trigger": "S_ORD.WHEN-CREATE-RECORD",
+          "access": "read"
+        },
+        {
+          "trigger": "FORM.PRE-FORM",
+          "access": "write"
+        }
+      ]
+    },
+    {
+      "type": "global-variable",
+      "name": "GLOBAL.HEIGHT_*",
+      "source": null,
+      "via": "trigger-body scan (:GLOBAL/:PARAMETER)",
+      "status": "undecided",
+      "usage": [
+        {
+          "trigger": "PROGRAM-UNIT.CHECK_WINDOW_SIZE",
+          "access": "read"
+        }
+      ]
+    },
+    {
+      "type": "global-variable",
+      "name": "GLOBAL.HEIGHT_WIN_INVENTORY",
+      "source": null,
+      "via": "trigger-body scan (:GLOBAL/:PARAMETER)",
+      "status": "undecided",
+      "usage": [
+        {
+          "trigger": "FORM.WHEN-NEW-FORM-INSTANCE",
+          "access": "write"
+        },
+        {
+          "trigger": "FORM.WHEN-FORM-NAVIGATE",
+          "access": "write"
+        }
+      ]
+    },
+    {
+      "type": "global-variable",
+      "name": "GLOBAL.HEIGHT_WIN_ORDER",
+      "source": null,
+      "via": "trigger-body scan (:GLOBAL/:PARAMETER)",
+      "status": "undecided",
+      "usage": [
+        {
+          "trigger": "FORM.WHEN-NEW-FORM-INSTANCE",
+          "access": "write"
+        },
+        {
+          "trigger": "FORM.WHEN-FORM-NAVIGATE",
+          "access": "write"
+        }
+      ]
+    },
+    {
+      "type": "global-variable",
+      "name": "GLOBAL.SAVE_ITEM_NAME",
+      "source": null,
+      "via": "trigger-body scan (:GLOBAL/:PARAMETER)",
+      "status": "undecided",
+      "usage": [
+        {
+          "trigger": "CONTROL.SHOW_HELP_BUTTON.WHEN-BUTTON-PRESSED",
+          "access": "write"
+        },
+        {
+          "trigger": "CONTROL.PUSH_BUTTON57.WHEN-BUTTON-PRESSED",
+          "access": "read"
+        }
+      ]
+    },
+    {
+      "type": "global-variable",
+      "name": "GLOBAL.WHERE_CLS",
+      "source": null,
+      "via": "trigger-body scan (:GLOBAL/:PARAMETER)",
+      "status": "undecided",
+      "usage": [
+        {
+          "trigger": "CONTROL.PRODUCT_LOV_BUTTON.WHEN-BUTTON-PRESSED",
+          "access": "read"
+        },
+        {
+          "trigger": "CONTROL.PRODUCT_LOV_BUTTON.WHEN-BUTTON-PRESSED",
+          "access": "write"
+        }
+      ]
+    },
+    {
+      "type": "global-variable",
+      "name": "GLOBAL.WIDTH_*",
+      "source": null,
+      "via": "trigger-body scan (:GLOBAL/:PARAMETER)",
+      "status": "undecided",
+      "usage": [
+        {
+          "trigger": "PROGRAM-UNIT.CHECK_WINDOW_SIZE",
+          "access": "read"
+        }
+      ]
+    },
+    {
+      "type": "global-variable",
+      "name": "GLOBAL.WIDTH_WIN_INVENTORY",
+      "source": null,
+      "via": "trigger-body scan (:GLOBAL/:PARAMETER)",
+      "status": "undecided",
+      "usage": [
+        {
+          "trigger": "FORM.WHEN-NEW-FORM-INSTANCE",
+          "access": "write"
+        },
+        {
+          "trigger": "FORM.WHEN-FORM-NAVIGATE",
+          "access": "write"
+        }
+      ]
+    },
+    {
+      "type": "global-variable",
+      "name": "GLOBAL.WIDTH_WIN_ORDER",
+      "source": null,
+      "via": "trigger-body scan (:GLOBAL/:PARAMETER)",
+      "status": "undecided",
+      "usage": [
+        {
+          "trigger": "FORM.WHEN-NEW-FORM-INSTANCE",
+          "access": "write"
+        },
+        {
+          "trigger": "FORM.WHEN-FORM-NAVIGATE",
+          "access": "write"
+        }
+      ]
     }
   ],
   "windows": [

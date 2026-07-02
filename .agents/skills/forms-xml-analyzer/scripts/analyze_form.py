@@ -5,7 +5,9 @@ Emits facts at *form-object grain* (every node accounted for) plus the
 analyzer-injected Forms defaults and derived signals the mapping ruleset's
 predicates consume (bodyShape, relationRole, databaseBlock, resolved
 LockingMode, recordsDisplayed/derivedMultiRecord, commitStyle, imageSource,
-LOV column/return mapping). It makes NO Vaadin / migration decisions.
+LOV column/return mapping), and the form's external dependencies including
+its cross-form contracts (:GLOBAL / :PARAMETER shared state extracted from
+trigger bodies). It makes NO Vaadin / migration decisions.
 
 Usage:
     python3 analyze_form.py <form_fmb.xml> [--out spec.json] [--md spec.md]
@@ -150,6 +152,54 @@ def called_forms(text):
     for m in re.finditer(pattern, stripped, re.IGNORECASE):
         out.append(m.group(2))
     return sorted(set(out))
+
+
+def global_references(text):
+    """':GLOBAL.x' / ':PARAMETER.x' references in a body, with access direction.
+
+    Cross-form contracts live only inside trigger/program-unit bodies, so they are
+    invisible to element-grain inventory unless extracted here. Mechanical
+    heuristic, documented:
+
+    - bind form: ``:GLOBAL.x :=`` -> write; any other ``:GLOBAL.x`` -> read.
+    - string-name form: ``COPY(v,'GLOBAL.x')``, ``DEFAULT_VALUE(v,'GLOBAL.x')``,
+      ``ERASE('GLOBAL.x')`` -> write; ``NAME_IN('GLOBAL.x')`` -> read.
+    - a literal prefix concatenated at runtime (``NAME_IN('GLOBAL.width_' || v)``)
+      is recorded as ``GLOBAL.WIDTH_*`` — the name set is dynamic.
+
+    Returns {UPPER_NAME: set of 'read'/'write'} (a name can be both).
+    PL/SQL line comments are stripped first, like called_forms.
+    """
+    if not text:
+        return {}
+    normalized = text.replace("&#10;", "\n")
+    stripped = re.sub(r"--[^\n]*", "", normalized)
+    refs = {}
+
+    def add(name, access):
+        refs.setdefault(name.upper(), set()).add(access)
+
+    # bind-variable form: :GLOBAL.x / :PARAMETER.x, write when followed by :=
+    for m in re.finditer(r":(GLOBAL|PARAMETER)\.([A-Za-z0-9_]+)", stripped, re.IGNORECASE):
+        name = "{}.{}".format(m.group(1), m.group(2))
+        rest = stripped[m.end():]
+        add(name, "write" if re.match(r"\s*:=", rest) else "read")
+
+    # string-name forms routed through built-ins
+    string_forms = (
+        (r"NAME_IN\s*\(\s*'(GLOBAL|PARAMETER)\.([A-Za-z0-9_]+)'", "read"),
+        (r"COPY\s*\([^,()]*,\s*'(GLOBAL|PARAMETER)\.([A-Za-z0-9_]+)'", "write"),
+        (r"DEFAULT_VALUE\s*\([^,()]*,\s*'(GLOBAL|PARAMETER)\.([A-Za-z0-9_]+)'", "write"),
+        (r"ERASE\s*\(\s*'(GLOBAL|PARAMETER)\.([A-Za-z0-9_]+)'", "write"),
+    )
+    for pattern, access in string_forms:
+        for m in re.finditer(pattern, stripped, re.IGNORECASE):
+            name = "{}.{}".format(m.group(1), m.group(2))
+            # dynamic suffix: the literal is only a prefix ('GLOBAL.width_' || v)
+            if re.match(r"\s*\|\|", stripped[m.end():]):
+                name += "*"
+            add(name, access)
+    return refs
 
 
 def trigger_text(el):
@@ -717,6 +767,34 @@ def analyze(path):
         for r in referenced_db_objects(b):
             refs.add(r)
 
+    form_triggers = collect_triggers(form_el, parent_map) if form_el is not None else []
+
+    # ---- cross-form contracts (:GLOBAL / :PARAMETER) ----------------------
+    # Shared-state names read/written by this form's PL/SQL. They are the
+    # form's runtime contract with whichever form calls it (or is called by
+    # it), so they are inventoried like every other external dependency —
+    # per name, with the owning trigger/program-unit and access direction —
+    # and flagged status:"undecided". Mechanical extraction only.
+    global_usage = {}
+
+    def _scan_globals(qualified, body):
+        for gname, accesses in global_references(body).items():
+            for access in sorted(accesses):
+                global_usage.setdefault(gname, []).append(
+                    {"trigger": qualified, "access": access})
+
+    for b in blocks:
+        for tg in b["triggers"]:
+            _scan_globals("{}.{}".format(b["name"], tg["name"]), tg["body"])
+        for it in b["items"]:
+            for tg in it["triggers"]:
+                _scan_globals("{}.{}.{}".format(b["name"], it["name"], tg["name"]),
+                              tg["body"])
+    for tg in form_triggers:
+        _scan_globals("FORM.{}".format(tg["name"]), tg["body"])
+    for pu in program_units:
+        _scan_globals("PROGRAM-UNIT.{}".format(pu["name"]), pu.get("body"))
+
     # ---- external dependencies (other migration units this form needs) ---
     # Inventoried mechanically; every entry is flagged status:"undecided". The
     # analyzer makes NO scoping decision — the SKILL workflow requires the agent
@@ -748,6 +826,13 @@ def analyze(path):
                 "source": og["parentFilename"], "via": "ObjectGroup (subclassed)",
                 "status": "undecided",
             })
+    for gname in sorted(global_usage):
+        dependencies.append({
+            "type": "parameter" if gname.startswith("PARAMETER.") else "global-variable",
+            "name": gname, "source": None,
+            "via": "trigger-body scan (:GLOBAL/:PARAMETER)", "status": "undecided",
+            "usage": global_usage[gname],
+        })
 
     return {
         "source": path,
@@ -771,7 +856,7 @@ def analyze(path):
         "tabPages": tab_pages,
         "frames": frames,
         "staticText": static_text,
-        "formTriggers": collect_triggers(form_el, parent_map) if form_el is not None else [],
+        "formTriggers": form_triggers,
         "referencedDbObjects": [
             {"name": n, "paramShape": "unknown (resolve from schema)"} for n in sorted(refs)
         ],
@@ -876,6 +961,18 @@ def to_markdown(spec):
             L.append("| {} | {} | {} | {} | {} |".format(
                 d["type"], d["name"], d.get("source") or "—", d["via"], d["status"]))
         L.append("")
+        contract_deps = [d for d in spec["dependencies"] if d.get("usage")]
+        if contract_deps:
+            L.append("### Cross-form contracts (:GLOBAL / :PARAMETER usage)")
+            L.append("")
+            L.append("> Shared state this form reads/writes — its runtime contract with"
+                     " calling/called forms. Decide each like any dependency.")
+            L.append("")
+            for d in contract_deps:
+                use = "; ".join("{} ({})".format(u["trigger"], u["access"])
+                                for u in d["usage"])
+                L.append("- **{}**: {}".format(d["name"], use))
+            L.append("")
     if spec.get("alerts"):
         L.append("## Alerts")
         L.append("")

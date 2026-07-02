@@ -1,6 +1,6 @@
 ---
 name: forms-xml-analyzer
-description: Convert an Oracle Forms FMB XML file (frmf2xml output) into a faithful, decision-free structural specification at form-object grain — every block, item, trigger, relation, LOV, record group, alert, program unit, data-source column, and canvas, plus item builder-attributes (maximumLength, required, initializeValue, formatMask, checked/unchecked values, radio options, copyValueFromItem, lovName) and the analyzer-injected Forms defaults and derived signals (bodyShape, relationRole, lockingMode, commitStyle, imageSource, LOV column/return mapping). It also inventories external dependencies (menu module, attached libraries, called sibling forms, object-library subclassing) the migration must scope — never dropping them silently. Use when migrating an Oracle Form, when asked to analyze/spec/inventory an .fmb or *_fmb.xml, or to produce the input the Forms→Vaadin mapping ruleset (docs/migration-rules.yaml) consumes. It makes NO Vaadin/migration decisions.
+description: Convert an Oracle Forms FMB XML file (frmf2xml output) into a faithful, decision-free structural specification at form-object grain — every block, item, trigger, relation, LOV, record group, alert, program unit, data-source column, and canvas, plus item builder-attributes (maximumLength, required, initializeValue, formatMask, checked/unchecked values, radio options, copyValueFromItem, lovName) and the analyzer-injected Forms defaults and derived signals (bodyShape, relationRole, lockingMode, commitStyle, imageSource, LOV column/return mapping). It also inventories external dependencies (menu module, attached libraries, called sibling forms, object-library subclassing) and cross-form contracts (:GLOBAL/:PARAMETER shared state with per-trigger read/write usage) the migration must scope — never dropping them silently — and ships the disposition-ledger companion script that gates ticket generation (ADR-0015). Use when migrating an Oracle Form, when asked to analyze/spec/inventory an .fmb or *_fmb.xml, or to produce the input the Forms→Vaadin mapping ruleset (docs/migration-rules.yaml) consumes. It makes NO Vaadin/migration decisions.
 ---
 
 # forms-xml-analyzer
@@ -31,6 +31,13 @@ Stdlib only (Python 3.9+). No external dependencies.
   (menu module, attached libraries, called sibling forms, object-library
   subclassing) is inventoried into `dependencies[]`, each `status: "undecided"`.
   Nothing out-of-slice is silently dropped — see the gate below.
+- **Contract-complete.** The form's cross-form contracts — `:GLOBAL.*` /
+  `:PARAMETER.*` shared state read or written anywhere in its trigger and
+  program-unit bodies — are extracted into `dependencies[]` too (types
+  `global-variable` / `parameter`), each with a `usage[]` of the owning
+  trigger and access direction. These names are invisible to element-grain
+  inventory (they live only inside PL/SQL bodies) — the calling-context
+  contract class that is otherwise silently lost.
 - **Decision-free.** A Formula item's expression, a LOV's query, a relation's
   `DeleteRecord` are recorded verbatim. No Vaadin target, no layer assignment.
 - **Forms defaults injected, flagged.** Attributes often absent in real exports
@@ -101,7 +108,7 @@ to recreate a form faithfully:
 A form rarely stands alone. It references other migration units: a **menu module**
 (`MenuModule`), **attached PL/SQL libraries** (`AttachedLibrary` — e.g.
 `calendar.pll`), **sibling forms** invoked at runtime via
-`CALL_FORM`/`OPEN_FORM`/`NEW_FORM`/`RUN_PRODUCT` (e.g. a `pick` list form), and
+`CALL_FORM`/`OPEN_FORM`/`NEW_FORM`/`RUN_PRODUCT` (e.g. a picker list form), and
 objects **subclassed from an object library** (`.olb`). The analyzer inventories
 every one into `dependencies[]` — `{ type, name, source, via, status }` — each
 flagged `status: "undecided"`. The script makes **no** scoping decision.
@@ -118,6 +125,28 @@ Never defer a dependency silently, and never pick for the user. Record each
 answer back onto the entry's `status` so the choice is auditable in the spec.
 A `called-form` is detected from trigger/program-unit bodies with PL/SQL line
 comments stripped, so a commented-out call is not reported as a live dependency.
+
+## The disposition ledger (companion script)
+
+`scripts/disposition_ledger.py` turns a spec into the **disposition ledger**
+(ADR-0015) — one row per form object plus per decision-prone mapped property
+(defaults, editability modes, visibility, value propagation, cross-form
+contracts). Every row must end in exactly one disposition (`migrated-as` /
+`re-decided` / `deferred` / `obsolete`); `--check` is the gate
+`migration-to-issues` runs before cutting build tickets, and `migration-review`
+re-runs when reviewing.
+`--merge` carries prior decisions forward across spec regenerations, so the
+ledger is safe to refresh. `--check-refs` (needs the `gh` CLI) guards ledger
+rot: cited `#N` refs must exist and a `deferred` row must cite a still-open
+ticket. Mechanical carries (maximumLength, prompts, field order) get no rows —
+the layout-fidelity gate (ADR-0012) verifies those at runtime. A `migrated-as`
+row is *delivered* only when a UI test asserts it — build tickets turn covered
+rows into acceptance criteria (see `migration-to-issues`).
+
+```bash
+python3 scripts/disposition_ledger.py spec.json \
+    --merge ledger.json --out ledger.json --md ledger.md --check --check-refs
+```
 
 ## Notes
 

@@ -102,6 +102,29 @@ Windows: WIN_ORDER (Orders and Items), WIN_INVENTORY (Stock Levels)
 | attached-library | CALENDAR | calendar | AttachedLibrary | undecided |
 | called-form | pick | — | CALL_FORM/OPEN_FORM/NEW_FORM/RUN_PRODUCT | undecided |
 | object-library | CALENDAR | Form_Builder_II.olb | ObjectGroup (subclassed) | undecided |
+| global-variable | GLOBAL.CUSTOMER_ID | — | trigger-body scan (:GLOBAL/:PARAMETER) | undecided |
+| global-variable | GLOBAL.HEIGHT_* | — | trigger-body scan (:GLOBAL/:PARAMETER) | undecided |
+| global-variable | GLOBAL.HEIGHT_WIN_INVENTORY | — | trigger-body scan (:GLOBAL/:PARAMETER) | undecided |
+| global-variable | GLOBAL.HEIGHT_WIN_ORDER | — | trigger-body scan (:GLOBAL/:PARAMETER) | undecided |
+| global-variable | GLOBAL.SAVE_ITEM_NAME | — | trigger-body scan (:GLOBAL/:PARAMETER) | undecided |
+| global-variable | GLOBAL.WHERE_CLS | — | trigger-body scan (:GLOBAL/:PARAMETER) | undecided |
+| global-variable | GLOBAL.WIDTH_* | — | trigger-body scan (:GLOBAL/:PARAMETER) | undecided |
+| global-variable | GLOBAL.WIDTH_WIN_INVENTORY | — | trigger-body scan (:GLOBAL/:PARAMETER) | undecided |
+| global-variable | GLOBAL.WIDTH_WIN_ORDER | — | trigger-body scan (:GLOBAL/:PARAMETER) | undecided |
+
+### Cross-form contracts (:GLOBAL / :PARAMETER usage)
+
+> Shared state this form reads/writes — its runtime contract with calling/called forms. Decide each like any dependency.
+
+- **GLOBAL.CUSTOMER_ID**: S_ORD.PRE-QUERY (read); S_ORD.WHEN-CREATE-RECORD (read); FORM.PRE-FORM (write)
+- **GLOBAL.HEIGHT_***: PROGRAM-UNIT.CHECK_WINDOW_SIZE (read)
+- **GLOBAL.HEIGHT_WIN_INVENTORY**: FORM.WHEN-NEW-FORM-INSTANCE (write); FORM.WHEN-FORM-NAVIGATE (write)
+- **GLOBAL.HEIGHT_WIN_ORDER**: FORM.WHEN-NEW-FORM-INSTANCE (write); FORM.WHEN-FORM-NAVIGATE (write)
+- **GLOBAL.SAVE_ITEM_NAME**: CONTROL.SHOW_HELP_BUTTON.WHEN-BUTTON-PRESSED (write); CONTROL.PUSH_BUTTON57.WHEN-BUTTON-PRESSED (read)
+- **GLOBAL.WHERE_CLS**: CONTROL.PRODUCT_LOV_BUTTON.WHEN-BUTTON-PRESSED (read); CONTROL.PRODUCT_LOV_BUTTON.WHEN-BUTTON-PRESSED (write)
+- **GLOBAL.WIDTH_***: PROGRAM-UNIT.CHECK_WINDOW_SIZE (read)
+- **GLOBAL.WIDTH_WIN_INVENTORY**: FORM.WHEN-NEW-FORM-INSTANCE (write); FORM.WHEN-FORM-NAVIGATE (write)
+- **GLOBAL.WIDTH_WIN_ORDER**: FORM.WHEN-NEW-FORM-INSTANCE (write); FORM.WHEN-FORM-NAVIGATE (write)
 
 ## Alerts
 

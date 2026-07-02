@@ -118,7 +118,9 @@ Frame       { "name", "canvas", "graphicsType": "Frame" | "Rectangle", "rawGraph
               "enclosesItems": bool, "enclosedItems": [ "BLOCK.ITEM", ... ] }
               // a Rectangle/Frame Graphics; normalised to graphicsType "Frame" when it
               // encloses >=1 item (→ frame-group), else "Rectangle" (→ decoration/Drop)
-Dependency  { "type", "name", "source", "via", "status": "undecided" }
+Dependency  { "type", "name", "source", "via", "status": "undecided",
+              "usage": [ { "trigger", "access": "read"|"write" }, ... ] | absent }
+              // usage only on type global-variable / parameter (cross-form contracts)
 ```
 
 ### Dependency
@@ -136,6 +138,8 @@ drop. See SKILL.md "Dependencies — ask, never silently drop".
 | `attached-library` | library name | `LibraryLocation` | `<AttachedLibrary>` |
 | `called-form` | form/module invoked at runtime | — | `CALL_FORM`/`OPEN_FORM`/`NEW_FORM`/`RUN_PRODUCT` in a trigger/program-unit body (PL/SQL `--` comments stripped first, so commented-out calls are not reported) |
 | `object-library` | parent object name | `.olb` filename | `<ObjectGroup>` with a `ParentFilename` (subclassed) |
+| `global-variable` | `GLOBAL.<name>` (upper-cased; a trailing `*` marks a dynamic name prefix) | — | `:GLOBAL.x` bind references and `NAME_IN`/`COPY`/`DEFAULT_VALUE`/`ERASE` string names in trigger/program-unit bodies (comments stripped); each entry carries `usage[]` with the owning trigger and read/write direction (`:= `→ write; `COPY`/`DEFAULT_VALUE`/`ERASE` targets → write; else read) |
+| `parameter` | `PARAMETER.<name>` | — | same scan as `global-variable`, for `:PARAMETER.x` |
 
 ## Signal heuristics
 
