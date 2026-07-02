@@ -36,8 +36,8 @@ Stdlib only (Python 3.9+). No external dependencies.
   program-unit bodies — are extracted into `dependencies[]` too (types
   `global-variable` / `parameter`), each with a `usage[]` of the owning
   trigger and access direction. These names are invisible to element-grain
-  inventory (they live only inside PL/SQL bodies), which is exactly how the
-  ORDERS `GLOBAL.customer_id` calling-context contract was silently lost in v2.
+  inventory (they live only inside PL/SQL bodies) — the calling-context
+  contract class that is otherwise silently lost.
 - **Decision-free.** A Formula item's expression, a LOV's query, a relation's
   `DeleteRecord` are recorded verbatim. No Vaadin target, no layer assignment.
 - **Forms defaults injected, flagged.** Attributes often absent in real exports
@@ -108,7 +108,7 @@ to recreate a form faithfully:
 A form rarely stands alone. It references other migration units: a **menu module**
 (`MenuModule`), **attached PL/SQL libraries** (`AttachedLibrary` — e.g.
 `calendar.pll`), **sibling forms** invoked at runtime via
-`CALL_FORM`/`OPEN_FORM`/`NEW_FORM`/`RUN_PRODUCT` (e.g. a `pick` list form), and
+`CALL_FORM`/`OPEN_FORM`/`NEW_FORM`/`RUN_PRODUCT` (e.g. a picker list form), and
 objects **subclassed from an object library** (`.olb`). The analyzer inventories
 every one into `dependencies[]` — `{ type, name, source, via, status }` — each
 flagged `status: "undecided"`. The script makes **no** scoping decision.
@@ -132,15 +132,16 @@ comments stripped, so a commented-out call is not reported as a live dependency.
 (ADR-0015) — one row per form object plus per decision-prone mapped property
 (defaults, editability modes, visibility, value propagation, cross-form
 contracts). Every row must end in exactly one disposition (`migrated-as` /
-`re-decided` / `deferred` / `obsolete`); `--check` is the gate `to-issues` runs
-before cutting build tickets, and `migration-review` re-runs when reviewing.
+`re-decided` / `deferred` / `obsolete`); `--check` is the gate
+`migration-to-issues` runs before cutting build tickets, and `migration-review`
+re-runs when reviewing.
 `--merge` carries prior decisions forward across spec regenerations, so the
 ledger is safe to refresh. `--check-refs` (needs the `gh` CLI) guards ledger
 rot: cited `#N` refs must exist and a `deferred` row must cite a still-open
 ticket. Mechanical carries (maximumLength, prompts, field order) get no rows —
 the layout-fidelity gate (ADR-0012) verifies those at runtime. A `migrated-as`
 row is *delivered* only when a UI test asserts it — build tickets turn covered
-rows into acceptance criteria (see `to-issues`).
+rows into acceptance criteria (see `migration-to-issues`).
 
 ```bash
 python3 scripts/disposition_ledger.py spec.json \

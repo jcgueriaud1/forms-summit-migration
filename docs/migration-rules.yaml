@@ -176,7 +176,7 @@ classifiers:
 #     is new (unsaved), read-only once persisted — bind the read-only state to
 #     record-is-not-new (a state flip per record mode, never a component swap).
 # Collapsing insert-only to setReadOnly(true) or leaving it always-editable are
-# both fidelity losses (the v2 QUANTITY_SHIPPED leak); the disposition ledger
+# both fidelity losses; the disposition ledger
 # (ADR 0015) carries a property row for every editability flag the spec sets
 # to false, so the mode decision is always visible and gated.
 targets:

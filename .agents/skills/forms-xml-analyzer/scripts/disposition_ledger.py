@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""disposition_ledger: structural spec -> disposition ledger (the to-issues gate).
+"""disposition_ledger: structural spec -> disposition ledger (the migration-to-issues gate).
 
 The census proved nothing was dropped from the *spec*; this ledger proves
 nothing is dropped from the *migration* (ADR-0015). It emits one row per
 form object the spec inventories, PLUS one row per decision-prone mapped
 property (defaults, editability modes, visibility, value propagation) —
-the grain at which v2's silent losses happened. Every row must end in
+the grain at which silent losses happen. Every row must end in
 exactly one disposition before build tickets may be cut:
 
   migrated-as   built; `as` names the web behaviour, `ref` the ticket/PR

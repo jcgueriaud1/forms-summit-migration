@@ -60,15 +60,14 @@ unit tests; it cannot certify that the screen *behaves* and *reads* like Forms).
   `treatment` is `Refactor` / `Unsupported`, or that hit an `escalate` (e.g.
   `image-item-file-sourced`, a custom `ImplementationClass`) — these are "no clean
   1:1, a human must judge the result".
-- **Caution alerts / business rules** the spec surfaces (e.g. `PAYMENT_TYPE_ALERT`,
-  "This customer must pay cash!") — confirm the rule still fires and reads right.
+- **Caution alerts / business rules** the spec surfaces (the `alerts[]` entries
+  and their verbatim messages) — confirm each rule still fires and reads right.
 - **Absence claims** (standing check, ADR-0015): grep the built code's comments/
   javadoc for claims that Forms lacks something ("has no … trigger", "no defaults
   to apply", "Forms never …") and verify **each named element against the spec**.
   An absence claim that the spec contradicts is a defect — a confidently-worded
-  false negative tells the next reader not to look (the v2 `Order.blank()` case:
-  it claimed no `WHEN-CREATE-RECORD` existed; the spec had one). Claims without a
-  spec citation are findings even when true.
+  false negative tells the next reader not to look. Claims without a spec
+  citation are findings even when true.
 
 **Ticket body:** use the [careful-review template](TICKET-TEMPLATES.md#careful-review).
 State *what* to test, *why the AI can't self-certify it*, the concrete side-by-side
@@ -87,17 +86,17 @@ forward work*, never a silent drop.
 **Derive it from:**
 
 - The spec's `## Dependencies (out-of-slice surfaces — decide per item)` section —
-  each row is `status: undecided` by construction (the analyzer never decides). For
-  ORDERS that is `menu-module m_summit`, `called-form pick`, `attached-library
-  CALENDAR`, `object-library CALENDAR`.
+  each row is `status: undecided` by construction (the analyzer never decides):
+  menu modules, called sibling forms, attached/object libraries, and cross-form
+  contracts (`global-variable` / `parameter`).
 - `Unsupported`-target items that are not part of the current slice.
 - Referenced program units / sibling forms the slice does not implement.
 
 **Flow per surface — the human decides:**
 
 - **Defer** → draft a follow-up **issue** with `to-issues` (a bounded surface, e.g.
-  "attach the CALENDAR date-LOV") or a **PRD** with `to-prd` (a whole feature, e.g.
-  the `pick` product-picker form). Publish `ready-for-human` (or `ready-for-agent` if
+  an attached date-LOV library) or a **PRD** with `to-prd` (a whole feature, e.g. a
+  called picker form). Publish `ready-for-human` (or `ready-for-agent` if
   the maintainer judges it fully specified).
 - **Reject** → route to the existing rejection lane: write to `.out-of-scope/` and
   close, per `triage/OUT-OF-SCOPE.md`.
@@ -109,7 +108,7 @@ forward work*, never a silent drop.
 **What it is:** the PLAN.md generalizable-vs-specific sort applied **proactively at
 design time**. The ruleset derives some constructs *into a form's view* that are
 really **generic Oracle Forms affordances** — they belong in a **reusable layer**,
-not baked into `OrdersView`. This ticket lists those candidates and recommends the
+not baked into one form's view. This ticket lists those candidates and recommends the
 extraction; a human makes the final call.
 
 **Derive it from — generic-by-construction outputs:**
@@ -142,9 +141,9 @@ justification, and the explicit specific-by-default caveat.
 
 ## The ledger re-check (closing the loop)
 
-`to-issues` gated ticket generation on the disposition ledger (ADR-0015); this
-skill **re-checks it at review time**, when the build has happened and the truth
-may have drifted:
+`migration-to-issues` gated ticket generation on the disposition ledger
+(ADR-0015); this skill **re-checks it at review time**, when the build has
+happened and the truth may have drifted:
 
 ```bash
 python3 .agents/skills/forms-xml-analyzer/scripts/disposition_ledger.py \
