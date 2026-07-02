@@ -68,7 +68,7 @@ class OrderPresenterEditingTest {
         // The header lookups (issue #47) are not exercised here — a bare CustomerService suffices.
         CustomerService customerService = new CustomerService(null);
         OrderPresenter presenter = new OrderPresenter(orderService, productService, customerService);
-        presenter.select("Unisports", ORDER.id());
+        presenter.select(new OrderSearchCriteria("Unisports"), ORDER.id());
         return presenter;
     }
 

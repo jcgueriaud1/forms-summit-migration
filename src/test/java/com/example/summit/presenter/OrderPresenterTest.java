@@ -54,7 +54,7 @@ class OrderPresenterTest {
 
     @Test
     void selectFixesTheResultSetAndPositionsAtThePickedOrder() {
-        Optional<Order> loaded = presenter.select("term", 50002L);
+        Optional<Order> loaded = presenter.select(criteria("term"), 50002L);
 
         assertEquals(50002L, loaded.orElseThrow().id());
         // Record 2 of 3 — a middle record, so both ends are open.
@@ -66,7 +66,7 @@ class OrderPresenterTest {
 
     @Test
     void nextAndPreviousStepThroughTheResultSetLoadingEachOrder() {
-        presenter.select("term", 50001L);
+        presenter.select(criteria("term"), 50001L);
 
         assertEquals(50002L, presenter.next().orElseThrow().id());
         assertEquals(2, presenter.currentRecord());
@@ -78,7 +78,7 @@ class OrderPresenterTest {
 
     @Test
     void previousIsDisabledAndInertAtTheFirstRecord() {
-        presenter.select("term", 50001L);
+        presenter.select(criteria("term"), 50001L);
 
         assertFalse(presenter.hasPrevious());
         assertTrue(presenter.previous().isEmpty());
@@ -88,7 +88,7 @@ class OrderPresenterTest {
 
     @Test
     void nextIsDisabledAndInertAtTheLastRecord() {
-        presenter.select("term", 50003L);
+        presenter.select(criteria("term"), 50003L);
 
         assertFalse(presenter.hasNext());
         assertTrue(presenter.next().isEmpty());
@@ -97,7 +97,7 @@ class OrderPresenterTest {
 
     @Test
     void currentSummaryTracksThePagedRecordForTheSearchField() {
-        presenter.select("term", 50001L);
+        presenter.select(criteria("term"), 50001L);
         assertEquals(ORDER_A, presenter.currentSummary().orElseThrow());
 
         presenter.next();
@@ -106,7 +106,7 @@ class OrderPresenterTest {
 
     @Test
     void resetClearsThePositionSoThePagerHasNothingToWalk() {
-        presenter.select("term", 50002L);
+        presenter.select(criteria("term"), 50002L);
         presenter.reset();
 
         assertEquals(0, presenter.currentRecord());
@@ -129,11 +129,36 @@ class OrderPresenterTest {
     @Test
     void suggestDoesNotMutateTheWalkedResultSet() {
         // Typing in the autocomplete must not disturb a committed pager position.
-        presenter.select("term", 50002L);
-        presenter.suggest("unrelated");
+        presenter.select(criteria("term"), 50002L);
+        presenter.suggest(criteria("unrelated"));
 
         assertEquals(2, presenter.currentRecord());
         assertEquals(3, presenter.resultCount());
+    }
+
+    // ---- Advanced search: the Search button path (issue #43) ------------------------------------
+
+    @Test
+    void runSearchFixesTheResultSetAndLandsOnTheFirstMatch() {
+        // The advanced Search button commits criteria not driven by a picked suggestion: it fixes the
+        // result set the pager walks and lands on record 1 of 3.
+        Optional<Order> first = presenter.runSearch(criteria("Unisports"));
+
+        assertEquals(50001L, first.orElseThrow().id());
+        assertEquals(1, presenter.currentRecord());
+        assertEquals(3, presenter.resultCount());
+        assertFalse(presenter.hasPrevious());
+        assertTrue(presenter.hasNext());
+    }
+
+    @Test
+    void runSearchWithNoMatchesClearsThePositionAndReturnsEmpty() {
+        when(orderService.search(any(OrderSearchCriteria.class))).thenReturn(List.of());
+
+        assertTrue(presenter.runSearch(criteria("no-match")).isEmpty());
+        assertEquals(0, presenter.resultCount());
+        assertEquals(0, presenter.currentRecord());
+        assertFalse(presenter.hasNext());
     }
 
     // ---- Master-header editing lookups (issue #47) ----------------------------------------------
@@ -188,6 +213,10 @@ class OrderPresenterTest {
         presenter.delete(50001L);
 
         verify(orderService).delete(50001L);
+    }
+
+    private static OrderSearchCriteria criteria(String quickTerm) {
+        return new OrderSearchCriteria(quickTerm);
     }
 
     private static OrderSummary summary(long id) {

@@ -3,6 +3,7 @@ package com.example.summit.data;
 import com.example.summit.domain.Order;
 import com.example.summit.domain.OrderLine;
 import com.example.summit.domain.OrderSearchCriteria;
+import com.example.summit.domain.OrderSearchCriteria.OrderStatus;
 import com.example.summit.domain.OrderSummary;
 import org.junit.jupiter.api.Test;
 
@@ -143,5 +144,71 @@ class OrderRepositoryIT extends SummitDbIT {
         List<OrderSummary> matches = repository.findByCriteria(new OrderSearchCriteria("  "));
 
         assertEquals(List.of(50001L, 50002L, 50003L), matches.stream().map(OrderSummary::id).toList());
+    }
+
+    // ---- Advanced search: the QBE replacement (issue #43) --------------------------------------
+    // The seed: 50001 (Unisports/Magee, ordered 1992-08-31, CASH, filled), 50002 (Womansport/Giljum,
+    // 1992-09-01, CREDIT, unfilled), 50003 (Unisports/no rep, 1992-09-02, CASH, unfilled).
+
+    @Test
+    void findByCriteriaWithNoConstraintsAtAllReturnsAllOrders() {
+        List<OrderSummary> matches = repository.findByCriteria(
+                new OrderSearchCriteria(null, null, null, null, null, null, null));
+
+        assertEquals(List.of(50001L, 50002L, 50003L), ids(matches));
+    }
+
+    @Test
+    void findByCriteriaFiltersByPaymentType() {
+        List<OrderSummary> matches = repository.findByCriteria(
+                new OrderSearchCriteria("", null, null, "CREDIT", null, null, null));
+
+        // Only 50002 is a CREDIT order.
+        assertEquals(List.of(50002L), ids(matches));
+    }
+
+    @Test
+    void findByCriteriaFiltersByStatus() {
+        List<OrderSummary> filled = repository.findByCriteria(
+                new OrderSearchCriteria("", null, null, null, null, null, OrderStatus.FILLED));
+        assertEquals(List.of(50001L), ids(filled));
+
+        List<OrderSummary> unfilled = repository.findByCriteria(
+                new OrderSearchCriteria("", null, null, null, null, null, OrderStatus.UNFILLED));
+        assertEquals(List.of(50002L, 50003L), ids(unfilled));
+    }
+
+    @Test
+    void findByCriteriaFiltersByCustomerAndSalesRepContainsMatches() {
+        // Customer "sport" (case-insensitive contains) matches Unisports (50001, 50003) and Womansport
+        // (50002); adding the sales-rep "gil" narrows to Giljum's order alone (50002) — the AND.
+        assertEquals(List.of(50001L, 50002L, 50003L), ids(repository.findByCriteria(
+                new OrderSearchCriteria("", "sport", null, null, null, null, null))));
+        assertEquals(List.of(50002L), ids(repository.findByCriteria(
+                new OrderSearchCriteria("", "sport", "gil", null, null, null, null))));
+    }
+
+    @Test
+    void findByCriteriaAppliesTheOrderedDateRangeInclusively() {
+        // 50002 is ordered 1992-09-01, 50003 on 1992-09-02: a range with those exact bounds includes
+        // both (the >= / <= bounds are inclusive), while 50001 (1992-08-31) falls outside the lower bound.
+        List<OrderSummary> matches = repository.findByCriteria(new OrderSearchCriteria(
+                "", null, null, null, LocalDate.of(1992, 9, 1), LocalDate.of(1992, 9, 2), null));
+
+        assertEquals(List.of(50002L, 50003L), ids(matches));
+    }
+
+    @Test
+    void findByCriteriaCombinesTheQuickTermWithAdvancedFiltersViaAnd() {
+        // Quick "Unisports" matches 50001 and 50003; AND status=unfilled drops 50001 (filled), leaving
+        // 50003 — the precise narrowing the advanced panel exists for.
+        List<OrderSummary> matches = repository.findByCriteria(new OrderSearchCriteria(
+                "Unisports", null, null, null, null, null, OrderStatus.UNFILLED));
+
+        assertEquals(List.of(50003L), ids(matches));
+    }
+
+    private static List<Long> ids(List<OrderSummary> matches) {
+        return matches.stream().map(OrderSummary::id).toList();
     }
 }

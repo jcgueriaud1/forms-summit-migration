@@ -10,7 +10,9 @@ import org.springframework.stereotype.Repository;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -125,11 +127,13 @@ public class OrderRepository {
     }
 
     /**
-     * Returns the orders matching the quick-search criteria — the suggestions the
-     * autocomplete offers. {@link OrderSearchCriteria} decides what to match; this
-     * method renders that decision as SQL. Customer and sales-rep names are joined so
-     * the term can match them and each suggestion can display them, capped at
-     * {@value #MAX_SUGGESTIONS} rows.
+     * Returns the orders matching the search criteria — the result set the search commits and the
+     * autocomplete draws its suggestions from. {@link OrderSearchCriteria} decides what to match; this
+     * method renders that decision as SQL (issue #43). The quick term is an OR group over order id /
+     * customer / sales rep; each set advanced filter (customer, sales rep, payment type, ordered-date
+     * range, status) is an additional constraint, and the quick group and every advanced filter combine
+     * with <strong>AND</strong>. Customer and sales-rep names are joined so the term can match them and
+     * each suggestion can display them, capped at {@value #MAX_SUGGESTIONS} rows.
      */
     public List<OrderSummary> findByCriteria(OrderSearchCriteria criteria) {
         StringBuilder sql = new StringBuilder("""
@@ -139,24 +143,57 @@ public class OrderRepository {
                 LEFT JOIN s_emp e ON e.id = o.sales_rep_id
                 """);
 
-        boolean matchOrderId = criteria.orderId().isPresent();
-        if (!criteria.isEmpty()) {
-            List<String> predicates = new ArrayList<>(List.of(
-                    "UPPER(c.name) LIKE :pattern",
-                    "UPPER(e.last_name) LIKE :pattern"));
-            if (matchOrderId) {
-                predicates.add("o.id = :orderId");
-            }
-            sql.append("WHERE ").append(String.join(" OR ", predicates)).append('\n');
+        // Each entry pairs its AND-combined SQL predicate with the params it binds, so the WHERE clause
+        // and its parameters are assembled together and stay in lockstep.
+        List<String> predicates = new ArrayList<>();
+        Map<String, Object> params = new HashMap<>();
+
+        if (criteria.hasQuickTerm()) {
+            // The quick group is itself an OR over id / customer / sales rep, parenthesised so it ANDs
+            // as one unit with the advanced filters.
+            List<String> quick = new ArrayList<>(List.of(
+                    "UPPER(c.name) LIKE :quick",
+                    "UPPER(e.last_name) LIKE :quick"));
+            params.put("quick", criteria.namePattern());
+            criteria.orderId().ifPresent(id -> {
+                quick.add("o.id = :quickId");
+                params.put("quickId", id);
+            });
+            predicates.add("(" + String.join(" OR ", quick) + ")");
+        }
+        criteria.customerPattern().ifPresent(pattern -> {
+            predicates.add("UPPER(c.name) LIKE :customer");
+            params.put("customer", pattern);
+        });
+        criteria.salesRepPattern().ifPresent(pattern -> {
+            predicates.add("UPPER(e.last_name) LIKE :salesRep");
+            params.put("salesRep", pattern);
+        });
+        if (criteria.hasPaymentType()) {
+            predicates.add("o.payment_type = :paymentType");
+            params.put("paymentType", criteria.paymentType());
+        }
+        if (criteria.orderedFrom() != null) {
+            predicates.add("o.date_ordered >= :orderedFrom");
+            params.put("orderedFrom", criteria.orderedFrom());
+        }
+        if (criteria.orderedTo() != null) {
+            predicates.add("o.date_ordered <= :orderedTo");
+            params.put("orderedTo", criteria.orderedTo());
+        }
+        if (criteria.status() != null) {
+            predicates.add("o.order_filled = :status");
+            params.put("status", criteria.status().flag());
+        }
+
+        if (!predicates.isEmpty()) {
+            sql.append("WHERE ").append(String.join(" AND ", predicates)).append('\n');
         }
         sql.append("ORDER BY o.id FETCH FIRST ").append(MAX_SUGGESTIONS).append(" ROWS ONLY");
 
         JdbcClient.StatementSpec spec = jdbcClient.sql(sql.toString());
-        if (!criteria.isEmpty()) {
-            spec = spec.param("pattern", criteria.namePattern());
-            if (matchOrderId) {
-                spec = spec.param("orderId", criteria.orderId().getAsLong());
-            }
+        for (Map.Entry<String, Object> param : params.entrySet()) {
+            spec = spec.param(param.getKey(), param.getValue());
         }
         return spec
                 .query((rs, rowNum) -> new OrderSummary(

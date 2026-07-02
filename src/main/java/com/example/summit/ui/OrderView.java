@@ -3,6 +3,8 @@ package com.example.summit.ui;
 import com.example.summit.domain.CascadeDeleteBlockedException;
 import com.example.summit.domain.CustomerHeader;
 import com.example.summit.domain.Order;
+import com.example.summit.domain.OrderSearchCriteria;
+import com.example.summit.domain.OrderSearchCriteria.OrderStatus;
 import com.example.summit.domain.OrderSummary;
 import com.example.summit.domain.Product;
 import com.example.summit.presenter.EditableHeader;
@@ -16,6 +18,7 @@ import com.vaadin.flow.component.checkbox.Checkbox;
 import com.vaadin.flow.component.combobox.ComboBox;
 import com.vaadin.flow.component.confirmdialog.ConfirmDialog;
 import com.vaadin.flow.component.datepicker.DatePicker;
+import com.vaadin.flow.component.details.Details;
 import com.vaadin.flow.component.formlayout.FormLayout;
 import com.vaadin.flow.component.grid.Grid;
 import com.vaadin.flow.component.grid.ColumnTextAlign;
@@ -63,6 +66,13 @@ import java.util.Optional;
  * are hoisted into the surrounding layout. Its {@code PRODUCT_LOV_BUTTON} is dissolved into
  * the line's product {@link ComboBox} itself — the LOV is the field, not a separate popup
  * button (issue #46). Its other buttons (stock, image, help, exit) remain out of this slice.
+ *
+ * <p><strong>Search: quick + advanced (issue #43).</strong> The quick {@link ComboBox} matches order id
+ * / customer / sales rep with autocomplete; a collapsible {@link Details} "Advanced search" panel adds
+ * the QBE (Enter-Query) replacement — customer and sales-rep contains-matches, payment type, an inclusive
+ * ordered-date range, and status. Advanced filters combine with the quick term via <strong>AND</strong>,
+ * and a <em>Clear</em> action resets both. The pure {@link OrderSearchCriteria} owns the term → match
+ * translation; the view only gathers the fields and hands them over (View &larr; Presenter &larr; Service).
  *
  * <p><strong>Structural layout fidelity (ADR-0012, {@code graphicsClassifiers}).</strong>
  * Structure is migrated even though visual styling is dropped (ADR-0008):
@@ -162,6 +172,21 @@ public class OrderView extends VerticalLayout {
     private final Button deleteOrder = new Button("Delete order");
     private final HorizontalLayout orderActions = new HorizontalLayout(newOrder, duplicateOrder, deleteOrder);
     private final ComboBox<OrderSummary> search = new ComboBox<>("Find order");
+    // The advanced-search panel (issue #43) — the QBE (Enter-Query) replacement. A collapsible Details
+    // exposing the multi-field filters that combine with the quick term via AND: customer / sales-rep
+    // contains-matches, payment type, ordered-date range, and status. Search commits the criteria into
+    // the pager's result set; Clear resets both quick and advanced criteria for a fresh lookup.
+    // Labels stay clear of the read-only header fields' labels ("Customer Name", "Payment Type", …) so
+    // the two never collide — including for label-based UI-test locators once the panel is expanded.
+    private final TextField advCustomer = new TextField("Customer");
+    private final TextField advSalesRep = new TextField("Sales rep");
+    private final ComboBox<String> advPaymentType = new ComboBox<>("Payment");
+    private final DatePicker advOrderedFrom = new DatePicker("Ordered from");
+    private final DatePicker advOrderedTo = new DatePicker("Ordered to");
+    private final ComboBox<OrderStatus> advStatus = new ComboBox<>("Status");
+    private final Button searchButton = new Button("Search");
+    private final Button clearButton = new Button("Clear");
+    private final Details advancedSearch = new Details();
     // Prev/next pager (issue #42) — the record-scrollbar replacement. Position lives in the
     // presenter; these controls render "record N of M" and disable at the result-set ends.
     private final Button previousButton = new Button("Previous");
@@ -214,6 +239,7 @@ public class OrderView extends VerticalLayout {
         this.presenter = presenter;
 
         buildToolbar();
+        buildAdvancedSearch();
         buildOrderActions();
         buildHeader();
         buildLineItems();
@@ -224,7 +250,7 @@ public class OrderView extends VerticalLayout {
         updatePager();
         updateOrderActions();
 
-        add(toolbar, orderActions, emptyHint, orderId, orderInformationSection, itemsSection);
+        add(toolbar, advancedSearch, orderActions, emptyHint, orderId, orderInformationSection, itemsSection);
     }
 
     /**
@@ -401,8 +427,10 @@ public class OrderView extends VerticalLayout {
         // every suggestion and any later page is empty. The filter is captured so that
         // committing a pick can re-run the same search into the pager's result set.
         search.setItems(query -> {
+            // Suggestions honor the advanced filters too (issue #43): the quick term is narrowed by
+            // whatever the panel has set, so the autocomplete list is already the AND-combined result.
             quickTerm = query.getFilter().orElse("");
-            return presenter.suggest(quickTerm).stream()
+            return presenter.suggest(currentCriteria(quickTerm)).stream()
                     .skip(query.getOffset())
                     .limit(query.getLimit());
         });
@@ -415,12 +443,111 @@ public class OrderView extends VerticalLayout {
             if (picked == null) {
                 clearHeader();
             } else {
-                // Commit the search: the picked term fixes the result set the pager walks,
-                // positioned at the picked order (reuses the single-order load path).
-                presenter.select(quickTerm, picked.id()).ifPresent(this::showOrder);
+                // Commit the search: the quick term and any advanced filters fix the result set the
+                // pager walks, positioned at the picked order (reuses the single-order load path).
+                presenter.select(currentCriteria(quickTerm), picked.id()).ifPresent(this::showOrder);
             }
             updatePager();
         });
+    }
+
+    /**
+     * The advanced-search panel (issue #43) — the QBE (Enter-Query) replacement. A collapsible
+     * {@link Details} exposing the multi-field filters that combine with the quick term via AND. It is
+     * <em>curated</em>, not arbitrary QBE (the honest loss the PRD records): customer and sales-rep
+     * <em>contains</em>-matches, an exact payment type, an inclusive ordered-date range, and the order
+     * status. <em>Search</em> commits the criteria into the pager's result set and lands on the first
+     * match; <em>Clear</em> resets both the quick term and every advanced field for a fresh lookup.
+     */
+    private void buildAdvancedSearch() {
+        advCustomer.setId("order-adv-customer");
+        advCustomer.setPlaceholder("contains…");
+        advSalesRep.setId("order-adv-sales-rep");
+        advSalesRep.setPlaceholder("contains…");
+
+        // Payment type / status are small fixed choices with an "Any" (unset) option — a clearable
+        // ComboBox, showing the Forms labels over the S_ORD codes.
+        advPaymentType.setId("order-adv-payment");
+        advPaymentType.setItems(PAYMENT_TYPES);
+        advPaymentType.setItemLabelGenerator(OrderView::paymentTypeLabel);
+        advPaymentType.setPlaceholder("Any");
+        advPaymentType.setClearButtonVisible(true);
+
+        advStatus.setId("order-adv-status");
+        advStatus.setItems(OrderStatus.values());
+        advStatus.setItemLabelGenerator(OrderView::statusLabel);
+        advStatus.setPlaceholder("Any");
+        advStatus.setClearButtonVisible(true);
+
+        advOrderedFrom.setId("order-adv-from");
+        advOrderedTo.setId("order-adv-to");
+
+        FormLayout fields = new FormLayout(
+                advCustomer, advSalesRep, advPaymentType, advOrderedFrom, advOrderedTo, advStatus);
+
+        searchButton.setId("order-search");
+        searchButton.addClickListener(event -> runAdvancedSearch());
+        clearButton.setId("order-clear");
+        clearButton.addClickListener(event -> clearSearch());
+        HorizontalLayout actions = new HorizontalLayout(searchButton, clearButton);
+        actions.setPadding(false);
+
+        advancedSearch.setId("order-advanced-search");
+        advancedSearch.setSummaryText("Advanced search");
+        advancedSearch.add(fields, actions);
+    }
+
+    /**
+     * Assembles the current {@link OrderSearchCriteria} — the quick term the ComboBox last fetched with
+     * plus every advanced filter the panel has set. An unset ComboBox / cleared field is {@code null},
+     * which the pure value object normalizes to "no constraint", so the criteria carry only what the
+     * clerk actually entered (issue #43).
+     */
+    private OrderSearchCriteria currentCriteria(String quick) {
+        return new OrderSearchCriteria(
+                quick,
+                advCustomer.getValue(),
+                advSalesRep.getValue(),
+                advPaymentType.getValue(),
+                advOrderedFrom.getValue(),
+                advOrderedTo.getValue(),
+                advStatus.getValue());
+    }
+
+    /**
+     * Commits the advanced search from the Search button (issue #43): runs the criteria into the pager's
+     * result set and lands on the first match, reflecting it in the search field so prev/next can walk
+     * the rest. When nothing matches, it returns to the empty state with a notice, leaving the entered
+     * criteria in place so the clerk can adjust them.
+     */
+    private void runAdvancedSearch() {
+        Optional<Order> first = presenter.runSearch(currentCriteria(quickTerm));
+        if (first.isEmpty()) {
+            clearSearchSelection();
+            clearHeader();
+            Notification.show("No orders match the search.");
+            return;
+        }
+        showOrder(first.get());
+        syncSearchSelection();
+        updatePager();
+    }
+
+    /**
+     * The Clear action (issue #43): resets both the quick term and every advanced filter to start a
+     * fresh lookup, then returns to the empty state. Clearing the fields fires no search — only Search,
+     * a pick, or a pager step commits — so the reset is a single quiet return to the empty state.
+     */
+    private void clearSearch() {
+        quickTerm = "";
+        advCustomer.clear();
+        advSalesRep.clear();
+        advPaymentType.clear();
+        advOrderedFrom.clear();
+        advOrderedTo.clear();
+        advStatus.clear();
+        clearSearchSelection();
+        clearHeader();
     }
 
     /**
@@ -951,6 +1078,14 @@ public class OrderView extends VerticalLayout {
             case "CASH" -> "Cash";
             case "CREDIT" -> "Credit";
             default -> code;
+        };
+    }
+
+    /** The advanced status filter's labels — the Forms Y/N flag as the clerk reads it. */
+    private static String statusLabel(OrderStatus status) {
+        return switch (status) {
+            case FILLED -> "Filled";
+            case UNFILLED -> "Open";
         };
     }
 
