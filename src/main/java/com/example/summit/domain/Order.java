@@ -54,6 +54,37 @@ public record Order(
     }
 
     /**
+     * A blank, never-persisted order — the <strong>new-item factory</strong> behind the master's
+     * <em>New order</em> record action (issue #49, {@code blockActionClassifiers} {@code block-action-create}).
+     * {@code S_ORD} has no {@code WHEN-CREATE-RECORD} / {@code WHEN-NEW-RECORD-INSTANCE} trigger, so there
+     * are no defaults to apply: every field starts empty. The id is unassigned ({@link #isNew()} → the
+     * commit draws it from {@code S_ORD_ID.nextval} and inserts), the payment type defaults to {@code CASH}
+     * — the neutral option of the {@code S_ORD.PAYMENT_TYPE} CHECK domain that the credit guard also falls
+     * back to, so a new order carries a value the DB accepts — and the line list is empty for the clerk to
+     * fill.
+     */
+    public static Order blank() {
+        return new Order(0L, 0L, null, null, null, null, null, "CASH", false, 0L, List.of());
+    }
+
+    /**
+     * A copy of this order prepared to insert as a <em>new</em> {@code S_ORD} — the pure encoding of the
+     * Forms {@code KEY-DUPREC} clear-list for the master block (issue #49, {@code blockActionClassifiers}
+     * {@code block-action-duplicate}), the header counterpart of {@link OrderLine#duplicateForInsert()}.
+     * The <em>Duplicate order</em> record action clones the loaded order, then clears exactly the identity
+     * the copy must not carry so it commits as an insert rather than colliding with the original: the
+     * {@code id} (reassigned from {@code S_ORD_ID.nextval} on commit, {@link #isNew()} → true) and its
+     * {@code ORA_ROWSCN} lock token (reset to {@code 0} — a new row has no version yet). Every other header
+     * field <em>and the line items</em> are carried over — they are what the clerk is duplicating. {@code S_ORD}
+     * has no {@code KEY-DUPREC} trigger, so the clear-list is the identity only ({@code migration-rules.yaml}
+     * {@code block-action-duplicate}: "absent it, clear the PK / identity only").
+     */
+    public Order duplicateForInsert() {
+        return new Order(0L, customerId, customerName, dateOrdered, dateShipped,
+                salesRepId, salesRepName, paymentType, orderFilled, 0L, lines);
+    }
+
+    /**
      * A copy of this order carrying a freshly assigned id — the {@code S_ORD} {@code PRE-INSERT}
      * ({@code S_ORD_ID.nextval}, issue #48): a new order builds its header with the sequence value
      * before the insert, leaving every other field (and the lines) untouched.

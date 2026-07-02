@@ -14,6 +14,7 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -97,6 +98,37 @@ class OrderServiceIT extends SummitDbIT {
             assertEquals(0, new BigDecimal("380.00").compareTo(reloaded.total()));
         } finally {
             deleteOrderGraph(newId);
+        }
+    }
+
+    @Test
+    void duplicatingAnOrderInsertsACopyWithAFreshIdAndLeavesTheOriginal() {
+        // The master Duplicate order action (issue #49): seed an order, clone it through the Domain
+        // KEY-DUPREC clear-list, and commit — the copy inserts under a fresh S_ORD_ID.nextval id
+        // carrying the lines, and the original survives untouched (no overwrite).
+        Order seeded = assertInstanceOf(SaveResult.Committed.class, service.save(newOrder(
+                new OrderLine(1, 41010, "Ski Boots", new BigDecimal("50.00"), 5, 5),   // 250
+                new OrderLine(2, 20108, "Ski Pole", new BigDecimal("13.00"), 10, 10)))).order(); // 130
+        long originalId = seeded.id();
+        long copyId = 0;
+        try {
+            Order copy = seeded.duplicateForInsert();
+            assertTrue(copy.isNew(), "the duplicate must be a new (unsaved) order so it inserts");
+
+            Order saved = assertInstanceOf(SaveResult.Committed.class, service.save(copy)).order();
+            copyId = saved.id();
+
+            // A fresh id from the sequence, distinct from the original — an insert, not an overwrite.
+            assertTrue(copyId >= 100000, "duplicated order id should come from S_ORD_ID.nextval, was " + copyId);
+            assertNotEquals(originalId, copyId);
+            // The copy carries the duplicated lines and total...
+            assertEquals(List.of(1L, 2L), saved.lines().stream().map(OrderLine::itemId).toList());
+            assertEquals(0, new BigDecimal("380.00").compareTo(saved.total()));
+            // ...and the original order is still there, unchanged.
+            assertEquals(2, repository.loadGraph(originalId).orElseThrow().lines().size());
+        } finally {
+            deleteOrderGraph(copyId);
+            deleteOrderGraph(originalId);
         }
     }
 

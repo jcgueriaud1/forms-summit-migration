@@ -8,6 +8,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -127,6 +128,60 @@ class OrderTest {
     @Test
     void hasLineItemsIsFalseForAnEmptyOrder() {
         assertFalse(orderWith().hasLineItems());
+    }
+
+    // ---- blank / duplicateForInsert: the master record-action factories (issue #49) -------------
+
+    @Test
+    void blankOrderIsNewAndEmpty() {
+        // The New order factory: no WHEN-CREATE-RECORD defaults for S_ORD, so every field starts empty —
+        // an unassigned id (commits via S_ORD_ID.nextval), CASH payment, no rep, no customer, no lines.
+        Order blank = Order.blank();
+
+        assertTrue(blank.isNew());
+        assertEquals(0L, blank.customerId());
+        assertEquals("CASH", blank.paymentType());
+        assertFalse(blank.orderFilled());
+        assertNull(blank.salesRepId());
+        assertTrue(blank.lines().isEmpty());
+        assertEquals(0L, blank.scn());
+    }
+
+    @Test
+    void duplicateForInsertClearsTheIdentitySoItCommitsAsAnInsert() {
+        // The KEY-DUPREC clear-list for the master block: null the id and the scn so the copy inserts
+        // (drawing a fresh id from S_ORD_ID.nextval) rather than colliding with / overwriting the original.
+        Order loaded = new Order(50001, 201, "Unisports", LocalDate.of(1992, 8, 31),
+                LocalDate.of(1992, 9, 10), 1L, "Magee", "CREDIT", true, 12345L,
+                List.of(new OrderLine(1, 41010, "Ski Boots", new BigDecimal("50.00"), 5, 5)));
+
+        Order copy = loaded.duplicateForInsert();
+
+        // Identity cleared...
+        assertTrue(copy.isNew());
+        assertEquals(0L, copy.id());
+        assertEquals(0L, copy.scn());
+    }
+
+    @Test
+    void duplicateForInsertCarriesEveryOtherFieldAndTheLines() {
+        // "Clone the loaded order" — S_ORD has no KEY-DUPREC trigger, so only the identity is cleared;
+        // every other header field and the line items are carried over (they are what is duplicated).
+        OrderLine boots = new OrderLine(1, 41010, "Ski Boots", new BigDecimal("50.00"), 5, 5);
+        Order loaded = new Order(50001, 201, "Unisports", LocalDate.of(1992, 8, 31),
+                LocalDate.of(1992, 9, 10), 1L, "Magee", "CREDIT", true, 12345L, List.of(boots));
+
+        Order copy = loaded.duplicateForInsert();
+
+        assertEquals(201L, copy.customerId());
+        assertEquals("Unisports", copy.customerName());
+        assertEquals(LocalDate.of(1992, 8, 31), copy.dateOrdered());
+        assertEquals(LocalDate.of(1992, 9, 10), copy.dateShipped());
+        assertEquals(1L, copy.salesRepId());
+        assertEquals("Magee", copy.salesRepName());
+        assertEquals("CREDIT", copy.paymentType());
+        assertTrue(copy.orderFilled());
+        assertEquals(List.of(boots), copy.lines());
     }
 
     private static Order orderWith(OrderLine... lines) {
