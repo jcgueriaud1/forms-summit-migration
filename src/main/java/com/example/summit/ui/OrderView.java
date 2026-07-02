@@ -1,5 +1,6 @@
 package com.example.summit.ui;
 
+import com.example.summit.domain.CascadeDeleteBlockedException;
 import com.example.summit.domain.CustomerHeader;
 import com.example.summit.domain.Order;
 import com.example.summit.domain.OrderSummary;
@@ -101,6 +102,17 @@ import java.util.Optional;
  * — a ship date before the order date is flagged invalid. Persisting these edits is the commit slice's
  * job (#48); this slice keeps the header editing in memory.
  *
+ * <p><strong>Master record actions (issue #49).</strong> The master's block toolbar carries the
+ * {@code S_ORD} record-action family derived from its CRUD capability ({@code blockActionClassifiers}),
+ * not from a KEY-* trigger: <em>New order</em> opens a blank editable order (the new-item factory),
+ * <em>Duplicate order</em> clones the order in hand through the Domain {@code KEY-DUPREC} clear-list
+ * ({@link Order#duplicateForInsert()}) into a new unsaved order, and <em>Delete order</em> removes it
+ * after a {@link ConfirmDialog} (the {@code KEY-DELREC} caution alert). Delete <em>composes with the
+ * relation delete policy</em>: the {@code S_ORD_S_ITEM} relation is Non-Isolated, so the action is
+ * disabled with an explanatory tooltip while line items exist and only proceeds for a childless order —
+ * the {@code delete-cascade-guard} the Service also enforces. New and duplicated orders commit as inserts
+ * through the same whole-graph {@link OrderPresenter#commit} path (#48).
+ *
  * <p>Visual styling is the Aura theme's (ADR-0008): the frame borders/fills are dropped
  * and re-expressed through the shared {@code .panel} treatment; no Lumo utilities or
  * {@code --lumo-*} properties are used. The view holds no SQL — it talks only to the
@@ -140,6 +152,15 @@ public class OrderView extends VerticalLayout {
     private boolean syncingHeader = false;
 
     private final HorizontalLayout toolbar = new HorizontalLayout();
+    // Master record actions (issue #49), derived from S_ORD.crud not from a KEY-* trigger
+    // (blockActionClassifiers): New opens a blank editable order (the new-item factory), Duplicate
+    // clones the order in hand via the Domain KEY-DUPREC clear-list, Delete removes it after a confirm.
+    // They live in the master's block toolbar; New is always available, Duplicate needs an order in hand,
+    // and Delete is disabled while line items exist (the Non-Isolated delete-cascade-guard).
+    private final Button newOrder = new Button("New order");
+    private final Button duplicateOrder = new Button("Duplicate order");
+    private final Button deleteOrder = new Button("Delete order");
+    private final HorizontalLayout orderActions = new HorizontalLayout(newOrder, duplicateOrder, deleteOrder);
     private final ComboBox<OrderSummary> search = new ComboBox<>("Find order");
     // Prev/next pager (issue #42) — the record-scrollbar replacement. Position lives in the
     // presenter; these controls render "record N of M" and disable at the result-set ends.
@@ -193,6 +214,7 @@ public class OrderView extends VerticalLayout {
         this.presenter = presenter;
 
         buildToolbar();
+        buildOrderActions();
         buildHeader();
         buildLineItems();
         buildSections();
@@ -200,8 +222,9 @@ public class OrderView extends VerticalLayout {
         // The loaded-order regions stay hidden until a suggestion is picked.
         setOrderVisible(false);
         updatePager();
+        updateOrderActions();
 
-        add(toolbar, emptyHint, orderId, orderInformationSection, itemsSection);
+        add(toolbar, orderActions, emptyHint, orderId, orderInformationSection, itemsSection);
     }
 
     /**
@@ -257,6 +280,114 @@ public class OrderView extends VerticalLayout {
                     "This order was changed by someone else since you loaded it. "
                             + "Reload it to see the latest, then re-apply your changes.");
             case SaveResult.Invalid invalid -> Notification.show(invalid.message());
+        }
+    }
+
+    /**
+     * The master record actions (issue #49), derived from {@code S_ORD.crud} not from a KEY-* trigger
+     * ({@code blockActionClassifiers}). They sit in the master's block toolbar, always on screen so
+     * <em>New order</em> is reachable from the empty state; {@link #updateOrderActions()} keeps the
+     * Duplicate/Delete affordances in step with what is loaded.
+     */
+    private void buildOrderActions() {
+        newOrder.setId("order-new");
+        newOrder.addClickListener(event -> startNewOrder());
+
+        duplicateOrder.setId("order-duplicate");
+        duplicateOrder.addClickListener(event -> duplicateCurrentOrder());
+
+        deleteOrder.setId("order-delete");
+        deleteOrder.addClickListener(event -> confirmDeleteOrder());
+
+        orderActions.setPadding(false);
+    }
+
+    /**
+     * Enables/disables the master record actions for the current state (issue #49). <em>New order</em> is
+     * always available — you can always start a fresh order. <em>Duplicate order</em> needs an order in
+     * hand. <em>Delete order</em> needs a <em>persisted</em> order (an unsaved New/Duplicate has nothing to
+     * delete) that is also <em>childless</em>: while line items exist the delete is disabled with a tooltip
+     * saying why, the {@code S_ORD_S_ITEM} Non-Isolated {@code delete-cascade-guard} surfaced in the UI (the
+     * Service vetoes it defensively too).
+     */
+    private void updateOrderActions() {
+        boolean editing = header != null;
+        duplicateOrder.setEnabled(editing);
+        boolean persisted = editing && header.getId() != 0;
+        boolean childless = presenter.editableLines().isEmpty();
+        deleteOrder.setEnabled(persisted && childless);
+        deleteOrder.setTooltipText(persisted && !childless
+                ? "Remove all line items before deleting this order."
+                : null);
+    }
+
+    /** Opens a blank editable order from the new-item factory and drops any stale search selection. */
+    private void startNewOrder() {
+        showOrder(presenter.newOrder());
+        clearSearchSelection();
+        updatePager();
+        customerId.focus();
+    }
+
+    /**
+     * Clones the order in hand (its header edits + working lines) into a new, unsaved editable order via
+     * the Domain {@code KEY-DUPREC} clear-list, then shows it for review before Commit inserts it.
+     */
+    private void duplicateCurrentOrder() {
+        if (header == null) {
+            return;
+        }
+        showOrder(presenter.duplicateOrder(header));
+        clearSearchSelection();
+        updatePager();
+        Notification.show("Duplicated order — review and Commit to save it as a new order.");
+    }
+
+    /**
+     * The {@code KEY-DELREC} caution alert as a {@link ConfirmDialog} ("Do you want to delete this
+     * order?") — a destructive master action warrants a confirm on the web. Confirming routes to the
+     * Service delete path.
+     */
+    private void confirmDeleteOrder() {
+        if (header == null || header.getId() == 0) {
+            return;
+        }
+        ConfirmDialog dialog = new ConfirmDialog();
+        dialog.setHeader("Delete order");
+        dialog.setText("Do you want to delete this order?");
+        dialog.setCancelable(true);
+        dialog.setCancelText("No");
+        dialog.setConfirmText("Yes");
+        dialog.addConfirmListener(event -> deleteCurrentOrder());
+        dialog.open();
+    }
+
+    /**
+     * Deletes the loaded order through the presenter's Service path, then returns to the empty state. The
+     * {@code S_ORD_S_ITEM} Non-Isolated guard is enforced in the Service ({@code delete-cascade-guard}); a
+     * veto ({@link CascadeDeleteBlockedException}) is turned into a clear message rather than a crash, so
+     * the guard holds even if the disabled button is somehow bypassed.
+     */
+    private void deleteCurrentOrder() {
+        long id = header.getId();
+        try {
+            presenter.delete(id);
+        } catch (CascadeDeleteBlockedException blocked) {
+            Notification.show(blocked.getMessage());
+            return;
+        }
+        Notification.show("Order #" + id + " deleted.");
+        clearSearchSelection();
+        clearHeader();
+    }
+
+    /** Clears the search field's selection without letting its listener re-commit a search or reset. */
+    private void clearSearchSelection() {
+        syncingSelection = true;
+        try {
+            search.clear();
+        } finally {
+            syncingSelection = false;
         }
     }
 
@@ -746,6 +877,8 @@ public class OrderView extends VerticalLayout {
         EditableLine line = presenter.addLine();
         lineItems.getDataProvider().refreshAll();
         refreshOrderTotal();
+        // A line now exists, so the Non-Isolated guard disables Delete order (issue #49).
+        updateOrderActions();
         lineItems.getEditor().editItem(line);
     }
 
@@ -758,6 +891,7 @@ public class OrderView extends VerticalLayout {
         EditableLine copy = presenter.duplicateLine(selected);
         lineItems.getDataProvider().refreshAll();
         refreshOrderTotal();
+        updateOrderActions();
         lineItems.getEditor().editItem(copy);
     }
 
@@ -789,6 +923,8 @@ public class OrderView extends VerticalLayout {
         lineItems.deselectAll();
         lineItems.getDataProvider().refreshAll();
         refreshOrderTotal();
+        // Removing the last line makes a persisted order childless, so Delete order re-enables (issue #49).
+        updateOrderActions();
     }
 
     /**
@@ -825,8 +961,10 @@ public class OrderView extends VerticalLayout {
         syncingHeader = true;
         try {
             header = new EditableHeader(order);
-            orderId.setValue(String.valueOf(order.id()));
-            customerId.setValue(String.valueOf(order.customerId()));
+            // A new (unsaved) order has no id yet — it is drawn from S_ORD_ID.nextval on commit — and a
+            // blank order has no customer yet, so both show empty rather than a bare "0" (issue #49).
+            orderId.setValue(order.isNew() ? "" : String.valueOf(order.id()));
+            customerId.setValue(order.customerId() == 0 ? "" : String.valueOf(order.customerId()));
             customerId.setInvalid(false);
             salesRepId.setValue(order.salesRepId() == null ? "" : String.valueOf(order.salesRepId()));
             customerName.setValue(nullSafe(order.customerName()));
@@ -847,6 +985,7 @@ public class OrderView extends VerticalLayout {
 
         emptyHint.setVisible(false);
         setOrderVisible(true);
+        updateOrderActions();
     }
 
     private void clearHeader() {
@@ -865,6 +1004,8 @@ public class OrderView extends VerticalLayout {
         setOrderVisible(false);
         lineItems.setItems(List.of());
         emptyHint.setVisible(true);
+        updatePager();
+        updateOrderActions();
     }
 
     /** Shows or hides the loaded-order regions (Order Id + both frame sections) and the Commit action

@@ -478,4 +478,79 @@ public class OrderViewIT extends OracleSpringPlaywrightIT {
         TextFieldElement.getByLabel(page, "Sales Rep Name").assertValue("");
         CheckboxElement.getByLabel(page, "Order Filled").assertNotChecked();
     }
+
+    // ---- Master record actions: New / Duplicate / Delete order (issue #49) ----------------------
+    // The S_ORD master gains its record-action family, derived from the block's crud capability
+    // (blockActionClassifiers), not from a KEY-* trigger: New opens a blank editable order, Duplicate
+    // clones the loaded one as an unsaved insert (KEY-DUPREC clear-list), and Delete confirms then removes
+    // it — composed with the Non-Isolated delete-cascade-guard (disabled while line items exist). The
+    // actual insert/delete persistence is proven against the DB in OrderServiceIT; these assert the UI.
+
+    @Test
+    public void testNewOrderOpensABlankEditableOrder() {
+        // New order is reachable straight from the empty state (no search) — the new-item factory.
+        ButtonElement.getByText(page, "New order").click();
+
+        // A blank editable order: no id yet (drawn from S_ORD_ID.nextval on commit), no customer, no
+        // lines, zero total — the clerk fills it in and commits.
+        TextFieldElement.getByLabel(page, "Order Id").assertValue("");
+        TextFieldElement.getByLabel(page, "Customer Id").assertValue("");
+        GridElement grid = GridElement.get(page);
+        page.waitForCondition(() -> grid.getTotalRowCount() == 0);
+        assertThat(page.locator("#order-total")).hasText("0.00");
+
+        // A brand-new, unsaved order has nothing to delete — Delete order stays disabled.
+        assertThat(ButtonElement.getByText(page, "Delete order").getLocator()).isDisabled();
+    }
+
+    @Test
+    public void testDuplicateOrderClonesTheLoadedOrderAsAnUnsavedInsert() {
+        ComboBoxElement search = ComboBoxElement.getByLabel(page, "Find order");
+        search.filterAndSelectItem("50001", "#50001 — Unisports (Magee)");
+        TextFieldElement.getByLabel(page, "Order Id").assertValue("50001");
+        GridElement grid = GridElement.get(page);
+        assertEquals(2, grid.getTotalRowCount());
+
+        // Duplicate: the KEY-DUPREC clear-list clones the order into a new, unsaved one.
+        ButtonElement.getByText(page, "Duplicate order").click();
+
+        // The id clears (it commits as an insert), but the customer and the two lines are carried over
+        // for the clerk to review before Commit.
+        TextFieldElement.getByLabel(page, "Order Id").assertValue("");
+        TextFieldElement.getByLabel(page, "Customer Id").assertValue("201");
+        page.waitForCondition(() -> grid.getTotalRowCount() == 2);
+        assertThat(page.getByText("Duplicated order", new Page.GetByTextOptions().setExact(false)))
+                .isVisible();
+    }
+
+    @Test
+    public void testDeleteOrderIsDisabledWhileLineItemsExist() {
+        ComboBoxElement search = ComboBoxElement.getByLabel(page, "Find order");
+        // 50001 has two S_ITEM lines — the Non-Isolated delete-cascade-guard vetoes the master delete,
+        // surfaced as a disabled Delete order button (S_ITEM detail rows can never be orphaned).
+        search.filterAndSelectItem("50001", "#50001 — Unisports (Magee)");
+        TextFieldElement.getByLabel(page, "Order Id").assertValue("50001");
+
+        assertThat(ButtonElement.getByText(page, "Delete order").getLocator()).isDisabled();
+    }
+
+    @Test
+    public void testDeleteOrderConfirmsForAChildlessOrder() {
+        ComboBoxElement search = ComboBoxElement.getByLabel(page, "Find order");
+        // 50003 has a header but no S_ITEM rows — a childless order the guard lets through.
+        search.filterAndSelectItem("50003", "#50003 — Unisports (no rep)");
+        TextFieldElement.getByLabel(page, "Order Id").assertValue("50003");
+
+        ButtonElement deleteOrder = ButtonElement.getByText(page, "Delete order");
+        assertThat(deleteOrder.getLocator()).isEnabled();
+
+        // Confirming would delete; this asserts the KEY-DELREC caution alert appears, then cancels so the
+        // shared Summit seed stays intact (the delete-through persistence is proven in OrderServiceIT).
+        deleteOrder.click();
+        assertThat(page.getByText("Do you want to delete this order?")).isVisible();
+        ButtonElement.getByText(page, "No").click();
+
+        // Cancelled — the order is still loaded, nothing deleted.
+        TextFieldElement.getByLabel(page, "Order Id").assertValue("50003");
+    }
 }

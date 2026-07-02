@@ -192,6 +192,51 @@ class OrderPresenterEditingTest {
         assertEquals(0, new BigDecimal("50.00").compareTo(boots.getPrice()));
     }
 
+    // ---- Master record actions (issue #49) ----------------------------------------------------
+
+    @Test
+    void newOrderOpensABlankEditableOrderWithNoWorkingLines() {
+        OrderPresenter presenter = loadedPresenter();
+        assertFalse(presenter.editableLines().isEmpty()); // the loaded order seeded working lines
+
+        Order blank = presenter.newOrder();
+
+        // The new-item factory: a blank, never-persisted order and an empty working set.
+        assertTrue(blank.isNew());
+        assertTrue(presenter.editableLines().isEmpty());
+        // The unsaved order is not a search result — the pager has nothing to walk.
+        assertEquals(0, presenter.resultCount());
+        assertEquals(0, presenter.currentRecord());
+    }
+
+    @Test
+    void duplicateOrderClonesTheWorkingSetIntoANewInsert() {
+        OrderPresenter presenter = loadedPresenter();
+        EditableHeader header = new EditableHeader(ORDER);
+
+        Order copy = presenter.duplicateOrder(header);
+
+        // Identity cleared so it commits as an insert, but the lines are carried over as a fresh working set.
+        assertTrue(copy.isNew());
+        assertEquals(List.of(1L, 2L),
+                presenter.editableLines().stream().map(EditableLine::getItemId).toList());
+        // Not a search result — the pager position is dropped.
+        assertEquals(0, presenter.resultCount());
+    }
+
+    @Test
+    void duplicateOrderReflectsTheHeaderEditsNotJustTheLoadedOrder() {
+        OrderPresenter presenter = loadedPresenter();
+        EditableHeader header = new EditableHeader(ORDER);
+        header.setPaymentType("CREDIT"); // an edit the clerk made before duplicating
+
+        Order copy = presenter.duplicateOrder(header);
+
+        // The copy is built from the header in hand (with edits) + working lines, not a re-load.
+        assertEquals("CREDIT", copy.paymentType());
+        assertEquals(ORDER.customerId(), copy.customerId());
+    }
+
     @Test
     void resetClearsTheWorkingSet() {
         OrderPresenter presenter = loadedPresenter();

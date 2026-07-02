@@ -179,6 +179,17 @@ class OrderPresenterTest {
         assertFalse(presenter.paymentAllowed(999999L, "CREDIT"));
     }
 
+    // ---- Master record actions (issue #49) ------------------------------------------------------
+
+    @Test
+    void deleteRoutesToTheServiceDeletePath() {
+        // The presenter only invokes the delete path; the Non-Isolated delete-cascade-guard decision
+        // lives in the Domain/Service (ADR-0001/0002), so the presenter's job is the delegation.
+        presenter.delete(50001L);
+
+        verify(orderService).delete(50001L);
+    }
+
     private static OrderSummary summary(long id) {
         return new OrderSummary(id, "Customer " + id, "Rep", LocalDate.of(1992, 8, 31));
     }

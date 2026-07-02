@@ -53,6 +53,13 @@ import java.util.Optional;
  * the {@link CustomerService} and hands it to the pure Domain {@link PaymentEligibility} rule. The
  * ship-date guard needs no service — it is the pure {@link Order#shipDateValid} check the view mirrors
  * to a Binder validator (ADR-0002).
+ *
+ * <p><strong>Master record actions (issue #49).</strong> The presenter orchestrates the {@code S_ORD}
+ * record-action family derived from the block's CRUD capability: {@link #newOrder()} opens a blank order
+ * from the {@link Order#blank() new-item factory}, {@link #duplicateOrder} clones the order in hand via
+ * the pure Domain {@link Order#duplicateForInsert()} ({@code KEY-DUPREC} clear-list), and {@link #delete}
+ * routes to the Service delete path that enforces the Non-Isolated {@code delete-cascade-guard}. New and
+ * duplicated orders are committed as inserts through the same whole-graph {@link #commit} path (#48).
  */
 @Component
 public class OrderPresenter {
@@ -153,6 +160,60 @@ public class OrderPresenter {
     /** Removes a line from the working set (the in-memory detail delete). */
     public void removeLine(EditableLine line) {
         workingLines.remove(line);
+    }
+
+    // ---- Master record actions (issue #49) ----------------------------------------------------
+
+    /**
+     * The master's <em>New order</em> record action ({@code block-action-create}): opens a blank editable
+     * order from the {@link Order#blank() new-item factory} and seeds an empty working-line set for it.
+     * The unsaved order is not part of any search result, so the pager position is dropped — there is
+     * nothing to walk. Committing it inserts via {@code S_ORD_ID.nextval} (issue #48). Returns the blank
+     * order so the view can render it editable.
+     */
+    public Order newOrder() {
+        Order blank = Order.blank();
+        startEditing(blank);
+        return blank;
+    }
+
+    /**
+     * The master's <em>Duplicate order</em> record action ({@code block-action-duplicate}): clones the
+     * order currently being edited — the header as the clerk has it plus the working lines — into a new,
+     * unsaved editable order via the pure Domain {@link Order#duplicateForInsert()} ({@code KEY-DUPREC}
+     * clear-list: nulls the id so it commits as an insert), and re-seeds the working lines from the copy.
+     * Like {@link #newOrder()} the copy is outside any search result, so the pager position is dropped.
+     * Returns the copy for the view to render editable.
+     */
+    public Order duplicateOrder(EditableHeader header) {
+        Order copy = orderFrom(header, workingLines).duplicateForInsert();
+        startEditing(copy);
+        return copy;
+    }
+
+    /**
+     * The master's <em>Delete order</em> record action ({@code block-action-delete}) — deletes through the
+     * {@link OrderService#delete Service delete path}, which enforces the {@code S_ORD_S_ITEM}
+     * <strong>Non-Isolated</strong> {@code delete-cascade-guard}: an order that still has line items is
+     * vetoed with a {@link com.example.summit.domain.CascadeDeleteBlockedException} so detail rows are
+     * never orphaned (issue #45). The presenter only invokes the path; the guard decision lives in the
+     * Domain/Service (ADR-0001/0002).
+     */
+    public void delete(long orderId) {
+        orderService.delete(orderId);
+    }
+
+    /**
+     * Begins an in-memory editing session over an order that is <em>not</em> a search result — a blank New
+     * order or a Duplicate copy (issue #49). Seeds a fresh set of {@link EditableLine} working copies from
+     * the order's lines (empty for a blank order) and drops the pager position, so the view hides the pager
+     * until the next search. The pieced-together order is committed through the same whole-graph
+     * {@link #commit} path a loaded order is.
+     */
+    private void startEditing(Order order) {
+        resultSet = List.of();
+        position = -1;
+        workingLines = new ArrayList<>(order.lines().stream().map(EditableLine::new).toList());
     }
 
     // ---- Product LOV + WHEN-VALIDATE-ITEM defaulter (issue #46) --------------------------------
