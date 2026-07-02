@@ -22,14 +22,22 @@ Usage:
     python3 disposition_ledger.py spec.json --out ledger.json [--md ledger.md]
         [--merge prior-ledger.json]   # preserve dispositions by row id
         [--check]                     # exit 1 listing unassigned rows
+        [--check-refs]                # exit 1 on dead/rotten tracker refs
 
 Regenerating is safe: --merge carries dispositions forward by row id, so a
 spec change only adds/removes rows, never wipes decisions.
+
+--check-refs guards ledger rot (needs the `gh` CLI and network): every `#N`
+cited in a row's `ref` must exist on the tracker, a `deferred` row must cite
+at least one ref, and a deferred ref must still be OPEN — a closed deferred
+ticket means the work happened, so the row should flip to `migrated-as` (or
+be re-deferred), not keep pointing at a finished ticket.
 
 Stdlib only. Python 3.9+.
 """
 import argparse
 import json
+import re
 import sys
 
 DISPOSITIONS = ("migrated-as", "re-decided", "deferred", "obsolete")
@@ -177,6 +185,58 @@ def validate(rows):
     return bad
 
 
+def extract_refs(text):
+    """Tracker numbers cited in a ref string ('#40 #45', 'PRD #38 / #43')."""
+    return sorted({int(n) for n in re.findall(r"#(\d+)", text or "")})
+
+
+def check_refs(rows, err=sys.stderr):
+    """Ref-liveness gate: dispositions must cite live tracker items.
+
+    Uses `gh api repos/{owner}/{repo}/issues/N` (resolves issues AND pull
+    requests, and the owner/repo of the current directory's remote).
+    Findings, each a failure:
+    - a cited #N that does not exist on the tracker;
+    - a `deferred` row with no ref at all (deferred means *tracked*);
+    - a `deferred` ref that is closed (deliver the row or re-defer).
+    Returns True when clean.
+    """
+    import subprocess
+    numbers = sorted({n for r in rows for n in extract_refs(r.get("ref"))})
+    state = {}
+    for n in numbers:
+        try:
+            out = subprocess.run(
+                ["gh", "api", "repos/{owner}/{repo}/issues/" + str(n)],
+                capture_output=True, text=True, check=False)
+        except FileNotFoundError:
+            err.write("--check-refs needs the `gh` CLI on PATH\n")
+            return False
+        state[n] = (json.loads(out.stdout).get("state")
+                    if out.returncode == 0 else None)
+
+    findings = []
+    for r in rows:
+        refs = extract_refs(r.get("ref"))
+        if r.get("disposition") == "deferred" and not refs:
+            findings.append("{}: deferred without a tracking ref".format(r["id"]))
+        for n in refs:
+            if state.get(n) is None:
+                findings.append("{}: ref #{} does not exist".format(r["id"], n))
+            elif r.get("disposition") == "deferred" and state[n] != "open":
+                findings.append(
+                    "{}: deferred ref #{} is closed — flip the row to"
+                    " migrated-as or re-defer it".format(r["id"], n))
+    if findings:
+        err.write("REF CHECK FAILS: {} finding(s):\n".format(len(findings)))
+        for f in findings:
+            err.write("  {}\n".format(f))
+        return False
+    err.write("REF CHECK PASSES: {} refs across {} rows are live.\n".format(
+        len(numbers), sum(1 for r in rows if extract_refs(r.get("ref")))))
+    return True
+
+
 def to_markdown(ledger):
     rows = ledger["rows"]
     todo = unassigned(rows)
@@ -224,6 +284,9 @@ def main(argv=None):
     ap.add_argument("--merge", help="prior ledger.json whose dispositions carry forward")
     ap.add_argument("--check", action="store_true",
                     help="gate mode: exit 1 listing unassigned rows")
+    ap.add_argument("--check-refs", action="store_true",
+                    help="ref-liveness gate: exit 1 on dead refs, unref'd or"
+                         " closed deferred rows (needs the gh CLI)")
     args = ap.parse_args(argv)
 
     with open(args.spec, encoding="utf-8") as fh:
@@ -262,6 +325,9 @@ def main(argv=None):
             fh.write(to_markdown(ledger))
         sys.stderr.write("Wrote markdown view -> {}\n".format(args.md))
 
+    failed = False
+    if args.check_refs and not check_refs(rows):
+        failed = True
     todo = unassigned(rows)
     if args.check:
         if todo:
@@ -271,11 +337,12 @@ def main(argv=None):
                 " tickets are cut:\n".format(len(todo)))
             for r in todo:
                 sys.stderr.write("  {}\n".format(r["id"]))
-            return 1
-        sys.stderr.write("GATE PASSES: all {} rows assigned.\n".format(len(rows)))
-    elif not args.out and not args.md:
+            failed = True
+        else:
+            sys.stderr.write("GATE PASSES: all {} rows assigned.\n".format(len(rows)))
+    elif not args.check_refs and not args.out and not args.md:
         print(json.dumps(ledger, indent=2, ensure_ascii=False))
-    return 0
+    return 1 if failed else 0
 
 
 if __name__ == "__main__":

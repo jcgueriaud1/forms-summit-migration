@@ -66,9 +66,12 @@ decision-prone mapped property** (a default, an editability mode, a visibility, 
 cross-form contract) and gates ticket generation: no build tickets while any row is
 unassigned. It closes the gap the census leaves — the census proves nothing was
 dropped from the *spec*; the ledger proves nothing was dropped from the
-*migration*. _Avoid_: rows for mechanical carries (a max-length, a prompt) — the
-layout-fidelity gate verifies those at runtime, and rows for them drown the
-decision-prone ones.
+*migration*. A `migrated-as` row is only *decided* until a _UI test_ asserts the
+named behaviour — the row's acceptance criterion — which makes it *delivered*;
+and its tracking refs must stay live (a deferred row citing a closed ticket is
+rot, not tracking). _Avoid_: rows for mechanical carries (a max-length, a
+prompt) — the layout-fidelity gate verifies those at runtime, and rows for them
+drown the decision-prone ones.
 
 **Re-decision**:
 A deliberate, recorded deviation from what Forms did — "the spec says X; we chose Y

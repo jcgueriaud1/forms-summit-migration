@@ -149,11 +149,19 @@ may have drifted:
 ```bash
 python3 .agents/skills/forms-xml-analyzer/scripts/disposition_ledger.py \
     docs/generated/<FORM>.spec.json --merge docs/generated/<FORM>.ledger.json \
-    --out docs/generated/<FORM>.ledger.json --md docs/generated/<FORM>.ledger.md --check
+    --out docs/generated/<FORM>.ledger.json --md docs/generated/<FORM>.ledger.md \
+    --check --check-refs
 ```
 
 - A row still unassigned, or whose `migrated-as` no ticket/PR actually delivered,
   becomes a careful-review item.
+- A `migrated-as` row **no test asserts** is a careful-review item too: the
+  disposition proves *decided*, only an assertion proves *delivered*. Property
+  rows are the ones that slip — a default, an insert-only mode — because the
+  screen looks right without them.
+- `--check-refs` findings (a dead `#N`, a deferred row without a ref, a deferred
+  ref that is closed) are worked before the review closes — a closed deferred
+  ref means the row flips to `migrated-as` or gets re-deferred.
 - A build that **deliberately deviated** from a row's spec value must have flipped
   that row to `re-decided` with `reason` + `decidedBy` — the ledger row is where
   re-decisions live (not the PRD, which predates the build). An undocumented

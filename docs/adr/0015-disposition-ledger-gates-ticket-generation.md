@@ -62,6 +62,16 @@ The analyzer feeds the ledger the previously-invisible surface: `:GLOBAL` /
   size of ORDERS the ledger is ~150 rows, of which the human-judgment subset
   (re-decided, defer-vs-reject) is small; the rest are assignable by the agent
   and confirmed in bulk.
+- A `migrated-as` disposition proves *decided*, not *delivered*: every
+  `migrated-as` row a build ticket covers becomes an acceptance criterion
+  asserting the named behaviour at runtime (the UI-test convention), and
+  `migration-review` treats a migrated-as row no test asserts as a
+  careful-review item. Property rows are the ones that slip otherwise — the
+  screen looks right without a default or an insert-only mode.
+- Refs are checked for liveness (`--check-refs`): a cited ticket must exist,
+  and a `deferred` row must cite at least one still-open ticket — a closed
+  deferred ref means the row flips to `migrated-as` or is re-deferred. This
+  keeps the ledger from rotting into confident-looking stale pointers.
 - The insert-only editability mode gets a first-class ruleset meaning
   (`forms-insert-only-field`): `updateAllowed=false, insertAllowed=true` is a
   record-mode state flip, not `setReadOnly(true)` — collapsing it is a

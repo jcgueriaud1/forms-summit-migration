@@ -135,13 +135,16 @@ contracts). Every row must end in exactly one disposition (`migrated-as` /
 `re-decided` / `deferred` / `obsolete`); `--check` is the gate `to-issues` runs
 before cutting build tickets, and `migration-review` re-runs when reviewing.
 `--merge` carries prior decisions forward across spec regenerations, so the
-ledger is safe to refresh. Mechanical carries (maximumLength, prompts, field
-order) get no rows — the layout-fidelity gate (ADR-0012) verifies those at
-runtime.
+ledger is safe to refresh. `--check-refs` (needs the `gh` CLI) guards ledger
+rot: cited `#N` refs must exist and a `deferred` row must cite a still-open
+ticket. Mechanical carries (maximumLength, prompts, field order) get no rows —
+the layout-fidelity gate (ADR-0012) verifies those at runtime. A `migrated-as`
+row is *delivered* only when a UI test asserts it — build tickets turn covered
+rows into acceptance criteria (see `to-issues`).
 
 ```bash
 python3 scripts/disposition_ledger.py spec.json \
-    --merge ledger.json --out ledger.json --md ledger.md --check
+    --merge ledger.json --out ledger.json --md ledger.md --check --check-refs
 ```
 
 ## Notes

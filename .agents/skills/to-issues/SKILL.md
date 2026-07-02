@@ -62,7 +62,8 @@ happened (a default, an editability mode, a `:GLOBAL` contract):
    ```bash
    python3 .agents/skills/forms-xml-analyzer/scripts/disposition_ledger.py \
        docs/generated/<FORM>.spec.json --merge docs/generated/<FORM>.ledger.json \
-       --out docs/generated/<FORM>.ledger.json --md docs/generated/<FORM>.ledger.md --check
+       --out docs/generated/<FORM>.ledger.json --md docs/generated/<FORM>.ledger.md \
+       --check --check-refs
    ```
 
 2. **If the check fails, stop.** Work the unassigned rows with the user — each
@@ -82,6 +83,19 @@ happened (a default, an editability mode, a `:GLOBAL` contract):
    claim "Forms has no X" only with a spec citation (`<FORM>.spec.json` — the
    element or its absence is checkable). `migration-review` verifies these
    claims; an uncited absence claim is a review finding.
+6. **Acceptance criteria come from ledger rows.** Every `migrated-as` row a
+   ticket covers — property rows especially — becomes an acceptance criterion
+   asserting the named behaviour at runtime, per the UI-test convention
+   (behavioural parity + layout fidelity). `property:S_ORD.DATE_ORDERED.
+   initializeValue = $$date$$` is delivered by "a new order defaults Date
+   Ordered to today", not by the disposition alone; an insert-only editability
+   row is delivered by "the field accepts input on a new record and is
+   read-only on a persisted one". The ledger proves *decided*; the criteria
+   make the build prove *delivered*.
+7. **Refs stay live.** Run `--check-refs` with the gate (needs the `gh` CLI):
+   every `#N` a row cites must exist, and a `deferred` row must cite at least
+   one still-open ticket — a closed deferred ref means the row should flip to
+   `migrated-as` or be re-deferred, not rot.
 
 ### 5. Publish the issues to the issue tracker
 
