@@ -7,6 +7,9 @@ import com.example.summit.domain.Product;
 import com.example.summit.presenter.EditableHeader;
 import com.example.summit.presenter.EditableLine;
 import com.example.summit.presenter.OrderPresenter;
+import com.example.summit.service.SaveResult;
+import com.vaadin.flow.component.Key;
+import com.vaadin.flow.component.KeyModifier;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.checkbox.Checkbox;
 import com.vaadin.flow.component.combobox.ComboBox;
@@ -144,6 +147,9 @@ public class OrderView extends VerticalLayout {
     private final Button nextButton = new Button("Next");
     private final Span recordIndicator = new Span();
     private final HorizontalLayout pager = new HorizontalLayout();
+    // The KEY-COMMIT keystroke as a toolbar action (issue #48): one Commit persists the whole graph —
+    // header + lines — through the Service's @Transactional whole-graph save, under the ORA_ROWSCN gate.
+    private final Button commitButton = new Button("Commit");
     private final H2 orderInformationHeading = new H2("Order Information");
     private final FormLayout headerFields = new FormLayout();
     private final Div orderInformationSection = new Div();
@@ -209,7 +215,49 @@ public class OrderView extends VerticalLayout {
         toolbar.setJustifyContentMode(JustifyContentMode.BETWEEN);
         buildSearch();
         buildPager();
-        toolbar.add(search, pager);
+        buildCommit();
+        toolbar.add(search, pager, commitButton);
+    }
+
+    /**
+     * The Forms {@code KEY-COMMIT} keystroke ({@code COMMIT_FORM;}) as a web action (issue #48): a
+     * Commit button, also bound to {@code Ctrl+S}, that fires the single whole-graph
+     * {@code @Transactional} save. It only <em>invokes</em> the save; the persistence, the
+     * {@code ORA_ROWSCN} concurrency gate, and the validation gate all live in the Service.
+     */
+    private void buildCommit() {
+        commitButton.setId("order-commit");
+        commitButton.addClickListener(event -> commit());
+        commitButton.addClickShortcut(Key.KEY_S, KeyModifier.CONTROL);
+    }
+
+    /**
+     * Drives the whole-graph commit: flush any open line editor, block on the header Binder's
+     * validators (the live mirror of the Service gate), then hand the edited header to the presenter.
+     * The typed {@link SaveResult} decides the feedback — reflect the saved order, warn about a
+     * concurrent change (no overwrite), or point at the invalid input.
+     */
+    private void commit() {
+        if (header == null) {
+            return;
+        }
+        if (lineItems.getEditor().isOpen()) {
+            lineItems.getEditor().closeEditor();
+        }
+        if (customerId.isInvalid() || headerBinder.validate().hasErrors()) {
+            Notification.show("Fix the highlighted fields before committing.");
+            return;
+        }
+        switch (presenter.commit(header)) {
+            case SaveResult.Committed committed -> {
+                showOrder(committed.order());
+                Notification.show("Order #" + committed.order().id() + " committed.");
+            }
+            case SaveResult.Conflict ignored -> Notification.show(
+                    "This order was changed by someone else since you loaded it. "
+                            + "Reload it to see the latest, then re-apply your changes.");
+            case SaveResult.Invalid invalid -> Notification.show(invalid.message());
+        }
     }
 
     private void buildSearch() {
@@ -819,11 +867,13 @@ public class OrderView extends VerticalLayout {
         emptyHint.setVisible(true);
     }
 
-    /** Shows or hides the loaded-order regions (Order Id + both frame sections) together. */
+    /** Shows or hides the loaded-order regions (Order Id + both frame sections) and the Commit action
+     * together — there is nothing to commit until an order is loaded. */
     private void setOrderVisible(boolean visible) {
         orderId.setVisible(visible);
         orderInformationSection.setVisible(visible);
         itemsSection.setVisible(visible);
+        commitButton.setVisible(visible);
     }
 
     private static String nullSafe(String value) {

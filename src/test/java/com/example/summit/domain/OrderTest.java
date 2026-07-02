@@ -113,7 +113,7 @@ class OrderTest {
     void shipDateValidReadsTheOrdersOwnDates() {
         // The instance form guards an order's own date_ordered / date_shipped.
         Order shipped = new Order(50001, 201, "Unisports", LocalDate.of(1992, 8, 31),
-                LocalDate.of(1992, 8, 30), 1L, "Magee", "CASH", true, List.of());
+                LocalDate.of(1992, 8, 30), 1L, "Magee", "CASH", true, 0L, List.of());
         assertFalse(shipped.shipDateValid());
     }
 
@@ -131,6 +131,6 @@ class OrderTest {
 
     private static Order orderWith(OrderLine... lines) {
         return new Order(50001, 201, "Unisports", LocalDate.of(1992, 8, 31), null,
-                1L, "Magee", "CASH", true, List.of(lines));
+                1L, "Magee", "CASH", true, 0L, List.of(lines));
     }
 }

@@ -27,6 +27,11 @@ CREATE TABLE s_customer (
   CONSTRAINT s_customer_sales_rep_id_fk FOREIGN KEY (sales_rep_id) REFERENCES s_emp(id)
 );
 
+-- s_ord is created WITH ROWDEPENDENCIES so ORA_ROWSCN is row-level, not block-level. The migration
+-- rule (concurrency-pessimistic-to-scn) discloses that without it ORA_ROWSCN is coarser and can
+-- raise false conflicts; the test seed opts in so the optimistic-lock ITs are deterministic (a
+-- commit to one order's row can never appear to change another's). No production schema change is
+-- implied — the app's SQL is identical either way.
 CREATE TABLE s_ord (
   id           NUMBER(7,0)  NOT NULL,
   customer_id  NUMBER(7,0)  NOT NULL,
@@ -41,7 +46,11 @@ CREATE TABLE s_ord (
   CONSTRAINT s_ord_order_filled_ck CHECK (order_filled IN ('Y','N')),
   CONSTRAINT s_ord_customer_id_fk  FOREIGN KEY (customer_id)  REFERENCES s_customer(id),
   CONSTRAINT s_ord_sales_rep_id_fk FOREIGN KEY (sales_rep_id) REFERENCES s_emp(id)
-);
+) ROWDEPENDENCIES;
+
+-- S_ORD PRE-INSERT id source (orders-form-spec.md): a new web-created order draws its id from the
+-- same sequence Forms used. Started well above the seed order ids so it never collides with them.
+CREATE SEQUENCE s_ord_id START WITH 100000 INCREMENT BY 1 NOCACHE;
 
 INSERT INTO s_emp (id, last_name, first_name) VALUES (1, 'Magee', 'Colin');
 INSERT INTO s_emp (id, last_name, first_name) VALUES (2, 'Giljum', 'Henry');
@@ -92,4 +101,4 @@ INSERT INTO s_product (id, name, short_desc, suggested_whlsl_price) VALUES (4101
 INSERT INTO s_item (ord_id, item_id, product_id, price, quantity, quantity_shipped) VALUES (50001, 1, 41010,   50.00,  5,  5);
 INSERT INTO s_item (ord_id, item_id, product_id, price, quantity, quantity_shipped) VALUES (50001, 2, 20108,   13.00, 27, 27);
 INSERT INTO s_item (ord_id, item_id, product_id, price, quantity, quantity_shipped) VALUES (50002, 1, 30421, 1000.00,  8,  8);
-INSERT INTO s_item (ord_id, item_id, product_id, price, quantity, quantity_shipped) VALUES (50002, 2, 10011,   56.60,  1,  1)
+INSERT INTO s_item (ord_id, item_id, product_id, price, quantity, quantity_shipped) VALUES (50002, 2, 10011,   56.60,  1,  1);

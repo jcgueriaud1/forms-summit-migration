@@ -185,6 +185,6 @@ class OrderPresenterTest {
 
     private static Order order(long id) {
         return new Order(id, 201, "Customer " + id, LocalDate.of(1992, 8, 31), null,
-                1L, "Rep", "CASH", true, List.of());
+                1L, "Rep", "CASH", true, 0L, List.of());
     }
 }

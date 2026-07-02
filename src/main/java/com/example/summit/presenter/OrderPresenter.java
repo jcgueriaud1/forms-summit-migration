@@ -7,9 +7,11 @@ import com.example.summit.domain.OrderSummary;
 import com.example.summit.domain.PaymentEligibility;
 import com.example.summit.domain.Product;
 import com.example.summit.domain.ProductDefaults;
+import com.example.summit.domain.OrderLine;
 import com.example.summit.service.CustomerService;
 import com.example.summit.service.OrderService;
 import com.example.summit.service.ProductService;
+import com.example.summit.service.SaveResult;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
@@ -220,6 +222,37 @@ public class OrderPresenter {
      */
     public BigDecimal currentTotal() {
         return Order.total(workingLines.stream().map(EditableLine::toOrderLine).toList());
+    }
+
+    // ---- Whole-graph commit (issue #48) -------------------------------------------------------
+
+    /**
+     * Commits the loaded order as one whole-graph {@code COMMIT_FORM} save: assembles the edited
+     * {@link EditableHeader} and the working {@link EditableLine} set back into an immutable
+     * {@link Order} and hands it to the {@link OrderService#save Service commit} — the authoritative
+     * validation + {@code ORA_ROWSCN} concurrency gate. On success the working lines are re-seeded
+     * from the freshly saved graph (new item ids, advanced scn) so the clerk can keep editing and
+     * re-commit; a conflict or invalid result leaves the working set untouched for the clerk to
+     * reconcile. The typed {@link SaveResult} is returned for the view to react to.
+     */
+    public SaveResult commit(EditableHeader header) {
+        SaveResult result = orderService.save(orderFrom(header, workingLines));
+        if (result instanceof SaveResult.Committed committed) {
+            workingLines = new ArrayList<>(
+                    committed.order().lines().stream().map(EditableLine::new).toList());
+        }
+        return result;
+    }
+
+    /** Reassembles the mutable header + working lines into the immutable {@link Order} the commit saves,
+     * carrying the {@code ORA_ROWSCN} token so the Service can re-check it. */
+    private static Order orderFrom(EditableHeader header, List<EditableLine> lines) {
+        return new Order(
+                header.getId(), header.getCustomerId(), header.getCustomerName(),
+                header.getDateOrdered(), header.getDateShipped(),
+                header.getSalesRepId(), header.getSalesRepName(),
+                header.getPaymentType(), header.isOrderFilled(), header.getScn(),
+                lines.stream().map(EditableLine::toOrderLine).toList());
     }
 
     private long nextWorkingItemId() {
