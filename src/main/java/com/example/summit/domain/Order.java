@@ -22,6 +22,13 @@ import java.util.stream.LongStream;
  * is a nullable column, so an order with no assigned rep is a valid load. {@code lines}
  * is never null — an order with no line items carries an empty list.
  *
+ * <p>{@code scn} is the order's <strong>optimistic-lock token</strong> — the {@code S_ORD}
+ * row's {@code ORA_ROWSCN}, read on load and re-checked (verified-unchanged) by the
+ * whole-graph commit ({@code concurrency-pessimistic-to-scn}, issue #48), the web
+ * replacement for Forms' pessimistic across-think-time row lock. It is opaque to the
+ * Domain: the commit passes it back to the guarded {@code UPDATE … WHERE ORA_ROWSCN = ?}.
+ * A {@link #isNew() new} order (not yet persisted) carries {@code 0}.
+ *
  * <p>{@link #total()} is the {@code TOTAL} summary as a <strong>pure domain method</strong>
  * (ADR-0001): the sum of the lines' {@link OrderLine#itemTotal() ITEM_TOTAL}s — so it
  * inherits the same shipped-not-ordered truth, with no Spring, Vaadin, or DB dependency.
@@ -37,7 +44,24 @@ public record Order(
         String salesRepName,
         String paymentType,
         boolean orderFilled,
+        long scn,
         List<OrderLine> lines) {
+
+    /** Whether this order has never been persisted — its id is unassigned ({@code 0}), so the
+     * commit draws one from {@code S_ORD_ID.nextval} and inserts rather than updates (issue #48). */
+    public boolean isNew() {
+        return id == 0L;
+    }
+
+    /**
+     * A copy of this order carrying a freshly assigned id — the {@code S_ORD} {@code PRE-INSERT}
+     * ({@code S_ORD_ID.nextval}, issue #48): a new order builds its header with the sequence value
+     * before the insert, leaving every other field (and the lines) untouched.
+     */
+    public Order withId(long newId) {
+        return new Order(newId, customerId, customerName, dateOrdered, dateShipped,
+                salesRepId, salesRepName, paymentType, orderFilled, scn, lines);
+    }
 
     /**
      * The order total — the sum of every line's {@link OrderLine#itemTotal()}, the Forms

@@ -21,6 +21,7 @@ import java.time.LocalDate;
 public class EditableHeader {
 
     private final long id;
+    private final long scn;
     private long customerId;
     private String customerName;
     private LocalDate dateOrdered;
@@ -30,9 +31,11 @@ public class EditableHeader {
     private String paymentType;
     private boolean orderFilled;
 
-    /** Wraps a loaded order's header for editing — the id is fixed (the PK is not editable). */
+    /** Wraps a loaded order's header for editing — the id is fixed (the PK is not editable), and the
+     * {@code ORA_ROWSCN} token rides along so the commit can re-check it (issue #48). */
     public EditableHeader(Order order) {
         this.id = order.id();
+        this.scn = order.scn();
         this.customerId = order.customerId();
         this.customerName = order.customerName();
         this.dateOrdered = order.dateOrdered();
@@ -45,6 +48,12 @@ public class EditableHeader {
 
     public long getId() {
         return id;
+    }
+
+    /** The order's optimistic-lock token ({@code ORA_ROWSCN}) captured at load — passed back to the
+     * commit's scn-guarded update to detect a concurrent change (issue #48). */
+    public long getScn() {
+        return scn;
     }
 
     public long getCustomerId() {

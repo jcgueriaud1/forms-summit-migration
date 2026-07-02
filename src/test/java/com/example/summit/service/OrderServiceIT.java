@@ -3,10 +3,17 @@ package com.example.summit.service;
 import com.example.summit.data.OrderRepository;
 import com.example.summit.data.SummitDbIT;
 import com.example.summit.domain.CascadeDeleteBlockedException;
+import com.example.summit.domain.Order;
+import com.example.summit.domain.OrderLine;
 import org.junit.jupiter.api.Test;
+
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -59,5 +66,136 @@ class OrderServiceIT extends SummitDbIT {
         // No order, nothing to orphan — the guard neither throws nor deletes anything.
         service.delete(888888);
         assertFalse(repository.loadGraph(888888).isPresent());
+    }
+
+    // ---- Whole-graph COMMIT_FORM save + ORA_ROWSCN concurrency (issue #48) ----------------------
+    //
+    // These prove the commit climax against a real Summit Oracle: one save persists the header and
+    // all its lines (insert/update/delete) together, a new order draws its id from S_ORD_ID.nextval,
+    // an ORA_ROWSCN conflict fails the stale save rather than overwriting, and the commit gate
+    // refuses still-invalid input. Each test creates its own throwaway order and removes it in a
+    // finally, so the shared seed (asserted verbatim by sibling IT classes) stays intact.
+
+    @Test
+    void saveNewOrderDrawsIdFromSequenceAndInsertsTheWholeGraph() {
+        Order toSave = newOrder(
+                new OrderLine(1, 41010, "Ski Boots", new BigDecimal("50.00"), 5, 5),   // 5 * 50 = 250
+                new OrderLine(2, 20108, "Ski Pole", new BigDecimal("13.00"), 10, 10));  // 10 * 13 = 130
+        long newId = 0;
+        try {
+            SaveResult result = service.save(toSave);
+
+            Order saved = assertInstanceOf(SaveResult.Committed.class, result).order();
+            newId = saved.id();
+            // The id came from S_ORD_ID.nextval (seeded to start at 100000), not from the input (0).
+            assertTrue(newId >= 100000, "new order id should come from S_ORD_ID.nextval, was " + newId);
+
+            // The whole graph is persisted: header + both lines, with the stored total consistent.
+            Order reloaded = repository.loadGraph(newId).orElseThrow();
+            assertEquals(201L, reloaded.customerId());
+            assertEquals(List.of(1L, 2L), reloaded.lines().stream().map(OrderLine::itemId).toList());
+            assertEquals(0, new BigDecimal("380.00").compareTo(reloaded.total()));
+        } finally {
+            deleteOrderGraph(newId);
+        }
+    }
+
+    @Test
+    void saveReconcilesLinesInsertUpdateAndDeleteInOneCommit() {
+        // Seed a throwaway order with two lines through the commit itself.
+        Order seeded = assertInstanceOf(SaveResult.Committed.class, service.save(newOrder(
+                new OrderLine(1, 41010, "Ski Boots", new BigDecimal("50.00"), 5, 5),
+                new OrderLine(2, 20108, "Ski Pole", new BigDecimal("13.00"), 10, 10)))).order();
+        long id = seeded.id();
+        try {
+            // One whole-graph save that at once UPDATEs line 1 (new shipped qty), DELETEs line 2, and
+            // INSERTs a new line 3 — carrying the current scn so the header update matches.
+            Order edited = new Order(id, seeded.customerId(), seeded.customerName(),
+                    seeded.dateOrdered(), seeded.dateShipped(), seeded.salesRepId(), seeded.salesRepName(),
+                    seeded.paymentType(), seeded.orderFilled(), seeded.scn(),
+                    List.of(
+                            new OrderLine(1, 41010, "Ski Boots", new BigDecimal("50.00"), 5, 3), // 3*50=150
+                            new OrderLine(3, 30421, "Pro Ski Boot", new BigDecimal("1000.00"), 1, 1))); // 1*1000
+
+            SaveResult result = service.save(edited);
+            assertInstanceOf(SaveResult.Committed.class, result);
+
+            Order reloaded = repository.loadGraph(id).orElseThrow();
+            // Line 2 is gone, line 1 kept (updated), line 3 inserted — all in the one commit.
+            assertEquals(List.of(1L, 3L), reloaded.lines().stream().map(OrderLine::itemId).toList());
+            OrderLine one = reloaded.lines().get(0);
+            assertEquals(3L, one.quantityShipped()); // the update landed
+            assertEquals(30421L, reloaded.lines().get(1).productId()); // the insert landed
+            assertEquals(0, new BigDecimal("1150.00").compareTo(reloaded.total()));
+        } finally {
+            deleteOrderGraph(id);
+        }
+    }
+
+    @Test
+    void staleScnMakesTheCommitFailWithoutOverwriting() {
+        Order seeded = assertInstanceOf(SaveResult.Committed.class, service.save(newOrder(
+                new OrderLine(1, 41010, "Ski Boots", new BigDecimal("50.00"), 5, 5)))).order();
+        long id = seeded.id();
+        long staleScn = seeded.scn();
+        try {
+            // A concurrent commit changes the row after our load — advancing its ORA_ROWSCN. We mark
+            // the order filled, the winning change the stale save must not clobber.
+            jdbcClient().sql("UPDATE s_ord SET order_filled = 'Y' WHERE id = :id").param("id", id).update();
+
+            // Our save still carries the pre-conflict scn and a competing change (order_filled = N).
+            Order stale = new Order(id, seeded.customerId(), seeded.customerName(),
+                    seeded.dateOrdered(), seeded.dateShipped(), seeded.salesRepId(), seeded.salesRepName(),
+                    seeded.paymentType(), false, staleScn, seeded.lines());
+
+            SaveResult result = service.save(stale);
+
+            // The scn-guarded update matched no row: the commit fails as a typed conflict...
+            assertInstanceOf(SaveResult.Conflict.class, result);
+            // ...and the concurrent change stands — no silent overwrite back to order_filled = N.
+            assertTrue(repository.loadGraph(id).orElseThrow().orderFilled(),
+                    "the concurrent change must survive; the stale save must not overwrite it");
+        } finally {
+            deleteOrderGraph(id);
+        }
+    }
+
+    @Test
+    void commitGateRefusesStillInvalidInputWithoutPersisting() {
+        Order seeded = assertInstanceOf(SaveResult.Committed.class, service.save(newOrder(
+                new OrderLine(1, 41010, "Ski Boots", new BigDecimal("50.00"), 5, 5)))).order();
+        long id = seeded.id();
+        try {
+            // A ship date before the order date violates the WHEN-VALIDATE-RECORD guard.
+            Order invalid = new Order(id, seeded.customerId(), seeded.customerName(),
+                    LocalDate.of(1992, 8, 31), LocalDate.of(1992, 8, 1),
+                    seeded.salesRepId(), seeded.salesRepName(),
+                    seeded.paymentType(), seeded.orderFilled(), seeded.scn(), seeded.lines());
+
+            SaveResult result = service.save(invalid);
+
+            // The Service commit is the authoritative gate (ADR-0002): refused, and nothing persisted —
+            // the order keeps its original (valid) ship date, untouched.
+            assertInstanceOf(SaveResult.Invalid.class, result);
+            assertEquals(seeded.dateShipped(), repository.loadGraph(id).orElseThrow().dateShipped());
+        } finally {
+            deleteOrderGraph(id);
+        }
+    }
+
+    /** A new (unsaved) order for customer 201 — id/scn 0, valid dates, CASH — with the given lines. */
+    private static Order newOrder(OrderLine... lines) {
+        return new Order(0, 201, "Unisports", LocalDate.of(1992, 8, 31), null,
+                1L, "Magee", "CASH", false, 0L, List.of(lines));
+    }
+
+    /** Removes a throwaway order and its lines directly, so the shared seed stays exactly as loaded
+     * (the cascade guard would otherwise block deleting an order that still has lines). */
+    private void deleteOrderGraph(long orderId) {
+        if (orderId == 0) {
+            return;
+        }
+        jdbcClient().sql("DELETE FROM s_item WHERE ord_id = :id").param("id", orderId).update();
+        jdbcClient().sql("DELETE FROM s_ord WHERE id = :id").param("id", orderId).update();
     }
 }

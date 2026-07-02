@@ -36,7 +36,7 @@ class OrderPresenterEditingTest {
 
     private static final Order ORDER = new Order(
             50001, 201, "Unisports", LocalDate.of(1992, 8, 31), LocalDate.of(1992, 9, 10),
-            1L, "Magee", "CASH", true, List.of(BOOTS, POLE));
+            1L, "Magee", "CASH", true, 0L, List.of(BOOTS, POLE));
 
     /** The one product the stub LOV knows — id 30421, "Pro Ski Boot", suggested price 1000.00. */
     private static final long PRO_BOOT_ID = 30421;
