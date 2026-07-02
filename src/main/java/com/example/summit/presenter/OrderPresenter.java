@@ -82,22 +82,38 @@ public class OrderPresenter {
         this.customerService = customerService;
     }
 
-    /** Quick-search suggestions for the term the clerk has typed so far. */
-    public List<OrderSummary> suggest(String quickTerm) {
-        return orderService.search(new OrderSearchCriteria(quickTerm));
+    /**
+     * Autocomplete suggestions for the criteria the clerk has entered so far — the quick term
+     * narrowed by whatever advanced filters are set (issue #43). Throwaway per keystroke; it does not
+     * touch the committed pager position.
+     */
+    public List<OrderSummary> suggest(OrderSearchCriteria criteria) {
+        return orderService.search(criteria);
     }
 
     /**
-     * Commits the quick search: runs {@code findByCriteria} for the term to fix the result
-     * set the pager will walk, points the position at the picked order, and loads it. The
-     * dropdown suggestions are throwaway per keystroke; this is the definitive search whose
-     * result set the pager steps through. Returns the loaded order, or empty if it vanished
-     * between suggestion and commit.
+     * Commits the search from a picked suggestion: runs {@code findByCriteria} for the criteria to fix
+     * the result set the pager will walk, points the position at the picked order, and loads it. The
+     * dropdown suggestions are throwaway per keystroke; this is the definitive search whose result set
+     * the pager steps through. Returns the loaded order, or empty if it vanished between suggestion and
+     * commit.
      */
-    public Optional<Order> select(String quickTerm, long orderId) {
-        resultSet = orderService.search(new OrderSearchCriteria(quickTerm));
+    public Optional<Order> select(OrderSearchCriteria criteria, long orderId) {
+        resultSet = orderService.search(criteria);
         position = indexOf(orderId);
         return load(orderId);
+    }
+
+    /**
+     * Commits an advanced search that was not driven by a picked suggestion (the Search button, issue
+     * #43): fixes the result set the pager walks and lands on its first match, so the clerk can step
+     * through the rest. Returns the first matching order, or empty when nothing matches (the position
+     * is cleared so the view returns to the empty state).
+     */
+    public Optional<Order> runSearch(OrderSearchCriteria criteria) {
+        resultSet = orderService.search(criteria);
+        position = resultSet.isEmpty() ? -1 : 0;
+        return position < 0 ? Optional.empty() : load(currentOrderId());
     }
 
     /** Steps to the previous match and loads it; empty (position unchanged) at the first record. */

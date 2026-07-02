@@ -368,6 +368,57 @@ public class OrderViewIT extends OracleSpringPlaywrightIT {
                 .getCellContentLocator().innerText().trim();
     }
 
+    // ---- Advanced search: the QBE (Enter-Query) replacement (issue #43) --------------------------
+    // A collapsible advanced panel adds the multi-field filters (customer, sales rep, payment type,
+    // ordered-date range, status) that combine with the quick term via AND; Clear resets both. The seed:
+    // 50001 (Unisports/Magee, CASH, filled), 50002 (Womansport/Giljum, CREDIT, unfilled),
+    // 50003 (Unisports/no rep, CASH, unfilled).
+
+    @Test
+    public void testAdvancedSearchCombinesWithTheQuickTermAndWalksTheNarrowedSet() {
+        // Quick "Unisports" alone matches 50001 and 50003 (picking the first fixes the quick term).
+        ComboBoxElement search = ComboBoxElement.getByLabel(page, "Find order");
+        search.filterAndSelectItem("Unisports", "#50001 — Unisports (Magee)");
+        TextFieldElement.getByLabel(page, "Order Id").assertValue("50001");
+
+        // Narrow it with the advanced Status = Open filter (AND), then re-run: only the unfilled order
+        // 50003 remains — a single-record result set.
+        page.locator("#order-advanced-search").getByText("Advanced search").click();
+        new ComboBoxElement(page.locator("#order-adv-status")).filterAndSelectItem("Open", "Open");
+        ButtonElement.getByText(page, "Search").click();
+
+        TextFieldElement.getByLabel(page, "Order Id").assertValue("50003");
+        assertThat(page.locator("#order-record-indicator")).hasText("Record 1 of 1");
+    }
+
+    @Test
+    public void testAdvancedSearchByPaymentTypeAloneFindsTheMatchingOrder() {
+        // No quick term — advanced-only search. Payment type = Credit matches order 50002 alone.
+        page.locator("#order-advanced-search").getByText("Advanced search").click();
+        new ComboBoxElement(page.locator("#order-adv-payment")).filterAndSelectItem("Credit", "Credit");
+        ButtonElement.getByText(page, "Search").click();
+
+        TextFieldElement.getByLabel(page, "Order Id").assertValue("50002");
+        TextFieldElement.getByLabel(page, "Customer Name").assertValue("Womansport");
+    }
+
+    @Test
+    public void testClearResetsQuickAndAdvancedCriteriaToTheEmptyState() {
+        // Load an order via an advanced-only search, then Clear: both the loaded order and the advanced
+        // filter reset, returning to the empty state.
+        page.locator("#order-advanced-search").getByText("Advanced search").click();
+        ComboBoxElement payment = new ComboBoxElement(page.locator("#order-adv-payment"));
+        payment.filterAndSelectItem("Credit", "Credit");
+        ButtonElement.getByText(page, "Search").click();
+        TextFieldElement.getByLabel(page, "Order Id").assertValue("50002");
+
+        ButtonElement.getByText(page, "Clear").click();
+
+        // Back to the empty state: the header hint returns and the advanced payment filter is cleared.
+        assertThat(page.getByText("Search for an order to load its header.")).isVisible();
+        payment.assertValue("");
+    }
+
     // ---- Master-header editing behaviours (issue #47) -------------------------------------------
     // The header becomes editable in place (a state flip on the mapped controls, ADR-0013): entering a
     // customer id defaults the name + sales rep, an unknown id is rejected, a CREDIT payment a
