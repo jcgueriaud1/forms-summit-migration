@@ -1,0 +1,650 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Findings — the migrated ORDERS app: right &amp; wrong</title>
+<style>html,body{margin:0;padding:0}</style>
+</head>
+<body>
+<style>
+  :root {
+    --ground: #eef1f5;
+    --surface: #ffffff;
+    --surface-2: #f6f8fa;
+    --ink: #16202b;
+    --muted: #55616f;
+    --faint: #808b98;
+    --line: #d8dee6;
+    --line-strong: #c3cbd5;
+    --accent: #12707a;
+    --accent-soft: #e0f0f1;
+    --good: #2f7d54;
+    --good-soft: #e3f1e9;
+    --bad: #b4472e;
+    --bad-soft: #f6e6e1;
+    --warn: #98701a;
+    --warn-soft: #f4ecd8;
+
+    --mono: ui-monospace, "SF Mono", "SFMono-Regular", Menlo, "Cascadia Mono", "Roboto Mono", monospace;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+
+    --measure: 68ch;
+    --radius: 10px;
+    --shadow: 0 1px 2px rgba(22,32,43,.05), 0 6px 24px -12px rgba(22,32,43,.18);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ground: #0c1219;
+      --surface: #131c25;
+      --surface-2: #0f171f;
+      --ink: #e7ecf1;
+      --muted: #9aa7b4;
+      --faint: #6c7a89;
+      --line: #24303c;
+      --line-strong: #33424f;
+      --accent: #4fbcc6;
+      --accent-soft: #103038;
+      --good: #5fb684;
+      --good-soft: #13291f;
+      --bad: #df7b62;
+      --bad-soft: #2e1a15;
+      --warn: #d9b25a;
+      --warn-soft: #2a2311;
+      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 30px -14px rgba(0,0,0,.6);
+    }
+  }
+  :root[data-theme="light"] {
+    --ground: #eef1f5; --surface: #ffffff; --surface-2: #f6f8fa;
+    --ink: #16202b; --muted: #55616f; --faint: #808b98;
+    --line: #d8dee6; --line-strong: #c3cbd5;
+    --accent: #12707a; --accent-soft: #e0f0f1;
+    --good: #2f7d54; --good-soft: #e3f1e9;
+    --bad: #b4472e; --bad-soft: #f6e6e1;
+    --warn: #98701a; --warn-soft: #f4ecd8;
+    --shadow: 0 1px 2px rgba(22,32,43,.05), 0 6px 24px -12px rgba(22,32,43,.18);
+  }
+  :root[data-theme="dark"] {
+    --ground: #0c1219; --surface: #131c25; --surface-2: #0f171f;
+    --ink: #e7ecf1; --muted: #9aa7b4; --faint: #6c7a89;
+    --line: #24303c; --line-strong: #33424f;
+    --accent: #4fbcc6; --accent-soft: #103038;
+    --good: #5fb684; --good-soft: #13291f;
+    --bad: #df7b62; --bad-soft: #2e1a15;
+    --warn: #d9b25a; --warn-soft: #2a2311;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 30px -14px rgba(0,0,0,.6);
+  }
+
+  * { box-sizing: border-box; }
+
+  .page {
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 17px;
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+    padding: clamp(20px, 5vw, 64px) 20px 96px;
+  }
+
+  .wrap { max-width: 780px; margin: 0 auto; }
+
+  ::selection { background: var(--accent); color: var(--surface); }
+
+  a { color: var(--accent); text-underline-offset: 3px; }
+
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: .72rem;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    color: var(--accent);
+    font-weight: 600;
+  }
+
+  /* ---------- HERO ---------- */
+  .hero { padding-bottom: 40px; border-bottom: 1px solid var(--line); margin-bottom: 48px; }
+  .hero .eyebrow { display: block; margin-bottom: 22px; }
+  .hero .kicker { color: var(--faint); }
+  h1 {
+    font-size: clamp(1.9rem, 5.5vw, 2.9rem);
+    line-height: 1.08;
+    letter-spacing: -.02em;
+    font-weight: 700;
+    text-wrap: balance;
+    margin: 0 0 26px;
+    max-width: 20ch;
+  }
+  h1 em { font-style: normal; color: var(--accent); }
+
+  .thesis {
+    border-left: 3px solid var(--accent);
+    background: var(--surface);
+    box-shadow: var(--shadow);
+    border-radius: 0 var(--radius) var(--radius) 0;
+    padding: 22px 26px;
+    margin: 0 0 30px;
+    font-size: 1.12rem;
+    line-height: 1.5;
+  }
+  .thesis strong { color: var(--ink); }
+
+  .meta-strip {
+    display: flex; flex-wrap: wrap; gap: 10px;
+    font-family: var(--mono); font-size: .8rem;
+  }
+  .chip {
+    display: inline-flex; align-items: baseline; gap: 8px;
+    padding: 7px 13px; border-radius: 999px;
+    border: 1px solid var(--line-strong);
+    background: var(--surface);
+    color: var(--muted);
+    white-space: nowrap;
+  }
+  .chip b { color: var(--ink); font-weight: 600; }
+  .chip .dot { width: 7px; height: 7px; border-radius: 50%; align-self: center; }
+  .dot-good { background: var(--good); }
+  .dot-bad { background: var(--bad); }
+  .dot-warn { background: var(--warn); }
+
+  /* ---------- SECTIONS ---------- */
+  section { margin-bottom: 56px; }
+  .sec-head { margin-bottom: 24px; }
+  .sec-head .eyebrow { display: block; margin-bottom: 10px; }
+  h2 {
+    font-size: clamp(1.4rem, 3.5vw, 1.8rem);
+    line-height: 1.15;
+    letter-spacing: -.015em;
+    font-weight: 680;
+    margin: 0;
+    text-wrap: balance;
+  }
+  h3 {
+    font-size: 1.12rem;
+    letter-spacing: -.01em;
+    margin: 34px 0 8px;
+    font-weight: 650;
+  }
+  p { margin: 0 0 16px; max-width: var(--measure); }
+  .lead { color: var(--muted); }
+  strong { font-weight: 650; }
+
+  code, .k {
+    font-family: var(--mono);
+    font-size: .86em;
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    border-radius: 5px;
+    padding: .08em .38em;
+    word-break: break-word;
+  }
+
+  .note {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 18px 20px;
+    margin: 0 0 24px;
+    font-size: .95rem;
+    color: var(--muted);
+  }
+  .note strong { color: var(--ink); }
+
+  /* ---------- DISPOSITION BAR ---------- */
+  .ledger-card {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 22px 24px;
+    margin: 8px 0 8px;
+  }
+  .ledger-card .cap {
+    display: flex; justify-content: space-between; align-items: baseline;
+    font-family: var(--mono); font-size: .78rem; color: var(--faint);
+    margin-bottom: 14px; letter-spacing: .04em;
+  }
+  .ledger-card .cap b { color: var(--ink); font-size: 1.05rem; }
+  .bar { display: flex; height: 30px; border-radius: 6px; overflow: hidden; gap: 2px; }
+  .bar span { display: block; }
+  .seg-mig { background: var(--good); }
+  .seg-def { background: var(--accent); opacity: .82; }
+  .seg-obs { background: var(--line-strong); }
+  .seg-red { background: var(--warn); }
+  .legend {
+    display: flex; flex-wrap: wrap; gap: 14px 22px;
+    margin-top: 16px; font-family: var(--mono); font-size: .78rem; color: var(--muted);
+  }
+  .legend div { display: flex; align-items: center; gap: 8px; }
+  .legend .sw { width: 11px; height: 11px; border-radius: 3px; }
+  .legend b { color: var(--ink); font-variant-numeric: tabular-nums; }
+
+  /* ---------- TWO-BUCKET CONTRAST ---------- */
+  .buckets { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 8px 0 20px; }
+  @media (max-width: 620px) { .buckets { grid-template-columns: 1fr; } }
+  .bucket {
+    border-radius: var(--radius); padding: 20px 22px; border: 1px solid var(--line);
+    background: var(--surface);
+  }
+  .bucket.safe { border-top: 3px solid var(--good); }
+  .bucket.loss { border-top: 3px solid var(--bad); }
+  .bucket .tag {
+    font-family: var(--mono); font-size: .72rem; letter-spacing: .1em; text-transform: uppercase;
+    font-weight: 600; display: inline-block; margin-bottom: 6px;
+  }
+  .bucket.safe .tag { color: var(--good); }
+  .bucket.loss .tag { color: var(--bad); }
+  .bucket h4 { margin: 0 0 12px; font-size: 1.06rem; letter-spacing: -.01em; }
+  .bucket ul { margin: 0; padding-left: 18px; font-size: .92rem; color: var(--muted); }
+  .bucket li { margin-bottom: 7px; }
+  .bucket .verdict { margin-top: 14px; font-size: .88rem; font-weight: 600; }
+  .bucket.safe .verdict { color: var(--good); }
+  .bucket.loss .verdict { color: var(--bad); }
+
+  /* ---------- NUMBERED LOSS CARDS ---------- */
+  .losses { display: flex; flex-direction: column; gap: 12px; margin: 8px 0 22px; }
+  .loss {
+    display: grid; grid-template-columns: auto 1fr; gap: 18px; align-items: start;
+    background: var(--surface); border: 1px solid var(--line);
+    border-left: 3px solid var(--bad);
+    border-radius: var(--radius); padding: 16px 20px;
+  }
+  .loss .num {
+    font-family: var(--mono); font-weight: 700; font-size: 1.15rem;
+    color: var(--bad); line-height: 1.4;
+  }
+  .loss h4 { margin: 0 0 4px; font-size: 1rem; letter-spacing: -.01em; }
+  .loss p { margin: 0; font-size: .92rem; color: var(--muted); max-width: none; }
+  .loss.fifth { border-left-color: var(--warn); }
+  .loss.fifth .num { color: var(--warn); }
+
+  /* ---------- TABLES ---------- */
+  .table-scroll { overflow-x: auto; margin: 6px 0 20px; border-radius: var(--radius); border: 1px solid var(--line); }
+  table { border-collapse: collapse; width: 100%; font-size: .9rem; background: var(--surface); }
+  th, td { text-align: left; padding: 11px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  thead th {
+    font-family: var(--mono); font-size: .72rem; letter-spacing: .06em; text-transform: uppercase;
+    color: var(--faint); font-weight: 600; background: var(--surface-2);
+    position: sticky; top: 0;
+  }
+  tbody tr:last-child td { border-bottom: none; }
+  td .k { white-space: nowrap; }
+  td:first-child { font-weight: 550; }
+
+  .pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-family: var(--mono); font-size: .72rem; font-weight: 600;
+    padding: 3px 9px; border-radius: 999px; white-space: nowrap;
+  }
+  .pill::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .pill.ok { color: var(--good); background: var(--good-soft); }
+  .pill.no { color: var(--bad); background: var(--bad-soft); }
+  .pill.mid { color: var(--warn); background: var(--warn-soft); }
+
+  /* ---------- GRILL / PROBES ---------- */
+  .probe {
+    background: var(--surface); border: 1px solid var(--line);
+    border-radius: var(--radius); padding: 4px 22px 8px; margin: 18px 0 24px;
+    box-shadow: var(--shadow);
+  }
+  .probe > .plabel {
+    font-family: var(--mono); font-size: .72rem; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--accent); font-weight: 600; margin: 16px 0 10px; display: block;
+  }
+  .probe ul { margin: 0; padding-left: 20px; }
+  .probe li { margin-bottom: 10px; }
+  .probe li::marker { color: var(--accent); }
+
+  .keyq {
+    background: var(--warn-soft);
+    border: 1px solid color-mix(in srgb, var(--warn) 35%, transparent);
+    border-radius: var(--radius);
+    padding: 16px 20px; margin: 18px 0;
+  }
+  .keyq .plabel { color: var(--warn); }
+
+  ul.plain { padding-left: 20px; }
+  ul.plain li { margin-bottom: 8px; max-width: var(--measure); }
+  ul.plain li::marker { color: var(--accent); }
+
+  .fig { font-variant-numeric: tabular-nums; }
+
+  /* ---------- BOTTOM LINE ---------- */
+  .verdict-table td:first-child { width: 34%; }
+
+  .closer {
+    border-top: 1px solid var(--line); margin-top: 56px; padding-top: 32px;
+  }
+  .closer p { font-size: 1.05rem; }
+  .closer .punch { color: var(--ink); font-weight: 600; }
+
+  footer.meta {
+    margin-top: 48px; padding-top: 20px; border-top: 1px solid var(--line);
+    font-family: var(--mono); font-size: .74rem; color: var(--faint);
+    display: flex; flex-wrap: wrap; gap: 8px 20px; justify-content: space-between;
+  }
+</style>
+
+<div class="page">
+<div class="wrap">
+
+  <header class="hero">
+    <span class="eyebrow">Migration audit &nbsp;·&nbsp; ORDERS.fmb → Vaadin Flow</span>
+    <h1>What went right and wrong in the <em>migrated app</em></h1>
+    <div class="thesis">
+      v1→v2 proved fixes compound. The v2→v3 gap proved something scarier: <strong>the loss you
+      never argue about in review is the one nobody noticed was gone.</strong> The question is not
+      “how do we fix the misses we catch” — it’s <strong>how do we not miss essential features
+      without knowing it.</strong>
+    </div>
+    <div class="meta-strip">
+      <span class="chip"><b>v2</b> shipped app — S_ORD / S_ITEM spine</span>
+      <span class="chip"><b>v3</b> designed, never built</span>
+      <span class="chip"><b>151</b> ledger rows</span>
+    </div>
+  </header>
+
+  <!-- SCOPE NOTE -->
+  <div class="note">
+    <strong>What “the migrated app” is.</strong> The shipped app is the <strong>v2 branch</strong> —
+    the <code>S_ORD</code> / <code>S_ITEM</code> master-detail spine of <code>ORDERS.fmb</code>.
+    <strong>v3 was designed but never built:</strong> its PRD, its disposition ledger (151 rows) and
+    ADR-0015 exist on <code>master</code>, but the v3 build tickets (#85–#95) never landed — the
+    highest ORDERS build issue in git history is #59. So throughout, <strong>v3 = the plan that
+    catches v2’s gaps</strong>, and the ledger’s <span class="k">migrated-as</span> rows citing
+    #85–#95 describe v3’s <em>intent</em>, not v2’s reality.
+  </div>
+
+  <!-- 1. RIGHT -->
+  <section>
+    <div class="sec-head">
+      <span class="eyebrow">§1 — What went right</span>
+      <h2>The migrated parts are genuinely good</h2>
+    </div>
+
+    <h3>PL/SQL business logic → pure, tested Java</h3>
+    <p class="lead">Every trigger and formula on the spine has a traceable Java counterpart, with
+      the business rules pushed into <strong>pure Domain types</strong> (ADR-0001) that unit-test
+      without Spring, Vaadin, or a database. The formulas quote almost 1:1 from the PL/SQL.</p>
+
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr><th>Forms construct</th><th>Java home</th><th>Verdict</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><span class="k">ITEM_TOTAL</span> formula</td><td><span class="k">OrderLine.itemTotal()</span></td><td>uses <em>shipped</em> qty, per spec</td></tr>
+          <tr><td><span class="k">TOTAL</span> summary (Sum)</td><td><span class="k">Order.total(List)</span></td><td>pure stream sum; live-recompute overload</td></tr>
+          <tr><td>WHEN-VALIDATE-ITEM (product)</td><td><span class="k">applyProductDefaults()</span> + service</td><td><span class="k">NO_DATA_FOUND→RAISE</span> = rejected field</td></tr>
+          <tr><td>WHEN-VALIDATE-RECORD (ship date)</td><td><span class="k">Order.shipDateValid()</span></td><td>Binder validator <em>and</em> service gate</td></tr>
+          <tr><td>Credit-rating rule</td><td><span class="k">PaymentEligibility.allows()</span></td><td>clean data / decision split</td></tr>
+          <tr><td>PRE-INSERT <span class="k">MAX(item_id)+1</span></td><td><span class="k">Order.nextItemId(…)</span></td><td>over working lines, not a re-query</td></tr>
+          <tr><td>Delete cascade guard</td><td><span class="k">hasLineItems()</span> + exception</td><td>Non-Isolated guard preserved</td></tr>
+          <tr><td>Optimistic lock (<span class="k">ORA_ROWSCN</span>)</td><td><span class="k">SaveResult.Conflict</span></td><td>pessimistic→optimistic, no schema change</td></tr>
+          <tr><td><span class="k">COMMIT_FORM</span></td><td><span class="k">OrderService.save()</span></td><td>one <span class="k">@Transactional</span> whole-graph save</td></tr>
+          <tr><td>POST-QUERY display re-fetches</td><td>JOINs in <span class="k">loadGraph</span></td><td>no N+1</td></tr>
+          <tr><td><span class="k">AUDIT_S_ITEM</span> trigger</td><td><em>left in the DB</em></td><td>fires in-transaction, zero Java</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Architecture &amp; concurrency — the real engineering</h3>
+    <p>The substance is not the formulas (see §3.1) — it’s the plumbing, and the plumbing is solid:
+      a <strong>whole-graph commit</strong> that validates first, writes the scn-guarded header
+      UPDATE before anything else (so a conflict leaves the DB untouched), then diffs working vs.
+      persisted lines into inserts/updates/deletes; a <strong>typed <span class="k">SaveResult</span></strong>
+      (Committed / Conflict / Invalid) instead of a silent overwrite; an in-memory editing session
+      with re-entrancy guards; and clean <strong>View ← Presenter ← Service ← Domain ← Data</strong>
+      layering throughout.</p>
+
+    <h3>Layout fidelity (ADR-0012 / -0013)</h3>
+    <p>The header is structurally the <em>same screen</em>: the “Order Information” <span class="k">H2</span>,
+      the <span class="k">RECT59</span> frame as a titled section, fields in <span class="k">layoutPlan</span>
+      (Y-then-X) order, and <strong>control kinds preserved</strong> — payment type as a
+      <span class="k">RadioButtonGroup</span> (not flattened to text), order-filled as a
+      <span class="k">Checkbox</span>, dates as <span class="k">DatePicker</span>s. Each construct
+      shipped behind a <strong>Playwright + real-Oracle</strong> test plus a layout-fidelity gate.
+      <strong>No <span class="k">TODO</span>/<span class="k">FIXME</span> markers exist anywhere in
+      <span class="k">src/main/java</span>.</strong></p>
+  </section>
+
+  <!-- 2. MISSING -->
+  <section>
+    <div class="sec-head">
+      <span class="eyebrow">§2 — What’s missing</span>
+      <h2>The distinction that is the whole finding</h2>
+    </div>
+    <p class="lead">The migrated app is roughly <strong>half the form</strong> by object count —
+      deliberately, the <code>S_ORD</code>/<code>S_ITEM</code> spine. Missing things fall into two
+      very different buckets, and the difference between them is the lesson.</p>
+
+    <div class="ledger-card">
+      <div class="cap"><span>DISPOSITION LEDGER — ORDERS</span><b>151 rows</b></div>
+      <div class="bar" role="img" aria-label="74 migrated-as, 57 deferred, 16 obsolete, 4 re-decided">
+        <span class="seg-mig" style="width:49.0%"></span>
+        <span class="seg-def" style="width:37.7%"></span>
+        <span class="seg-obs" style="width:10.6%"></span>
+        <span class="seg-red" style="width:2.6%"></span>
+      </div>
+      <div class="legend">
+        <div><span class="sw seg-mig"></span> migrated-as <b>74</b></div>
+        <div><span class="sw seg-def"></span> deferred <b>57</b></div>
+        <div><span class="sw seg-obs"></span> obsolete <b>16</b></div>
+        <div><span class="sw seg-red"></span> re-decided <b>4</b></div>
+      </div>
+    </div>
+
+    <div class="buckets">
+      <div class="bucket safe">
+        <span class="tag">Bucket A</span>
+        <h4>Deferred &amp; tracked</h4>
+        <ul>
+          <li><span class="k">S_INVENTORY</span> sub-detail — own follow-up PRD</li>
+          <li>Product image (filesystem TIFF, needs conversion)</li>
+          <li><span class="k">CV_HELP</span>, <span class="k">EXIT_BUTTON</span>, menu module, <span class="k">pick</span> called form</li>
+          <li>Date LOVs collapsed to <span class="k">DatePicker</span></li>
+          <li><span class="k">IMMEDIATE</span>/<span class="k">AUTO_QUERY</span> coordination checkboxes</li>
+          <li><span class="k">CLIENT_IDENTIFIER</span> bridge (trigger reads no actor)</li>
+          <li>Arbitrary QBE → curated advanced-search panel</li>
+        </ul>
+        <div class="verdict">✓ Healthy — deferred ≠ dropped; a human made the call, it’s tracked forward.</div>
+      </div>
+      <div class="bucket loss">
+        <span class="tag">Bucket B</span>
+        <h4>Silently dropped</h4>
+        <ul>
+          <li>Each had <strong>spec data <em>and</em> a matching ruleset entry</strong></li>
+          <li>The tool wasn’t missing a rule</li>
+          <li>The failure was <strong>downstream of knowing</strong> — nothing consumed the fact</li>
+          <li>Absent from the running v2 app, and <strong>unknown to be absent</strong></li>
+        </ul>
+        <div class="verdict">✗ The core finding — the loss no guarantee caught.</div>
+      </div>
+    </div>
+
+    <h3>The four silent losses</h3>
+    <div class="losses">
+      <div class="loss"><div class="num">1</div><div>
+        <h4><span class="k">GLOBAL.customer_id</span> calling-context contract</h4>
+        <p>ORDERS can be launched already filtered to a customer (<span class="k">PRE-QUERY</span> reads it,
+        <span class="k">WHEN-CREATE-RECORD</span> defaults a new order, <span class="k">PRE-FORM</span> clears it).
+        An entire cross-form interface — invisible in v2.</p>
+      </div></div>
+      <div class="loss"><div class="num">2</div><div>
+        <h4><span class="k">DATE_ORDERED</span> <span class="k">$$date$$</span> default</h4>
+        <p>A new order should default its ordered-date to today. Dropped.</p>
+      </div></div>
+      <div class="loss"><div class="num">3</div><div>
+        <h4><span class="k">QUANTITY_SHIPPED</span> insert-only mode</h4>
+        <p><span class="k">updateAllowed=false, insertAllowed=true</span>: editable while a line is new,
+        read-only once saved. Flattened to plain editable.</p>
+      </div></div>
+      <div class="loss"><div class="num">4</div><div>
+        <h4><span class="k">SALES_REP_ID</span> read-only deviation</h4>
+        <p>v2 made it read-only — the <em>right</em> call — but nowhere recorded that this deviated from the
+        spec’s “editable”. An undocumented right answer is still a hole: the next reviewer can’t tell it from
+        an accident.</p>
+      </div></div>
+      <div class="loss fifth"><div class="num">5</div><div>
+        <h4>The confident false-absence claim</h4>
+        <p>v2’s code carried a comment asserting <em>“S_ORD has no <span class="k">WHEN-CREATE-RECORD</span>”</em>
+        that nothing checked against the spec. It <em>does</em> have one. An invented absence made a silent drop
+        look intentional.</p>
+      </div></div>
+    </div>
+
+    <p><strong>Why every gate was green</strong> while these fell through the floor:</p>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>Guarantee</th><th>What it proved</th><th>Why it missed these</th></tr></thead>
+        <tbody>
+          <tr><td>Spec census (183 elements)</td><td>every node counted</td><td>counted ≠ consumed</td></tr>
+          <tr><td>Scorecard / tickets</td><td>“migrate the master block”</td><td>too coarse to see one property inside a construct</td></tr>
+          <tr><td>ADR-0014 deferred lane</td><td>whole <em>surfaces</em> tracked</td><td>catches surfaces, not properties</td></tr>
+          <tr><td>Layout-fidelity gate</td><td>every field <em>renders</em></td><td><strong>a default has no visible absence</strong></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>That last row is the crux: <strong>you cannot see the absence of a default or an insert-only mode.
+      The screen looks completely correct without them.</strong></p>
+  </section>
+
+  <!-- 3. GRILL THE WINS -->
+  <section>
+    <div class="sec-head">
+      <span class="eyebrow">§3 — Grill me: challenge the wins</span>
+      <h2>The migrated parts are real, but the demo flatters them</h2>
+    </div>
+
+    <h3>3.1 “The PL/SQL migrated well” — true, but the demo is trivial</h3>
+    <p><strong>Confirmed by the source.</strong> The whole form is ~500 lines of PL/SQL, of which
+      <strong>half is Oracle-generated master-detail boilerplate</strong>. Of the ~250 hand-written lines:</p>
+    <ul class="plain">
+      <li><strong class="fig">34 of 45</strong> triggers are trivial — a single built-in call, assignment, or SELECT-INTO.</li>
+      <li><strong class="fig">~8</strong> are moderate — a SELECT-INTO + one branch + a <span class="k">NO_DATA_FOUND</span> handler.</li>
+      <li><strong>Exactly one</strong> hand-written trigger is “moderately complex” — and it’s <em>deferred</em> (the <span class="k">pick</span> called form).</li>
+      <li><strong>Zero</strong> packages, dynamic SQL, cursors over large sets, batch/<span class="k">FORALL</span>, package state, savepoints, or differentiated error handling.</li>
+    </ul>
+    <p>A real enterprise form has what this lacks: packaged domain logic (pricing, tax, credit limits,
+      approvals in DB packages), dynamic query building (<span class="k">DEFAULT_WHERE</span>),
+      multi-error-accumulating validation, <span class="k">SQLERRM</span>/<span class="k">SQLCODE</span>
+      handling, <span class="k">ON-INSERT</span>/<span class="k">ON-UPDATE</span> overrides, role checks,
+      audit columns, <span class="k">RUN_PRODUCT</span> reports.</p>
+
+    <div class="probe">
+      <span class="plabel">Probes to actually challenge this</span>
+      <ul>
+        <li>Migrate a form whose logic lives in a <strong>stateful DB package</strong> (a spec+body the AI must
+          read) — does the “pure Domain method” translation hold, or does package state leak into the presenter?</li>
+        <li>Migrate a trigger with <strong>dynamic <span class="k">DEFAULT_WHERE</span></strong> query building — clean
+          <span class="k">OrderSearchCriteria</span> object, or string-concatenation hazard?</li>
+        <li>Migrate <strong><span class="k">ON-INSERT</span>/<span class="k">ON-UPDATE</span> overrides</strong> — the whole-graph
+          <span class="k">save()</span> assumption breaks here.</li>
+        <li>A trigger that <strong>accumulates multiple validation errors</strong> before failing — Binder’s
+          field-at-a-time model may not map.</li>
+        <li>A <strong>500-line <span class="k">WHEN-BUTTON-PRESSED</span></strong> with nested loops and
+          <span class="k">FORM_TRIGGER_FAILURE</span> control flow — does fidelity survive, or does it silently simplify branches?</li>
+      </ul>
+    </div>
+    <p><strong>Hypothesis to test:</strong> the formulas migrate trivially at any scale; what breaks first in a
+      real app is (a) <strong>packaged/stateful logic</strong> the boundary can’t hold, and (b) the
+      <strong>volume of decision-prone properties</strong> overwhelming the ledger (→ §4).</p>
+
+    <h3>3.2 “The layout looks ok” — true, but the view is ~1,158 lines</h3>
+    <p>The layout is faithful, but it’s a <strong>single ~1,158-line view class</strong> mixing structure and
+      all event wiring — fine on a demo, a maintainability cliff on a real form with 5× the fields.</p>
+    <div class="probe">
+      <span class="plabel">Probes</span>
+      <ul>
+        <li>Does fidelity survive <strong>multiple canvases / stacked windows / tab pages</strong>? The demo has one real
+          canvas; <span class="k">CV_INVENTORY</span> and <span class="k">CV_HELP</span> were deferred — the hard multi-canvas case was <em>never exercised</em>.</li>
+        <li>Does <span class="k">layoutPlan</span> ordering hold when frames <strong>overlap or nest</strong>, or with anchored positioning?</li>
+        <li>Does a form with <strong>30+ header fields</strong> produce a usable FormLayout, or a wall?</li>
+        <li>Is the fidelity gate asserting <strong>grouping and order</strong>, or just <em>presence</em>? (Presence-only passes a scrambled-but-complete screen.)</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- 4. GRILL THE FIX -->
+  <section>
+    <div class="sec-head">
+      <span class="eyebrow">§4 — Grill me: challenge the fix</span>
+      <h2>Not missing features without knowing it</h2>
+    </div>
+    <p>v3’s answer is the <strong>disposition ledger</strong> (ADR-0015): one row per form object
+      <em>plus one per decision-prone mapped property</em> — every default, editability mode, visibility,
+      value-propagation, cross-form contract. Every row must reach a disposition
+      (<span class="k">migrated-as</span> / <span class="k">re-decided</span> / <span class="k">deferred</span> /
+      <span class="k">obsolete</span>) <strong>before any build ticket is cut</strong>;
+      <span class="k">to-issues</span> refuses while a row is unassigned; each <span class="k">migrated-as</span>
+      row becomes a runtime acceptance criterion. Right shape, right grain — but <strong>unproven at scale, and
+      never run</strong>.</p>
+
+    <div class="keyq">
+      <span class="plabel">The load-bearing question</span>
+      <p style="margin:0;">Does the analyzer actually <strong>emit</strong> every decision-prone property automatically,
+        or were the 151 rows <strong>hand-curated</strong>? If a human wrote them, the ledger only catches what that
+        human already noticed — which is <em>exactly the failure mode it claims to fix.</em> The generator that
+        produces the ledger from <span class="k">ORDERS.spec.json</span> is the thing that should be under test.</p>
+    </div>
+
+    <div class="probe">
+      <span class="plabel">More to grill</span>
+      <ul>
+        <li><strong>Row-count at real scale.</strong> 151 rows for a 34-item demo → plausibly <strong>thousands</strong> for a
+          real module. Who assigns dispositions without rubber-stamping? What stops “assign all to migrated-as” becoming the new census?</li>
+        <li><strong>“Decision-prone” is itself a judgment.</strong> The four losses looked mechanical too (a default, a flag).
+          Who decides which properties get a row — and doesn’t that decision reintroduce the silent-loss risk one level up?</li>
+        <li><strong><span class="k">re-decided</span> still needs a human to notice the deviation.</strong>
+          <span class="k">SALES_REP_ID</span> was caught by a retrofit audit, not the ledger. Would the ledger have
+          <em>flagged</em> the spec-editable / built-read-only mismatch, or just provided a row to record it once someone spotted it?</li>
+        <li><strong>The false-absence claim is only half-addressed.</strong> <span class="k">--check-refs</span> verifies a cited
+          ticket is live; it doesn’t verify a <em>claim of absence</em> against the spec. What catches the next invented “this form has no X”?</li>
+        <li><strong>v3 was never built.</strong> Every “would have caught it” is a paper claim. The obvious next experiment:
+          <strong>run the v3 build against ORDERS and confirm the four rows force the four features into existence.</strong></li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- 5. BOTTOM LINE -->
+  <section>
+    <div class="sec-head">
+      <span class="eyebrow">§5 — Bottom line</span>
+      <h2>Credible slice; the lesson is in how the misses were sorted</h2>
+    </div>
+    <div class="table-scroll">
+      <table class="verdict-table">
+        <thead><tr><th>Dimension</th><th>Verdict</th></tr></thead>
+        <tbody>
+          <tr><td>PL/SQL fidelity</td><td><span class="pill ok">good</span> Faithful — but the demo is trivial; unproven on packaged/stateful/dynamic logic (§3.1)</td></tr>
+          <tr><td>Architecture &amp; concurrency</td><td><span class="pill ok">good</span> The genuine engineering; solid</td></tr>
+          <tr><td>Layout fidelity</td><td><span class="pill ok">good</span> Same screen — but single-canvas only, ~1,158-line view (§3.2)</td></tr>
+          <tr><td>Deferred surfaces</td><td><span class="pill ok">good</span> Known and tracked — healthy</td></tr>
+          <tr><td>The four silent losses</td><td><span class="pill no">gap</span> Absent from v2, unknown to be absent — the core finding</td></tr>
+          <tr><td>The ledger fix (v3)</td><td><span class="pill mid">unproven</span> Right shape &amp; grain, gates early — but never built, unproven at scale</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="closer">
+      <p>The migrated app is a <span class="punch">credible, well-architected slice</span> whose business logic
+        happens to be easy because the source is a textbook demo. The durable lesson isn’t in what was migrated — it’s
+        in <span class="punch">how the misses were classified</span>: deferred-and-tracked is safe; the danger is the
+        essential feature that has spec data, has a rule, renders as a correct-looking screen, and still never gets
+        consumed — <span class="punch">the loss nobody notices is gone.</span></p>
+      <p>The step that would actually settle it: <strong>build v3 and prove the ledger forces those four features to
+        exist</strong> — then run the method on a form with real, packaged, stateful PL/SQL.</p>
+    </div>
+
+    <footer class="meta">
+      <span>Source of record: docs/findings-migration-result.md</span>
+      <span>v2 shipped · v3 designed, unbuilt · ledger 151 rows</span>
+    </footer>
+  </section>
+
+</div>
+</div>
+
+</body>
+</html>
