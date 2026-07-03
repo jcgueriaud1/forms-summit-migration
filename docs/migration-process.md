@@ -66,15 +66,9 @@ Formula item's expression is captured verbatim, no Vaadin target is chosen. This
 the neutral contract every later step reads, and keeping it opinion-free is what lets
 the method later sort each migration decision as generalizable or specific.
 
-```bash
-python3 .agents/skills/forms-xml-analyzer/scripts/analyze_form.py \
-    forms-summit-example/<FORM>_fmb.xml \
-    --out docs/generated/<FORM>.spec.json \
-    --md  docs/generated/<FORM>.spec.md
-```
-
-- `<FORM>.spec.json` — machine-readable spec (feeds every later step).
-- `<FORM>.spec.md` — human-readable digest.
+**Run it.** Point the skill at the form's XML (`forms-summit-example/<FORM>_fmb.xml`).
+It writes two artifacts to `docs/generated/`: `<FORM>.spec.json` (machine-readable,
+feeds every later step) and `<FORM>.spec.md` (human-readable digest).
 
 **Completeness guarantee.** The spec carries a `census` (tag → count) so nothing slips
 silently — the schema and derived-signal heuristics are documented in the skill's
@@ -112,15 +106,7 @@ you have chosen. The decisions come from two places:
   owns visual styling (ADR-0008), structural layout fidelity (ADR-0012), read-only is
   a state not a type (ADR-0013).
 
-Confirm the spec carries the fields the ruleset's rules fire on before you lean on it:
-
-```bash
-python3 .agents/skills/forms-xml-analyzer/scripts/check_against_ruleset.py \
-    docs/generated/<FORM>.spec.json docs/migration-rules.yaml
-# exit 0 = the spec ⇄ ruleset contract holds
-```
-
-Then run `to-prd`. It writes the PRD against the spec, the ruleset, and the ADRs, and
+Run `to-prd`. It writes the PRD against the spec, the ruleset, and the ADRs, and
 publishes it `ready-for-agent`. The worked example is
 [`docs/prd-orders-view.md`](prd-orders-view.md) (and its `-v3` revision).
 
@@ -144,20 +130,10 @@ non-tickets and keeps each ticket reviewable and testable on its own.
 ticket, this skill runs the ledger — one row per form object *plus* per decision-prone
 mapped property (a default, an editability mode, a `:GLOBAL` contract), the grain
 where silent losses actually happen. Every row must end in exactly one disposition
-(`migrated-as` / `re-decided` / `deferred` / `obsolete`). **If the check fails,
-ticket-cutting stops** until each unassigned row is worked *with the user*:
-
-```bash
-python3 .agents/skills/forms-xml-analyzer/scripts/disposition_ledger.py \
-    docs/generated/<FORM>.spec.json \
-    --merge docs/generated/<FORM>.ledger.json \
-    --out   docs/generated/<FORM>.ledger.json \
-    --md    docs/generated/<FORM>.ledger.md \
-    --check --check-refs
-```
-
-(`--merge` carries prior decisions across spec regenerations; `--check-refs` needs the
-`gh` CLI and guards against dead/closed ticket refs.)
+(`migrated-as` / `re-decided` / `deferred` / `obsolete`). **If the gate fails,
+ticket-cutting stops** until each unassigned row is worked *with the user*. The ledger
+is written to `docs/generated/<FORM>.ledger.{json,md}` and carries prior decisions
+forward across spec regenerations, so it is safe to refresh.
 
 Once the gate passes, each build ticket carries a `Covers:` line (the ledger rows it
 delivers), a field-fidelity table (default / editability / required / format mask,
@@ -218,8 +194,8 @@ the seams are fresh. Three ticket types:
    form's view (record actions, filter bar, `ORA_ROWSCN` path) recommended for a
    **reusable layer**.
 
-**Re-run the ledger gate** now that the build has happened and truth may have drifted
-(same command as Step 3). A `migrated-as` row **no test asserts** becomes a
+**The ledger gate runs again** here, now that the build has happened and truth may
+have drifted from the decisions. A `migrated-as` row **no test asserts** becomes a
 careful-review item — the disposition proves *decided*, only an assertion proves
 *delivered*, and property rows are the ones that slip. A build that deliberately
 deviated from a row's spec value must have flipped that row to `re-decided` (with
