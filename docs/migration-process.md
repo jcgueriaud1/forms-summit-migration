@@ -1,91 +1,70 @@
-# The forms-migration process — one form, end to end
+# Migrating a form — a developer's guide
 
-How to migrate **one** Oracle Forms form to Vaadin with this repo's method, from
-picking the `.fmb` to declaring the migration done.
+How to migrate **one** Oracle Forms form to Vaadin with this repo's method, from the
+`.fmb` on disk to a reviewed, implemented Vaadin view.
 
-This is a **runbook that assembles the existing process** — it does not invent or
-change it. The authority for each stage is the skill or doc cited beside it; when
-they disagree, they win. For the *why* behind the method (the "sorting problem"
-thesis, the two-week POC sequence) read [`PLAN.md`](../PLAN.md); for the
-vocabulary read [`CONTEXT.md`](../CONTEXT.md).
+This guide is the **map**; the authority for each step is the skill it names. Run the
+steps in order — each consumes the previous one's output. For the *why* behind the
+method read [`PLAN.md`](../PLAN.md); for the vocabulary read [`CONTEXT.md`](../CONTEXT.md).
 
-Throughout, `<FORM>` is whichever form you are migrating. The worked example is
-`ORDERS` (`forms-summit-example/ORDERS.fmb`).
+Throughout, `<FORM>` is the form you are migrating. The worked example is `ORDERS`
+(`forms-summit-example/ORDERS.fmb`).
 
 ---
 
-## The pipeline at a glance
+## The flow
 
 ```
-.fmb  ──frmf2xml──▶  <FORM>_fmb.xml
-   │
-   ▼  (1) forms-xml-analyzer: analyze_form.py
-<FORM>.spec.json  (decision-free structural spec, form-object grain)
-   │
-   ├─▶ (2) resolve dependencies[]  — ask per surface: spec it / ignore it
-   │
-   ├─▶ (3) apply migration-rules.yaml  — construct → Vaadin target
-   │        check_against_ruleset.py   (spec ⇄ ruleset contract holds)
-   │
-   ▼  (4) disposition_ledger.py --check --check-refs   ◀── HARD GATE (ADR-0015)
-<FORM>.ledger.json  (every form object + decision-prone property has a disposition)
-   │
-   ▼  (5) migration-to-issues (wraps to-issues)   +   to-prd
-GitHub build tickets (ready-for-agent, construct grain) + PRD
-   │
-   ▼  (6) build loop, per construct, riskiest first
-Vaadin code through View ◀ Presenter ◀ Service ◀ Domain ◀ Data  + UI tests
-   │
-   ▼  (7) migration-review  — HITL tickets (ready-for-human) + ledger re-check
-   │
-   ▼  (8) done gate: compiles + behavioural parity on the spine flow
-scorecard row filled
+.fmb ─(0) frmf2xml─▶ <FORM>_fmb.xml
+        │
+        ▼ (1) forms-xml-analyzer          unopinionated structural spec
+   <FORM>.spec.json
+        │
+        ▼ (2) to-prd                       Vaadin PRD (architecture decisions enter here)
+   PRD on the issue tracker
+        │
+        ▼ (3) migration-to-issues          split into build tickets  [ledger gate]
+   ready-for-agent issues
+        │
+        ▼ (4) implementation               build the code — can be AFK
+   Vaadin view + tests
+        │
+        ▼ (5) migration-review             human sign-off (ready-for-human tickets)
+   parity confirmed → done
 ```
 
-Three migration skills glue it together, in order:
-[`forms-xml-analyzer`](../.agents/skills/forms-xml-analyzer/SKILL.md) →
-[`migration-to-issues`](../.agents/skills/migration-to-issues/SKILL.md) →
-[`migration-review`](../.agents/skills/migration-review/SKILL.md). The build in
-between uses the generic Vaadin skills (`forms-and-validation`, `data-providers`,
-`testbench-testing`, …). Skills live under `.agents/skills/`.
+**Steps 1 → 3 are unopinionated → opinionated.** The analyzer records only *what the
+form is*. The PRD is where *what it should become* is decided — that is where Vaadin
+and your chosen architecture enter. `migration-to-issues` then turns that into
+buildable work. Skills live under `.agents/skills/`.
 
 ---
 
-## Prerequisites
+## Step 0 — Convert the `.fmb` to XML
 
-- The form's **FMB XML** — the `frmf2xml` export of the `.fmb`. In this repo the
-  Summit exports are already committed (e.g. `forms-summit-example/ORDERS_fmb.xml`).
-  For a new form, run Oracle's `frmf2xml` on its `.fmb` to produce `<FORM>_fmb.xml`.
-- The **mapping ruleset** [`docs/migration-rules.yaml`](migration-rules.yaml) — the
-  Forms-construct → Vaadin-target decision tree. Frozen IP; you *extend* it as you
-  learn (stage 6), you don't fork it per form.
-- The **runnable scaffold** — the layered Vaadin/Spring/Oracle app that code lands
-  in. See [`README.md`](../README.md) to bring up the DB and run it.
-- The **live Forms app** as the behavioural oracle for parity checks (stages 6–7).
-- `python3` (3.9+, stdlib only) and, for `--check-refs`, the `gh` CLI.
-
----
-
-## Stage 0 — Pick the form
-
-Choose the form and locate its FMB XML. If you only have the `.fmb`, export it:
+The whole toolchain reads the `frmf2xml` XML export, not the binary `.fmb`.
 
 ```bash
-frmf2xml <FORM>.fmb        # Oracle tool → <FORM>_fmb.xml
+frmf2xml <FORM>.fmb        # Oracle Forms tool → <FORM>_fmb.xml
 ```
 
-Migrate one form at a time. A form that references other forms/libraries does not
-pull them in automatically — those surface as `dependencies[]` in stage 2 and are
-decided explicitly, never dragged along silently.
+**Already done in this repository** — the Summit exports are committed (e.g.
+`forms-summit-example/ORDERS_fmb.xml`). You only run `frmf2xml` yourself when bringing
+in a new form from outside the repo.
 
 ---
 
-## Stage 1 — Analyze → structural spec
+## Step 1 — Analyze the form → unopinionated spec
 
-Run the analyzer. It is **mechanical and decision-free**: it records what the form
-*is* (every block, item, trigger, relation, LOV, record group, alert, program
-unit, canvas — plus Forms defaults it injects and derived signals the ruleset
-needs), never what it should *become*.
+**Skill:** [`forms-xml-analyzer`](../.agents/skills/forms-xml-analyzer/SKILL.md)
+
+**Purpose.** Turn the XML into a faithful, **decision-free** structural spec at
+form-object grain — every block, item, trigger, relation, LOV, record group, alert,
+program unit, and canvas, plus the Forms defaults it injects and the derived signals
+the PRD step needs. It records *what the form is*, never what it should *become*: a
+Formula item's expression is captured verbatim, no Vaadin target is chosen. This is
+the neutral contract every later step reads, and keeping it opinion-free is what lets
+the method later sort each migration decision as generalizable or specific.
 
 ```bash
 python3 .agents/skills/forms-xml-analyzer/scripts/analyze_form.py \
@@ -94,68 +73,79 @@ python3 .agents/skills/forms-xml-analyzer/scripts/analyze_form.py \
     --md  docs/generated/<FORM>.spec.md
 ```
 
-- `<FORM>.spec.json` — machine-readable spec that the ruleset, ledger, and planner
-  read. This is the contract for every downstream step.
+- `<FORM>.spec.json` — machine-readable spec (feeds every later step).
 - `<FORM>.spec.md` — human-readable digest.
 
-**Completeness guarantee:** the spec is at *form-object grain* and carries a
-`census` (tag → count) so nothing slips silently. Full output schema and the
-derived-signal heuristics are in
-[`forms-xml-analyzer/REFERENCE.md`](../.agents/skills/forms-xml-analyzer/REFERENCE.md).
+**Completeness guarantee.** The spec carries a `census` (tag → count) so nothing slips
+silently — the schema and derived-signal heuristics are documented in the skill's
+[`REFERENCE.md`](../.agents/skills/forms-xml-analyzer/REFERENCE.md).
 
-> If the analyzer errors on the form, **that is itself a finding** — capture the
-> XML shape; do not hand-edit the spec to paper over it.
-
----
-
-## Stage 2 — Resolve dependencies (ask, never silently drop)
-
-The analyzer inventories every external migration unit into `dependencies[]` — menu
+**Watch for `dependencies[]`.** A form rarely stands alone — it may reference a menu
 module, attached PL/SQL libraries (e.g. `calendar.pll`), sibling forms called via
-`CALL_FORM`/`OPEN_FORM`/`NEW_FORM`/`RUN_PRODUCT`, object-library subclassing, and
-**cross-form contracts** (`:GLOBAL.*` / `:PARAMETER.*` shared state) — each flagged
-`status: "undecided"`. The analyzer makes **no** scoping decision.
+`CALL_FORM`/`OPEN_FORM`, or cross-form `:GLOBAL`/`:PARAMETER` contracts. The analyzer
+inventories each as `status: "undecided"` and decides nothing. Before treating any as
+out of scope, decide **per dependency, with the user**: *spec it* (run the analyzer on
+that module too) or *ignore it* (an explicit, acknowledged exclusion). Never drop one
+silently. In-scope-but-deferred dependencies resurface as tracked work in Step 5.
 
-**Mandatory gate:** before treating any dependency as out of scope, stop and ask the
-user, *per dependency*:
-
-- **spec it** — run the analyzer on that module too and record it as a dependency
-  (set the entry's `status: "spec"`); or
-- **ignore it** — an explicit, acknowledged exclusion (`status: "ignore"`).
-
-Never pick for the user; record each answer back onto the entry so the choice is
-auditable in the spec. (Deferred-but-in-scope surfaces become tracked follow-up
-work in stage 7 — distinct from the `.out-of-scope/` *rejection* lane.)
+> If the analyzer errors on the form, **that is itself a finding** — capture the XML
+> shape; do not hand-edit the spec to paper over it.
 
 ---
 
-## Stage 3 — Map via the ruleset
+## Step 2 — Generate the PRD → the Vaadin/architecture decisions
 
-The spec has no Vaadin knowledge; [`migration-rules.yaml`](migration-rules.yaml)
-supplies the decisions (table trigger → stays in DB; Execute Query → filter bar;
-LOV → LookupField; pessimistic lock → `ORA_ROWSCN`; frame → grouping Section; …).
-It maps **1:1 to the scorecard rows** and is the substrate of the
-generalizable-vs-specific sort.
+**Skill:** [`to-prd`](../.agents/skills/to-prd/SKILL.md)
 
-Verify the spec actually carries the fields that make the rules fire, and that
-every referenced rule id exists:
+**Purpose.** Synthesise the spec (plus your architecture) into a PRD published to the
+issue tracker. **This is the opinionated step** — the analyzer said what the form *is*;
+the PRD says what it *becomes* in Vaadin, and that answer depends on the architecture
+you have chosen. The decisions come from two places:
+
+- **The mapping ruleset** [`docs/migration-rules.yaml`](migration-rules.yaml) — the
+  Forms-construct → Vaadin-target decision tree (table trigger → stays in the DB;
+  Execute Query → filter bar; LOV → LookupField; pessimistic lock → `ORA_ROWSCN`;
+  frame → grouping Section; …). It is the reusable IP; you *extend* it as you learn
+  (Step 4), you don't fork it per form.
+- **The ADRs** in [`docs/adr/`](adr/) — the architecture the PRD writes against:
+  business logic in the domain layer (ADR-0001), Binder not Signals (ADR-0002), Aura
+  owns visual styling (ADR-0008), structural layout fidelity (ADR-0012), read-only is
+  a state not a type (ADR-0013).
+
+Confirm the spec carries the fields the ruleset's rules fire on before you lean on it:
 
 ```bash
 python3 .agents/skills/forms-xml-analyzer/scripts/check_against_ruleset.py \
     docs/generated/<FORM>.spec.json docs/migration-rules.yaml
-# exit 0 = all contracts hold; 1 = at least one failed
+# exit 0 = the spec ⇄ ruleset contract holds
 ```
+
+Then run `to-prd`. It writes the PRD against the spec, the ruleset, and the ADRs, and
+publishes it `ready-for-agent`. The worked example is
+[`docs/prd-orders-view.md`](prd-orders-view.md) (and its `-v3` revision).
+
+> A different target architecture (a different ruleset, different ADRs) produces a
+> different PRD from the *same* spec — which is exactly why the spec stays neutral.
 
 ---
 
-## Stage 4 — The disposition-ledger gate (ADR-0015)
+## Step 3 — Split into issues → the build backlog
 
-**Hard gate before any tickets.** The ledger extends "nothing dropped silently"
-below construct grain — down to the grain where silent losses actually happen (a
-default, an editability mode, a `:GLOBAL` contract). It is one row per form object
-plus per decision-prone mapped property; every row must end in exactly one
-disposition: `migrated-as`, `re-decided` (with `reason` + `decidedBy`), `deferred`
-(with a tracking ref), or `obsolete` (with the rule id).
+**Skill:** [`migration-to-issues`](../.agents/skills/migration-to-issues/SKILL.md)
+(wraps the generic `to-issues`)
+
+**Purpose.** Turn the PRD into independently-buildable **construct-grain** tickets
+(~7 for ORDERS: master block, detail block, filter bar, LOV/LookupField, trigger
+totals, locking model, kept/dissolved DB objects). Clustering to construct grain *is*
+the architectural-decision step — it avoids a wall of forty "migrate KEY-NEXT-ITEM"
+non-tickets and keeps each ticket reviewable and testable on its own.
+
+**⚠ The disposition-ledger gate runs first (ADR-0015).** Before it cuts a single
+ticket, this skill runs the ledger — one row per form object *plus* per decision-prone
+mapped property (a default, an editability mode, a `:GLOBAL` contract), the grain
+where silent losses actually happen. Every row must end in exactly one disposition
+(`migrated-as` / `re-decided` / `deferred` / `obsolete`). **If the check fails,
+ticket-cutting stops** until each unassigned row is worked *with the user*:
 
 ```bash
 python3 .agents/skills/forms-xml-analyzer/scripts/disposition_ledger.py \
@@ -166,169 +156,90 @@ python3 .agents/skills/forms-xml-analyzer/scripts/disposition_ledger.py \
     --check --check-refs
 ```
 
-- `--merge` carries prior decisions forward across spec regenerations (safe to
-  refresh).
-- **If `--check` fails, stop.** Work each unassigned row *with the user* until it
-  has a disposition. Never assign a disposition for the user on a judgment row —
-  propose, then record.
-- **If `--check-refs` fails, fix the rot first** (needs `gh`): a dead `#N`, a
-  `deferred` row without a ref, or a `deferred` ref that is already closed (deliver
-  the row and flip it to `migrated-as`, or re-defer it).
+(`--merge` carries prior decisions across spec regenerations; `--check-refs` needs the
+`gh` CLI and guards against dead/closed ticket refs.)
 
-Mechanical carries (maximumLength, prompts, field order) get *no* ledger rows —
-the layout-fidelity gate (ADR-0012) verifies those at runtime instead.
+Once the gate passes, each build ticket carries a `Covers:` line (the ledger rows it
+delivers), a field-fidelity table (default / editability / required / format mask,
+pulled from the spec not memory), and **acceptance criteria derived from ledger rows**
+— so the build has to *prove delivered*, not just claim decided.
 
 ---
 
-## Stage 5 — PRD and build tickets
+## Step 4 — Implementation (can be AFK)
 
-Use [`migration-to-issues`](../.agents/skills/migration-to-issues/SKILL.md) (it
-re-runs the stage-4 gate, then wraps the generic `to-issues` skill). Optionally
-capture the whole slice as a PRD first with `to-prd`.
+**Skills:** the generic Vaadin set — `forms-and-validation`, `data-providers`,
+`views-and-navigation`, `testbench-testing`, … — driven from each `ready-for-agent`
+ticket. Because the tickets are self-contained (fidelity table + acceptance criteria),
+an agent can build them **unattended (AFK)**.
 
-Tickets are at **construct grain** (~7 for ORDERS: master block, detail block,
-filter bar, LOV/LookupField, trigger totals, locking model, kept/dissolved DB
-objects) — the clustering step *is* the architectural-decision step. Each build
-ticket is `ready-for-agent` and carries the migration-specific requirements:
-
-1. **`Covers:` line** — the ledger-row ids the ticket delivers. A row no ticket
-   covers and no other disposition explains is a leak.
-2. **Field-fidelity table** — per item, the decision-prone facts (default /
-   editability mode incl. insert-only / required / format mask / visibility /
-   `copyValueFromItem`), pulled from the spec, never from memory.
-3. **No unverified absence claims** — "Forms has no X" only with a spec citation.
-4. **Acceptance criteria from ledger rows** — every `migrated-as` row becomes a
-   runtime assertion (an `initializeValue` row → "a new record defaults the field
-   to that value"; an insert-only row → "accepts input on a new record, read-only
-   on a persisted one"). The ledger proves *decided*; the criteria make the build
-   prove *delivered*.
-
-Transport is GitHub Issues, but the markdown bodies are authored by the planner so
-the content ports to Jira/GitLab with a different `create` call.
-
----
-
-## Stage 6 — Build each construct (the build loop)
-
-Per **construct**, riskiest first (for ORDERS: master-detail block + totals, and
-the LookupField lazy-paging go/no-go — while a full rebuild is still cheap).
-
-Build through the layered architecture — see
-[ADR-0001](adr/0001-business-logic-in-domain-layer.md),
-[ADR-0002](adr/0002-binder-validation-no-signals.md):
+Build through the layered architecture (ADR-0001, ADR-0002):
 
 ```
 View  ◀  Presenter  ◀  Service  ◀  Domain  ◀  (JdbcClient)  ◀  Data
 ```
 
 - **Domain** owns the *formula* (`getExtendedPrice()`, `recalculateTotal()`) — pure,
-  unit-tested. This is where `WHEN-VALIDATE-ITEM` PL/SQL lands.
-- **Presenter** owns *orchestration* (Grid Pro cell-commit → call the domain method
-  → push the new total).
-- **Service** owns *load and commit* (fetch the graph; flush transactionally under
-  the `ORA_ROWSCN` check — the Forms `COMMIT_FORM` analogue).
+  unit-tested; where `WHEN-VALIDATE-ITEM` PL/SQL lands.
+- **Presenter** owns *orchestration* (Grid Pro cell-commit → call the domain method →
+  push the new total).
+- **Service** owns *load and commit* (fetch the graph; flush transactionally under the
+  `ORA_ROWSCN` optimistic-lock check — the Forms `COMMIT_FORM` analogue).
 - **Data** = Spring `JdbcClient`.
 
-Use the generic Vaadin skills for the actual code (`forms-and-validation`,
-`data-providers`, `views-and-navigation`, `testbench-testing`, …).
-
-**The loop (regenerate → validate → sort):**
-
-1. **Generate** the construct from its ticket.
-2. **Validate** against the live Forms app and **diagnose which layer failed**:
-   ticket wrong → fix the **ruleset**; code wrong but ticket right → fix the
-   **execution skill/prompt**; irreducible form quirk → **hand-fix, touch no skill**.
-3. **Sort every fix**: *generalizable* → push into the ruleset/skill as the new
-   behaviour (per the "encode decisions in the YAML" convention) and regenerate;
-   *specific* → stay manual, log in the scorecard.
-4. **Stopping gate:** compiles **+ behavioural parity on the spine flow**, checked
-   side-by-side against live Forms. Cap refinement at **~2 passes per construct** —
-   if it won't converge, **stop and write it up**; non-convergence is a finding, not
-   a reason to grind.
-
-The **spine flow** that must run (ORDERS): load an order → edit line quantities →
-swap a product via LookupField (re-default price + description) → add/delete lines →
-totals recompute live → commit under the `ORA_ROWSCN` check.
-
-> **The one discipline that can sink this:** the migration log / scorecard is
-> instrumentation you run from **day one**, live and sorted — not documentation
-> written at the end (see `PLAN.md`).
+Build the **riskiest construct first** (for ORDERS: master-detail + totals, and the
+LookupField lazy-paging go/no-go) while a rebuild is still cheap. As you correct
+generated code, **sort every fix**: *generalizable* (a rule the tool should have
+known) → push it into `migration-rules.yaml` as the new behaviour and regenerate;
+*specific* (an irreducible quirk of this form) → hand-fix and log it. That ratio is
+the number the POC exists to report.
 
 ---
 
-## Stage 7 — Review (HITL) and close the ledger loop
+## Step 5 — Migration review → sign-off
 
-Run [`migration-review`](../.agents/skills/migration-review/SKILL.md) after the
-build tickets are drafted, or per construct right after it is built while the seams
-are fresh. It emits three kinds of **`ready-for-human`** tickets (each opens with
-`> *This was generated by AI during triage.*`) — see
-[ADR-0014](adr/0014-hitl-review-tickets.md):
+**Skill:** [`migration-review`](../.agents/skills/migration-review/SKILL.md)
+
+**Purpose.** Emit the work a **human must own** as first-class `ready-for-human`
+tickets (each opens `> *This was generated by AI during triage.*`) — because an agent
+can make code compile and pass unit tests, but it cannot certify that the screen
+*behaves* and *reads* like Forms. See [ADR-0014](adr/0014-hitl-review-tickets.md). Run
+it after the build tickets are drafted, or per construct right after it is built while
+the seams are fresh. Three ticket types:
 
 1. **Careful-review / manual-test** — behavioural-parity + layout-fidelity checks a
-   human drives side-by-side against live Forms (documented seams, the ADR-0012/0013
-   layout gate, `Refactor`/`Unsupported`/`escalate` ruleset outcomes, `alerts[]`
-   business rules, and **absence-claim** verification against the spec).
+   human drives **side-by-side against live Forms** (documented seams, the
+   ADR-0012/0013 layout gate, `alerts[]` business rules, and **absence-claim**
+   verification — any "Forms has no X" in the code checked against the spec).
 2. **Out-of-slice / deferred follow-up** — in-scope-but-deferred dependencies become
-   tracked issues/PRDs. The human makes the **defer-vs-reject** call per surface
-   (reject → `.out-of-scope/`, per `triage/OUT-OF-SCOPE.md`).
-3. **Generalization-review** — generic Forms affordances the ruleset baked into a
-   form's view (record actions, filter bar, `ORA_ROWSCN` path, `CLIENT_IDENTIFIER`
-   bridge, confirm-on-destructive) recommended for a **reusable layer**. A candidate
-   earns "generalize" only if the rule can be stated in form-construct terms;
-   otherwise specific by default.
+   tracked issues/PRDs; the human makes the **defer-vs-reject** call (reject →
+   `.out-of-scope/`).
+3. **Generalization-review** — generic Forms affordances the ruleset baked into one
+   form's view (record actions, filter bar, `ORA_ROWSCN` path) recommended for a
+   **reusable layer**.
 
-**Re-run the ledger gate** now that the build has happened and truth may have
-drifted:
+**Re-run the ledger gate** now that the build has happened and truth may have drifted
+(same command as Step 3). A `migrated-as` row **no test asserts** becomes a
+careful-review item — the disposition proves *decided*, only an assertion proves
+*delivered*, and property rows are the ones that slip. A build that deliberately
+deviated from a row's spec value must have flipped that row to `re-decided` (with
+`reason` + `decidedBy`).
 
-```bash
-python3 .agents/skills/forms-xml-analyzer/scripts/disposition_ledger.py \
-    docs/generated/<FORM>.spec.json \
-    --merge docs/generated/<FORM>.ledger.json \
-    --out   docs/generated/<FORM>.ledger.json \
-    --md    docs/generated/<FORM>.ledger.md \
-    --check --check-refs
-```
-
-- A row still unassigned, or a `migrated-as` no ticket/PR actually delivered →
-  careful-review item.
-- A `migrated-as` row **no test asserts** → careful-review item (decided ≠
-  delivered; property rows are the ones that slip).
-- A build that **deliberately deviated** from a row's spec value must have flipped
-  that row to `re-decided` (`reason` + `decidedBy`); an undocumented deviation found
-  here is recorded there before the review closes. Generalizable re-decisions are
-  additionally encoded into `migration-rules.yaml`.
-
----
-
-## Stage 8 — Done
-
-A construct is done when it **compiles + shows behavioural parity on the spine
-flow**, verified side-by-side against live Forms, and:
-
-- every ledger row it covers has a disposition **and** (for `migrated-as`) a UI test
-  asserting it;
-- its careful-review ticket is worked;
-- deferred surfaces are tracked (issue/PRD), not silently dropped;
-- its **scorecard row** is filled — Construct / Vaadin target / AI-did-unaided /
-  needed-hand-fixing (split generalized-vs-specific) / genuinely-hard /
-  behavioural-parity / verdict (`Clean` / `Assisted` / `Manual` / `Stays-in-DB`).
-
-The form is done when every construct row is done. The **ratio** of
-generalized-into-skill vs stayed-specific fixes is the number the POC exists to
-report — the reader's automation ceiling.
+**Done** when the construct compiles, shows behavioural parity on the spine flow
+side-by-side against live Forms, every covered ledger row is asserted by a test, and
+the careful-review ticket is worked. The form is done when every construct is done.
 
 ---
 
 ## Reference map
 
-| Stage | Authority |
+| Step | Skill / artifact |
 |---|---|
-| Overview, build loop, thesis, schedule | [`PLAN.md`](../PLAN.md) |
-| Vocabulary (construct, disposition, layout fidelity, layers) | [`CONTEXT.md`](../CONTEXT.md) |
-| 1–2 Analyze / dependencies | [`forms-xml-analyzer/SKILL.md`](../.agents/skills/forms-xml-analyzer/SKILL.md), [`REFERENCE.md`](../.agents/skills/forms-xml-analyzer/REFERENCE.md) |
-| 3 Mapping | [`docs/migration-rules.yaml`](migration-rules.yaml) |
-| 4, 7 Disposition-ledger gate | `disposition_ledger.py`, [ADR-0015](adr/0015-disposition-ledger-gates-ticket-generation.md) |
-| 5 Tickets | [`migration-to-issues/SKILL.md`](../.agents/skills/migration-to-issues/SKILL.md) (wraps `to-issues`) |
-| 6 Build | ADR-0001/0002/0008/0012/0013, the Vaadin skills |
-| 7 Review (HITL) | [`migration-review/SKILL.md`](../.agents/skills/migration-review/SKILL.md), [ADR-0014](adr/0014-hitl-review-tickets.md) |
+| 0 Convert | Oracle `frmf2xml` (exports already committed) |
+| 1 Analyze | [`forms-xml-analyzer`](../.agents/skills/forms-xml-analyzer/SKILL.md) + [`REFERENCE.md`](../.agents/skills/forms-xml-analyzer/REFERENCE.md) |
+| 2 PRD | [`to-prd`](../.agents/skills/to-prd/SKILL.md); decisions from [`migration-rules.yaml`](migration-rules.yaml) + [`docs/adr/`](adr/) |
+| 3 Issues | [`migration-to-issues`](../.agents/skills/migration-to-issues/SKILL.md); ledger gate = [ADR-0015](adr/0015-disposition-ledger-gates-ticket-generation.md) |
+| 4 Implementation | the Vaadin skills; layering per ADR-0001/0002/0008/0012/0013 |
+| 5 Review | [`migration-review`](../.agents/skills/migration-review/SKILL.md); [ADR-0014](adr/0014-hitl-review-tickets.md) |
+| Method & vocabulary | [`PLAN.md`](../PLAN.md), [`CONTEXT.md`](../CONTEXT.md) |
 | Worked example (ORDERS) | `docs/generated/ORDERS.*`, `docs/orders-form-spec.md`, `docs/prd-orders-view*.md` |

@@ -4,8 +4,8 @@ A Vaadin 25 + Spring Boot 4 application that connects to an Oracle database and
 renders a single datum (the Oracle version banner) through a fully layered
 architecture. It is the runnable scaffold for the Oracle Forms → Vaadin migration
 proof of concept; the wider method and findings live in [`PLAN.md`](PLAN.md) and
-[`CONTEXT.md`](CONTEXT.md), and the step-by-step procedure for migrating one form
-(pick `.fmb` → done) is in
+[`CONTEXT.md`](CONTEXT.md), and a developer's guide to migrating one form end to end
+(`.fmb` → analyze → PRD → issues → implement → review) is in
 [`docs/migration-process.md`](docs/migration-process.md).
 
 The demo view exists to prove the whole stack wires together — Vaadin, Spring,
