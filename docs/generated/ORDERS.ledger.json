@@ -12,7 +12,7 @@
       "as": "FormLayout master (block-master-single), quick+advanced search load",
       "reason": null,
       "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#39",
+      "ref": "#85",
       "rule": null
     },
     {
@@ -23,7 +23,7 @@
       "as": "read-only TextField, lookup-filled",
       "reason": null,
       "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#39",
+      "ref": "#85",
       "rule": null
     },
     {
@@ -34,7 +34,7 @@
       "as": "read-only state (ADR-0013)",
       "reason": null,
       "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#39",
+      "ref": "#85",
       "rule": null
     },
     {
@@ -45,7 +45,7 @@
       "as": "read-only state (ADR-0013)",
       "reason": null,
       "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#39",
+      "ref": "#85",
       "rule": null
     },
     {
@@ -56,7 +56,7 @@
       "as": "read-only TextField (PK display)",
       "reason": "PK is assigned by the PRE-INSERT sequence and never typed on the web; Forms editability existed for ENTER-QUERY mode, replaced by search",
       "decidedBy": "human — v2 retrofit review",
-      "ref": "#39",
+      "ref": "#85",
       "rule": null
     },
     {
@@ -67,7 +67,7 @@
       "as": "editable TextField + WHEN-VALIDATE-ITEM lookup",
       "reason": null,
       "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#47",
+      "ref": "#93",
       "rule": null
     },
     {
@@ -78,7 +78,7 @@
       "as": "required + lookup rejection",
       "reason": null,
       "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#47",
+      "ref": "#93",
       "rule": null
     },
     {
@@ -89,7 +89,7 @@
       "as": "customer lookup defaulter + rejection",
       "reason": null,
       "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#47",
+      "ref": "#93",
       "rule": null
     },
     {
@@ -100,18 +100,18 @@
       "as": "DatePicker",
       "reason": null,
       "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#47",
+      "ref": "#93",
       "rule": null
     },
     {
       "id": "property:S_ORD.DATE_ORDERED.initializeValue",
       "kind": "property",
       "specValue": "$$date$$",
-      "disposition": null,
-      "as": null,
+      "disposition": "migrated-as",
+      "as": "DatePicker; Order.blank() defaults date_ordered to today ($$date$$)",
       "reason": null,
-      "decidedBy": null,
-      "ref": null,
+      "decidedBy": "PRD #77 (ADR-0015 v3)",
+      "ref": "#94",
       "rule": null
     },
     {
@@ -122,7 +122,7 @@
       "as": "DatePicker built-in calendar",
       "reason": null,
       "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#47",
+      "ref": "#93",
       "rule": null
     },
     {
@@ -133,7 +133,7 @@
       "as": "DatePicker + ship-date guard",
       "reason": null,
       "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#47",
+      "ref": "#93",
       "rule": null
     },
     {
@@ -144,7 +144,7 @@
       "as": "DatePicker built-in calendar",
       "reason": null,
       "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#47",
+      "ref": "#93",
       "rule": null
     },
     {
@@ -155,7 +155,7 @@
       "as": "read-only TextField, lookup-filled",
       "reason": "spec says editable; made lookup-filled-only so direct entry cannot bypass the customer→rep consistency the lookup enforces",
       "decidedBy": "human — v2 retrofit review",
-      "ref": "#47 / PR #57",
+      "ref": "#93",
       "rule": null
     },
     {
@@ -166,7 +166,7 @@
       "as": "read-only TextField, lookup-filled",
       "reason": null,
       "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#39",
+      "ref": "#85",
       "rule": null
     },
     {
@@ -177,7 +177,7 @@
       "as": "read-only state (ADR-0013)",
       "reason": null,
       "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#39",
+      "ref": "#85",
       "rule": null
     },
     {
@@ -188,7 +188,7 @@
       "as": "read-only state (ADR-0013)",
       "reason": null,
       "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#39",
+      "ref": "#85",
       "rule": null
     },
     {
@@ -199,7 +199,7 @@
       "as": "RadioButtonGroup Cash/Credit",
       "reason": null,
       "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#47",
+      "ref": "#93",
       "rule": null
     },
     {
@@ -210,7 +210,7 @@
       "as": "Order.blank() defaults CASH",
       "reason": null,
       "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#49",
+      "ref": "#94",
       "rule": null
     },
     {
@@ -221,7 +221,7 @@
       "as": "credit guard (PaymentEligibility)",
       "reason": null,
       "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#47",
+      "ref": "#93",
       "rule": null
     },
     {
@@ -232,7 +232,7 @@
       "as": "Checkbox",
       "reason": null,
       "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#47",
+      "ref": "#93",
       "rule": null
     },
     {
@@ -243,7 +243,7 @@
       "as": "Order.blank() defaults false (N)",
       "reason": null,
       "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#49",
+      "ref": "#94",
       "rule": null
     },
     {
@@ -254,7 +254,7 @@
       "as": "Commit button + Ctrl+S, whole-graph @Transactional save",
       "reason": null,
       "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#48",
+      "ref": "#95",
       "rule": null
     },
     {
@@ -276,7 +276,7 @@
       "as": "delete-cascade-guard (Service veto + disabled action)",
       "reason": null,
       "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#45 #49",
+      "ref": "#94",
       "rule": null
     },
     {
@@ -287,7 +287,7 @@
       "as": "loadGraph SQL join (customer/rep names)",
       "reason": null,
       "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#39",
+      "ref": "#85",
       "rule": null
     },
     {
@@ -298,29 +298,29 @@
       "as": "ship-date guard — Binder validator + Service gate",
       "reason": null,
       "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#47 #48",
+      "ref": "#93",
       "rule": null
     },
     {
       "id": "trigger:S_ORD.PRE-QUERY",
       "kind": "trigger",
       "specValue": "other",
-      "disposition": null,
-      "as": null,
+      "disposition": "migrated-as",
+      "as": "optional customerId route/query param seeds OrderSearchCriteria customer filter (pre-filters search)",
       "reason": null,
-      "decidedBy": null,
-      "ref": null,
+      "decidedBy": "PRD #77 (ADR-0015 v3)",
+      "ref": "#89",
       "rule": null
     },
     {
       "id": "trigger:S_ORD.WHEN-CREATE-RECORD",
       "kind": "trigger",
       "specValue": "other",
-      "disposition": null,
-      "as": null,
+      "disposition": "migrated-as",
+      "as": "when customerId param present, Order.blank(customerId) defaults new order's customer_id",
       "reason": null,
-      "decidedBy": null,
-      "ref": null,
+      "decidedBy": "PRD #77 (ADR-0015 v3)",
+      "ref": "#94",
       "rule": null
     },
     {
@@ -331,7 +331,7 @@
       "as": "S_ORD_ID.nextval on insert path",
       "reason": null,
       "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#48",
+      "ref": "#95",
       "rule": null
     },
     {
@@ -342,7 +342,7 @@
       "as": "Duplicate order (clear-list = id only)",
       "reason": null,
       "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#49",
+      "ref": "#94",
       "rule": null
     },
     {
@@ -353,7 +353,7 @@
       "as": "quick search commits the result set",
       "reason": null,
       "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#39 #43",
+      "ref": "#85",
       "rule": null
     },
     {
@@ -364,7 +364,7 @@
       "as": "curated advanced-search panel",
       "reason": "generic QBE cannot be preserved on the web; curated filters are the recorded honest loss",
       "decidedBy": "human — v2 retrofit review",
-      "ref": "PRD #38 / #43",
+      "ref": "#89",
       "rule": null
     },
     {
@@ -375,7 +375,7 @@
       "as": "New order action",
       "reason": null,
       "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#49",
+      "ref": "#94",
       "rule": null
     },
     {
@@ -386,7 +386,7 @@
       "as": "Clear action resets search + form",
       "reason": null,
       "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#43",
+      "ref": "#89",
       "rule": null
     },
     {
@@ -397,7 +397,7 @@
       "as": "prev/next pager over the result set",
       "reason": null,
       "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#42",
+      "ref": "#88",
       "rule": null
     },
     {
@@ -408,7 +408,7 @@
       "as": "prev/next pager over the result set",
       "reason": null,
       "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#42",
+      "ref": "#88",
       "rule": null
     },
     {
@@ -430,7 +430,7 @@
       "as": "Delete order + ConfirmDialog",
       "reason": null,
       "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#49",
+      "ref": "#94",
       "rule": null
     },
     {
@@ -440,8 +440,8 @@
       "disposition": "deferred",
       "as": null,
       "reason": "image preloading for the current record",
-      "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#68",
+      "decidedBy": "re-deferred to v3 tracking ticket (PRD #77)",
+      "ref": "#80",
       "rule": null
     },
     {
@@ -452,7 +452,7 @@
       "as": "editable Grid detail, unbuffered editor",
       "reason": null,
       "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#40 #45",
+      "ref": "#86",
       "rule": null
     },
     {
@@ -463,7 +463,7 @@
       "as": "implicit FK — line belongs to the order graph",
       "reason": null,
       "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#45",
+      "ref": "#91",
       "rule": null
     },
     {
@@ -474,7 +474,7 @@
       "as": "implicit — line exists only inside its order graph",
       "reason": null,
       "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#45",
+      "ref": "#91",
       "rule": null
     },
     {
@@ -485,7 +485,7 @@
       "as": "implicit — order graph carries the FK",
       "reason": null,
       "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#45",
+      "ref": "#91",
       "rule": null
     },
     {
@@ -496,7 +496,7 @@
       "as": "read-only Grid column, PRE-INSERT max+1 on add",
       "reason": null,
       "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#45",
+      "ref": "#91",
       "rule": null
     },
     {
@@ -507,7 +507,7 @@
       "as": "ComboBox LOV (PRODUCTS_LOV), direct entry allowed",
       "reason": null,
       "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#46",
+      "ref": "#92",
       "rule": null
     },
     {
@@ -518,7 +518,7 @@
       "as": "LOV rejects unknown/empty product",
       "reason": null,
       "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#46",
+      "ref": "#92",
       "rule": null
     },
     {
@@ -529,7 +529,7 @@
       "as": "product defaulter (description/price)",
       "reason": null,
       "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#46",
+      "ref": "#92",
       "rule": null
     },
     {
@@ -540,7 +540,7 @@
       "as": "editable Grid column (BigDecimalField)",
       "reason": null,
       "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#45",
+      "ref": "#91",
       "rule": null
     },
     {
@@ -551,7 +551,7 @@
       "as": "editable Grid column (IntegerField)",
       "reason": null,
       "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#45",
+      "ref": "#91",
       "rule": null
     },
     {
@@ -562,18 +562,18 @@
       "as": "editable Grid column (IntegerField)",
       "reason": null,
       "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#45",
+      "ref": "#91",
       "rule": null
     },
     {
       "id": "property:S_ITEM.QUANTITY_SHIPPED.editability.updateAllowed",
       "kind": "property",
       "specValue": "false (insert-only)",
-      "disposition": null,
-      "as": null,
+      "disposition": "migrated-as",
+      "as": "insert-only Grid editor state (forms-insert-only-field): editable while line is new/unsaved, read-only once persisted, via OrderLine.isNew()",
       "reason": null,
-      "decidedBy": null,
-      "ref": null,
+      "decidedBy": "PRD #77 (ADR-0015 v3)",
+      "ref": "#91",
       "rule": null
     },
     {
@@ -584,7 +584,7 @@
       "as": "computed Grid column — Domain OrderLine.itemTotal()",
       "reason": null,
       "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#44",
+      "ref": "#90",
       "rule": null
     },
     {
@@ -595,7 +595,7 @@
       "as": "money() two-decimal rendering",
       "reason": null,
       "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#44",
+      "ref": "#90",
       "rule": null
     },
     {
@@ -606,7 +606,7 @@
       "as": "computed, read-only display",
       "reason": null,
       "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#44",
+      "ref": "#90",
       "rule": null
     },
     {
@@ -617,7 +617,7 @@
       "as": "computed, read-only display",
       "reason": null,
       "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#44",
+      "ref": "#90",
       "rule": null
     },
     {
@@ -628,7 +628,7 @@
       "as": "Grid footer — Domain Order.total()",
       "reason": null,
       "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#44",
+      "ref": "#90",
       "rule": null
     },
     {
@@ -639,7 +639,7 @@
       "as": "money() two-decimal rendering",
       "reason": null,
       "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#44",
+      "ref": "#90",
       "rule": null
     },
     {
@@ -650,7 +650,7 @@
       "as": "read-only Grid column, defaulted from product",
       "reason": null,
       "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#46",
+      "ref": "#92",
       "rule": null
     },
     {
@@ -660,8 +660,8 @@
       "disposition": "deferred",
       "as": null,
       "reason": null,
-      "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#68",
+      "decidedBy": "re-deferred to v3 tracking ticket (PRD #77)",
+      "ref": "#80",
       "rule": null
     },
     {
@@ -671,8 +671,8 @@
       "disposition": "deferred",
       "as": null,
       "reason": null,
-      "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#68",
+      "decidedBy": "re-deferred to v3 tracking ticket (PRD #77)",
+      "ref": "#80",
       "rule": null
     },
     {
@@ -682,8 +682,8 @@
       "disposition": "deferred",
       "as": null,
       "reason": null,
-      "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#68",
+      "decidedBy": "re-deferred to v3 tracking ticket (PRD #77)",
+      "ref": "#80",
       "rule": null
     },
     {
@@ -694,7 +694,7 @@
       "as": "loadGraph SQL join (product description)",
       "reason": null,
       "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#40",
+      "ref": "#86",
       "rule": null
     },
     {
@@ -704,8 +704,8 @@
       "disposition": "deferred",
       "as": null,
       "reason": null,
-      "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#68",
+      "decidedBy": "re-deferred to v3 tracking ticket (PRD #77)",
+      "ref": "#80",
       "rule": null
     },
     {
@@ -716,7 +716,7 @@
       "as": "NVL(MAX(item_id),0)+1 per order (Domain nextItemId)",
       "reason": null,
       "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#45",
+      "ref": "#91",
       "rule": null
     },
     {
@@ -727,7 +727,7 @@
       "as": "Duplicate line (clear-list: item_id/product/desc/price)",
       "reason": null,
       "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#45",
+      "ref": "#91",
       "rule": null
     },
     {
@@ -738,7 +738,7 @@
       "as": "Delete line + ConfirmDialog",
       "reason": null,
       "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#45",
+      "ref": "#91",
       "rule": null
     },
     {
@@ -760,7 +760,7 @@
       "as": "same whole-graph commit",
       "reason": null,
       "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#48",
+      "ref": "#95",
       "rule": null
     },
     {
@@ -770,8 +770,8 @@
       "disposition": "deferred",
       "as": null,
       "reason": null,
-      "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#66",
+      "decidedBy": "re-deferred to v3 tracking ticket (PRD #77)",
+      "ref": "#78",
       "rule": null
     },
     {
@@ -781,8 +781,8 @@
       "disposition": "deferred",
       "as": null,
       "reason": null,
-      "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#66",
+      "decidedBy": "re-deferred to v3 tracking ticket (PRD #77)",
+      "ref": "#78",
       "rule": null
     },
     {
@@ -792,8 +792,8 @@
       "disposition": "deferred",
       "as": null,
       "reason": null,
-      "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#66",
+      "decidedBy": "re-deferred to v3 tracking ticket (PRD #77)",
+      "ref": "#78",
       "rule": null
     },
     {
@@ -803,8 +803,8 @@
       "disposition": "deferred",
       "as": null,
       "reason": null,
-      "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#66",
+      "decidedBy": "re-deferred to v3 tracking ticket (PRD #77)",
+      "ref": "#78",
       "rule": null
     },
     {
@@ -814,8 +814,8 @@
       "disposition": "deferred",
       "as": null,
       "reason": null,
-      "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#66",
+      "decidedBy": "re-deferred to v3 tracking ticket (PRD #77)",
+      "ref": "#78",
       "rule": null
     },
     {
@@ -825,8 +825,8 @@
       "disposition": "deferred",
       "as": null,
       "reason": null,
-      "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#66",
+      "decidedBy": "re-deferred to v3 tracking ticket (PRD #77)",
+      "ref": "#78",
       "rule": null
     },
     {
@@ -836,8 +836,8 @@
       "disposition": "deferred",
       "as": null,
       "reason": null,
-      "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#66",
+      "decidedBy": "re-deferred to v3 tracking ticket (PRD #77)",
+      "ref": "#78",
       "rule": null
     },
     {
@@ -847,8 +847,8 @@
       "disposition": "deferred",
       "as": null,
       "reason": null,
-      "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#66",
+      "decidedBy": "re-deferred to v3 tracking ticket (PRD #77)",
+      "ref": "#78",
       "rule": null
     },
     {
@@ -858,8 +858,8 @@
       "disposition": "deferred",
       "as": null,
       "reason": null,
-      "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#66",
+      "decidedBy": "re-deferred to v3 tracking ticket (PRD #77)",
+      "ref": "#78",
       "rule": null
     },
     {
@@ -869,8 +869,8 @@
       "disposition": "deferred",
       "as": null,
       "reason": null,
-      "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#66",
+      "decidedBy": "re-deferred to v3 tracking ticket (PRD #77)",
+      "ref": "#78",
       "rule": null
     },
     {
@@ -881,7 +881,7 @@
       "as": "LayoutHost — items hoisted into surrounding layout (block-control)",
       "reason": null,
       "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#41",
+      "ref": "#87",
       "rule": null
     },
     {
@@ -891,8 +891,8 @@
       "disposition": "deferred",
       "as": null,
       "reason": null,
-      "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#66",
+      "decidedBy": "re-deferred to v3 tracking ticket (PRD #77)",
+      "ref": "#78",
       "rule": null
     },
     {
@@ -902,8 +902,8 @@
       "disposition": "deferred",
       "as": null,
       "reason": null,
-      "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#66",
+      "decidedBy": "re-deferred to v3 tracking ticket (PRD #77)",
+      "ref": "#78",
       "rule": null
     },
     {
@@ -913,8 +913,8 @@
       "disposition": "deferred",
       "as": null,
       "reason": null,
-      "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#68",
+      "decidedBy": "re-deferred to v3 tracking ticket (PRD #77)",
+      "ref": "#80",
       "rule": null
     },
     {
@@ -924,8 +924,8 @@
       "disposition": "deferred",
       "as": null,
       "reason": null,
-      "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#68",
+      "decidedBy": "re-deferred to v3 tracking ticket (PRD #77)",
+      "ref": "#80",
       "rule": null
     },
     {
@@ -935,8 +935,8 @@
       "disposition": "deferred",
       "as": null,
       "reason": null,
-      "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#72",
+      "decidedBy": "re-deferred to v3 tracking ticket (PRD #77)",
+      "ref": "#84",
       "rule": null
     },
     {
@@ -946,8 +946,8 @@
       "disposition": "deferred",
       "as": null,
       "reason": null,
-      "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#72",
+      "decidedBy": "re-deferred to v3 tracking ticket (PRD #77)",
+      "ref": "#84",
       "rule": null
     },
     {
@@ -957,8 +957,8 @@
       "disposition": "deferred",
       "as": null,
       "reason": null,
-      "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#69",
+      "decidedBy": "re-deferred to v3 tracking ticket (PRD #77)",
+      "ref": "#81",
       "rule": null
     },
     {
@@ -968,8 +968,8 @@
       "disposition": "deferred",
       "as": null,
       "reason": null,
-      "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#69",
+      "decidedBy": "re-deferred to v3 tracking ticket (PRD #77)",
+      "ref": "#81",
       "rule": null
     },
     {
@@ -979,8 +979,8 @@
       "disposition": "deferred",
       "as": null,
       "reason": "single-value LOV migrated in #46; the multi-select pick protocol is the deferred part",
-      "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#67",
+      "decidedBy": "re-deferred to v3 tracking ticket (PRD #77)",
+      "ref": "#79",
       "rule": null
     },
     {
@@ -990,8 +990,8 @@
       "disposition": "deferred",
       "as": null,
       "reason": null,
-      "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#67",
+      "decidedBy": "re-deferred to v3 tracking ticket (PRD #77)",
+      "ref": "#79",
       "rule": null
     },
     {
@@ -1001,8 +1001,8 @@
       "disposition": "deferred",
       "as": null,
       "reason": null,
-      "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#71",
+      "decidedBy": "re-deferred to v3 tracking ticket (PRD #77)",
+      "ref": "#83",
       "rule": null
     },
     {
@@ -1012,8 +1012,8 @@
       "disposition": "deferred",
       "as": null,
       "reason": null,
-      "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#71",
+      "decidedBy": "re-deferred to v3 tracking ticket (PRD #77)",
+      "ref": "#83",
       "rule": null
     },
     {
@@ -1023,8 +1023,8 @@
       "disposition": "deferred",
       "as": null,
       "reason": null,
-      "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#71",
+      "decidedBy": "re-deferred to v3 tracking ticket (PRD #77)",
+      "ref": "#83",
       "rule": null
     },
     {
@@ -1034,8 +1034,8 @@
       "disposition": "deferred",
       "as": null,
       "reason": null,
-      "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#71",
+      "decidedBy": "re-deferred to v3 tracking ticket (PRD #77)",
+      "ref": "#83",
       "rule": null
     },
     {
@@ -1045,8 +1045,8 @@
       "disposition": "deferred",
       "as": null,
       "reason": null,
-      "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#71",
+      "decidedBy": "re-deferred to v3 tracking ticket (PRD #77)",
+      "ref": "#83",
       "rule": null
     },
     {
@@ -1056,8 +1056,8 @@
       "disposition": "deferred",
       "as": null,
       "reason": null,
-      "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#71",
+      "decidedBy": "re-deferred to v3 tracking ticket (PRD #77)",
+      "ref": "#83",
       "rule": null
     },
     {
@@ -1067,8 +1067,8 @@
       "disposition": "deferred",
       "as": null,
       "reason": null,
-      "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#71",
+      "decidedBy": "re-deferred to v3 tracking ticket (PRD #77)",
+      "ref": "#83",
       "rule": null
     },
     {
@@ -1078,8 +1078,8 @@
       "disposition": "deferred",
       "as": null,
       "reason": null,
-      "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#72",
+      "decidedBy": "re-deferred to v3 tracking ticket (PRD #77)",
+      "ref": "#84",
       "rule": null
     },
     {
@@ -1089,8 +1089,8 @@
       "disposition": "deferred",
       "as": null,
       "reason": null,
-      "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#72",
+      "decidedBy": "re-deferred to v3 tracking ticket (PRD #77)",
+      "ref": "#84",
       "rule": null
     },
     {
@@ -1112,18 +1112,18 @@
       "as": "search-first empty state (no auto EXECUTE_QUERY)",
       "reason": "Variant A decision: the web view opens on search, not on the full table auto-queried",
       "decidedBy": "human — v2 retrofit review",
-      "ref": "PRD #38",
+      "ref": "#89",
       "rule": null
     },
     {
       "id": "trigger:FORM.PRE-FORM",
       "kind": "trigger",
       "specValue": "other",
-      "disposition": null,
-      "as": null,
+      "disposition": "migrated-as",
+      "as": "view opens unscoped when no customerId param (PRE-FORM cleared GLOBAL.customer_id)",
       "reason": null,
-      "decidedBy": null,
-      "ref": null,
+      "decidedBy": "PRD #77 (ADR-0015 v3)",
+      "ref": "#89",
       "rule": null
     },
     {
@@ -1134,7 +1134,7 @@
       "as": "Duplicate order action",
       "reason": null,
       "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#49",
+      "ref": "#94",
       "rule": null
     },
     {
@@ -1144,8 +1144,8 @@
       "disposition": "deferred",
       "as": null,
       "reason": null,
-      "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#69",
+      "decidedBy": "re-deferred to v3 tracking ticket (PRD #77)",
+      "ref": "#81",
       "rule": null
     },
     {
@@ -1155,8 +1155,8 @@
       "disposition": "deferred",
       "as": null,
       "reason": null,
-      "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#69",
+      "decidedBy": "re-deferred to v3 tracking ticket (PRD #77)",
+      "ref": "#81",
       "rule": null
     },
     {
@@ -1178,7 +1178,7 @@
       "as": "loadGraph coordination + Non-Isolated delete guard",
       "reason": null,
       "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#40 #45",
+      "ref": "#86",
       "rule": null
     },
     {
@@ -1188,8 +1188,8 @@
       "disposition": "deferred",
       "as": null,
       "reason": null,
-      "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#66",
+      "decidedBy": "re-deferred to v3 tracking ticket (PRD #77)",
+      "ref": "#78",
       "rule": null
     },
     {
@@ -1200,7 +1200,7 @@
       "as": "ComboBox 'id — name', returns id",
       "reason": null,
       "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#46",
+      "ref": "#92",
       "rule": null
     },
     {
@@ -1211,7 +1211,7 @@
       "as": "ProductRepository reference query",
       "reason": null,
       "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#46",
+      "ref": "#92",
       "rule": null
     },
     {
@@ -1222,7 +1222,7 @@
       "as": "ConfirmDialog (order + line delete)",
       "reason": null,
       "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#45 #49",
+      "ref": "#91",
       "rule": null
     },
     {
@@ -1232,8 +1232,8 @@
       "disposition": "deferred",
       "as": null,
       "reason": "exit confirm belongs to exit wiring",
-      "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#69",
+      "decidedBy": "re-deferred to v3 tracking ticket (PRD #77)",
+      "ref": "#81",
       "rule": null
     },
     {
@@ -1244,7 +1244,7 @@
       "as": "Notification on credit refusal",
       "reason": null,
       "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#47",
+      "ref": "#93",
       "rule": null
     },
     {
@@ -1298,8 +1298,8 @@
       "disposition": "deferred",
       "as": null,
       "reason": null,
-      "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#70",
+      "decidedBy": "re-deferred to v3 tracking ticket (PRD #77)",
+      "ref": "#82",
       "rule": null
     },
     {
@@ -1320,8 +1320,8 @@
       "disposition": "deferred",
       "as": null,
       "reason": null,
-      "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#70",
+      "decidedBy": "re-deferred to v3 tracking ticket (PRD #77)",
+      "ref": "#82",
       "rule": null
     },
     {
@@ -1331,8 +1331,8 @@
       "disposition": "deferred",
       "as": null,
       "reason": null,
-      "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#66",
+      "decidedBy": "re-deferred to v3 tracking ticket (PRD #77)",
+      "ref": "#78",
       "rule": null
     },
     {
@@ -1343,7 +1343,7 @@
       "as": "@Route view in AppLayout",
       "reason": null,
       "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#41",
+      "ref": "#87",
       "rule": null
     },
     {
@@ -1353,8 +1353,8 @@
       "disposition": "deferred",
       "as": null,
       "reason": null,
-      "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#66",
+      "decidedBy": "re-deferred to v3 tracking ticket (PRD #77)",
+      "ref": "#78",
       "rule": null
     },
     {
@@ -1365,7 +1365,7 @@
       "as": "VerticalLayout (canvas-content)",
       "reason": null,
       "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#41",
+      "ref": "#87",
       "rule": null
     },
     {
@@ -1375,8 +1375,8 @@
       "disposition": "deferred",
       "as": null,
       "reason": null,
-      "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#66",
+      "decidedBy": "re-deferred to v3 tracking ticket (PRD #77)",
+      "ref": "#78",
       "rule": null
     },
     {
@@ -1386,8 +1386,8 @@
       "disposition": "deferred",
       "as": null,
       "reason": null,
-      "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#72",
+      "decidedBy": "re-deferred to v3 tracking ticket (PRD #77)",
+      "ref": "#84",
       "rule": null
     },
     {
@@ -1398,7 +1398,7 @@
       "as": "HorizontalLayout docked top (canvas-horizontal-toolbar)",
       "reason": null,
       "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#41",
+      "ref": "#87",
       "rule": null
     },
     {
@@ -1408,8 +1408,8 @@
       "disposition": "deferred",
       "as": null,
       "reason": null,
-      "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#68",
+      "decidedBy": "re-deferred to v3 tracking ticket (PRD #77)",
+      "ref": "#80",
       "rule": null
     },
     {
@@ -1419,8 +1419,8 @@
       "disposition": "deferred",
       "as": null,
       "reason": null,
-      "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#70",
+      "decidedBy": "re-deferred to v3 tracking ticket (PRD #77)",
+      "ref": "#82",
       "rule": null
     },
     {
@@ -1431,7 +1431,7 @@
       "as": "titled grouping section (frame-group)",
       "reason": null,
       "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#41",
+      "ref": "#87",
       "rule": null
     },
     {
@@ -1442,7 +1442,7 @@
       "as": "items grouping section (frame-group)",
       "reason": null,
       "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#41",
+      "ref": "#87",
       "rule": null
     },
     {
@@ -1452,8 +1452,8 @@
       "disposition": "deferred",
       "as": null,
       "reason": null,
-      "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#66",
+      "decidedBy": "re-deferred to v3 tracking ticket (PRD #77)",
+      "ref": "#78",
       "rule": null
     },
     {
@@ -1463,8 +1463,8 @@
       "disposition": "deferred",
       "as": null,
       "reason": null,
-      "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#72",
+      "decidedBy": "re-deferred to v3 tracking ticket (PRD #77)",
+      "ref": "#84",
       "rule": null
     },
     {
@@ -1475,7 +1475,7 @@
       "as": "H2 'Order Information' (boilerplate-heading)",
       "reason": null,
       "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#41",
+      "ref": "#87",
       "rule": null
     },
     {
@@ -1486,7 +1486,7 @@
       "as": "RadioButtonGroup label carries it",
       "reason": null,
       "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#41",
+      "ref": "#87",
       "rule": null
     },
     {
@@ -1496,8 +1496,8 @@
       "disposition": "deferred",
       "as": null,
       "reason": null,
-      "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#66",
+      "decidedBy": "re-deferred to v3 tracking ticket (PRD #77)",
+      "ref": "#78",
       "rule": null
     },
     {
@@ -1507,8 +1507,8 @@
       "disposition": "deferred",
       "as": null,
       "reason": null,
-      "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#72",
+      "decidedBy": "re-deferred to v3 tracking ticket (PRD #77)",
+      "ref": "#84",
       "rule": null
     },
     {
@@ -1518,8 +1518,8 @@
       "disposition": "deferred",
       "as": null,
       "reason": null,
-      "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#72",
+      "decidedBy": "re-deferred to v3 tracking ticket (PRD #77)",
+      "ref": "#84",
       "rule": null
     },
     {
@@ -1529,8 +1529,8 @@
       "disposition": "deferred",
       "as": null,
       "reason": null,
-      "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#69",
+      "decidedBy": "re-deferred to v3 tracking ticket (PRD #77)",
+      "ref": "#81",
       "rule": null
     },
     {
@@ -1540,8 +1540,8 @@
       "disposition": "deferred",
       "as": null,
       "reason": null,
-      "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#70",
+      "decidedBy": "re-deferred to v3 tracking ticket (PRD #77)",
+      "ref": "#82",
       "rule": null
     },
     {
@@ -1551,8 +1551,8 @@
       "disposition": "deferred",
       "as": null,
       "reason": null,
-      "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#67",
+      "decidedBy": "re-deferred to v3 tracking ticket (PRD #77)",
+      "ref": "#79",
       "rule": null
     },
     {
@@ -1562,19 +1562,19 @@
       "disposition": "deferred",
       "as": null,
       "reason": null,
-      "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#70",
+      "decidedBy": "re-deferred to v3 tracking ticket (PRD #77)",
+      "ref": "#82",
       "rule": null
     },
     {
       "id": "dependency:global-variable:GLOBAL.CUSTOMER_ID",
       "kind": "dependency",
       "specValue": "trigger-body scan (:GLOBAL/:PARAMETER)",
-      "disposition": null,
-      "as": null,
+      "disposition": "migrated-as",
+      "as": "modelled as optional customerId route/query parameter on OrderView — a first-class cross-form contract",
       "reason": null,
-      "decidedBy": null,
-      "ref": null,
+      "decidedBy": "PRD #77 (ADR-0015 v3)",
+      "ref": "#89",
       "rule": null
     },
     {
@@ -1617,8 +1617,8 @@
       "disposition": "deferred",
       "as": null,
       "reason": "help-overlay focus restore",
-      "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#72",
+      "decidedBy": "re-deferred to v3 tracking ticket (PRD #77)",
+      "ref": "#84",
       "rule": null
     },
     {
@@ -1628,8 +1628,8 @@
       "disposition": "deferred",
       "as": null,
       "reason": "pick exclusion protocol",
-      "decidedBy": "v2 baseline (retrofit)",
-      "ref": "#67",
+      "decidedBy": "re-deferred to v3 tracking ticket (PRD #77)",
+      "ref": "#79",
       "rule": null
     },
     {
