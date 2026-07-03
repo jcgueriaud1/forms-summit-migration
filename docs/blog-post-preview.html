@@ -705,6 +705,115 @@
     the accumulated ruleset, so its <em>first</em> pass starts where our <em>second</em> one did.</p>
   </div>
 
+  <h2>Running it a third time: the losses no guarantee caught</h2>
+
+  <p>v1 → v2 proved the <em>ratio</em> compounds. v3 tested something the ratio quietly
+  assumes: <strong>that you see every loss in the first place.</strong> A fix can only be
+  sorted if it surfaces as a correction. But what about the losses that never surface — the
+  ones every guarantee we had built sails right past?</p>
+
+  <p>Before regenerating v3 we ran a <strong>retrofit audit</strong> of the shipped v2 build.
+  Not "does it match the live form on the spine flow" — it did — but the stricter question:
+  <em>walk every decision-prone fact in the spec and prove the build consumed it.</em> It found
+  <strong>four losses</strong>:</p>
+
+  <ul>
+    <li><strong>The <code>GLOBAL.customer_id</code> calling-context contract.</strong> ORDERS
+    can be launched <em>already filtered to a customer</em>: Forms' <code>PRE-QUERY</code> reads
+    <code>:GLOBAL.customer_id</code>, <code>WHEN-CREATE-RECORD</code> defaults a new order's
+    customer from it, <code>PRE-FORM</code> clears it. An entire cross-form interface —
+    invisible in v2.</li>
+    <li><strong>The <code>DATE_ORDERED</code> <code>$$date$$</code> default</strong> — a new
+    order should default its ordered-date to today. Dropped.</li>
+    <li><strong>The <code>QUANTITY_SHIPPED</code> insert-only mode</strong> —
+    <code>updateAllowed=false, insertAllowed=true</code>: editable while a line is new,
+    read-only once saved. Flattened to plain editable.</li>
+    <li><strong>The <code>SALES_REP_ID</code> read-only deviation</strong> — v2 made the field
+    read-only, and that was the <em>right</em> call (the rep comes from the customer lookup). But
+    <em>nowhere was it recorded that this deviated from the spec's "editable".</em> An
+    undocumented right answer is still a hole: the next reviewer can't tell it from an
+    accident.</li>
+  </ul>
+
+  <p>Here is what made these different from every v1/v2 correction — and why they matter more.
+  <strong>Each one had spec data <em>and</em> a matching ruleset entry.</strong> The tool was
+  not missing a rule. The <code>$$date$$</code> default was in the spec; the editability flags
+  were in the spec; the <code>:GLOBAL</code> reference was sitting in a trigger body. The
+  failure was <em>downstream of knowing</em>: <strong>nothing consumed the fact.</strong> The
+  census counts spec elements — all 183 present. ✓ The scorecard and the tickets are cut at
+  <em>construct</em> grain ("migrate the master block") — too coarse to notice one property
+  inside a construct went missing. ADR-0014's deferred lane catches whole <em>surfaces</em>, not
+  properties. Every gate we owned was green while the fact fell through the floor.</p>
+
+  <div class="seam">
+    <span class="tag">The failure mode, named</span>
+    <p>A fifth finding named it precisely: v2's code justified one gap with a confident
+    <strong>false-absence claim</strong> — a comment asserting "S_ORD has no
+    <code>WHEN-CREATE-RECORD</code>" that nothing ever checked against the spec. It does have
+    one. The absence was invented to make a silent drop look intentional.</p>
+  </div>
+
+  <h3>The fix: a disposition ledger, gated before code exists</h3>
+
+  <p>The correction here is <em>not</em> another rule in <code>migration-rules.yaml</code> — the
+  rules were already right. It is a <strong>completeness gate at the right grain.</strong>
+  ADR-0015 introduces a <strong>disposition ledger</strong>: generated from the structural spec,
+  <strong>one row per form object plus one row per decision-prone mapped property</strong> —
+  every default, editability mode, visibility rule, value-propagation and cross-form contract
+  gets its own row. For ORDERS that is <strong>151 rows.</strong></p>
+
+  <p>Every row must end in exactly one disposition <em>before any build ticket is cut</em>:</p>
+
+  <ul>
+    <li><strong><code>migrated-as</code></strong> — with a ref to the ticket/PR that carries
+    it;</li>
+    <li><strong><code>re-decided</code></strong> — a deliberate deviation, rationale and decider
+    recorded <em>on the row</em> (this is where <code>SALES_REP_ID</code> now lives — the right
+    answer, finally visible <em>as a decision</em>);</li>
+    <li><strong><code>deferred</code></strong> — with a tracking ticket;</li>
+    <li><strong><code>obsolete</code></strong> — with the rule id that dissolves it.</li>
+  </ul>
+
+  <p>The teeth: <strong><code>to-issues</code> refuses to cut build tickets while any row is
+  unassigned.</strong> The gate bites <em>before code exists</em> — at ticket-cutting time, not
+  review time — which is the entire point. Gating at review, as v2 effectively did, catches the
+  gap only after you have built on top of it. And so the ledger can't rot into
+  confident-looking stale pointers, <code>--check-refs</code> verifies every citation is live: a
+  cited ticket must exist; a <code>deferred</code> row must point at one still open.</p>
+
+  <p>Two consequences close the loop back to the thesis:</p>
+
+  <ul>
+    <li><strong>A <code>migrated-as</code> disposition proves <em>decided</em>, not
+    <em>delivered</em>.</strong> So every <code>migrated-as</code> row a ticket covers becomes a
+    <strong>runtime acceptance criterion</strong> — a UI test asserting the named behaviour.
+    Property rows are exactly the ones that slip otherwise: the screen looks completely correct
+    without a default or an insert-only mode. You have to <em>assert</em> those, because you
+    cannot <em>see</em> their absence.</li>
+    <li><strong>The re-decision that generalizes still flows into the ruleset.</strong> The
+    insert-only mode earned a first-class ruleset meaning — <code>forms-insert-only-field</code>:
+    <code>updateAllowed=false, insertAllowed=true</code> is a <em>record-mode state flip</em>,
+    not <code>setReadOnly(true)</code>, and collapsing it either way is a recorded fidelity
+    loss.</li>
+  </ul>
+
+  <h3>What v3 changes about the thesis</h3>
+
+  <p>v1 → v2 is the ratio <em>compounding</em>. v3 is the <strong>inventory the ratio sorts
+  over</strong> becoming <em>complete</em>. The sort is only as trustworthy as your guarantee
+  that every correction <em>reaches</em> it — and a correction that never surfaces can't be
+  sorted at all.</p>
+
+  <div class="thesis">
+    <p>"Nothing dropped silently" now holds at <strong>three grains</strong>: the spec census
+    (every element), the slice boundary (every deferred surface), and — new in v3 —
+    <strong>migration content</strong> (every decision-prone property has a recorded
+    disposition, backed by a test or a tracked defer). For a Forms shop the practical upgrade is
+    blunt: the failure that should scare you is not the loss you argue about in review — it is
+    the one nobody noticed was gone. v3 is the machinery that keeps the second kind from
+    reaching production silently.</p>
+  </div>
+
   <h2>Reproducibility: a guaranteed tier and an honest tier</h2>
 
   <ul>
