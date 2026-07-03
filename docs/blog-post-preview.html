@@ -254,6 +254,57 @@
   }
   .builds .wip { color: var(--amber); font-weight: 600; }
 
+  /* ---- Ticket diff (v2 vs v3) ---- */
+  .ticket-diff {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.9rem;
+    margin: 1.8rem 0 0.7rem;
+    align-items: start;
+  }
+  .ticket {
+    border: 1px solid var(--hair);
+    border-radius: 8px;
+    background: #fff;
+    overflow: hidden;
+    font-family: var(--sans);
+  }
+  .ticket.v3 { border-color: #c9d8f6; box-shadow: 0 0 0 2px #eaf0fc; }
+  .ticket > header { padding: 0.6rem 0.8rem; border-bottom: 1px solid var(--hair); background: #f6f8fb; }
+  .ticket.v3 > header { background: var(--accent-soft); border-bottom-color: #d7e2f8; }
+  .ticket .vchip {
+    font-size: 0.63rem; font-weight: 700; letter-spacing: 0.09em; text-transform: uppercase;
+    color: var(--muted);
+  }
+  .ticket.v3 .vchip { color: var(--accent); }
+  .ticket .tt {
+    display: block; margin-top: 0.28rem;
+    font-size: 0.8rem; font-weight: 650; line-height: 1.32; color: var(--ink);
+  }
+  .ticket ul.sec { list-style: none; margin: 0; padding: 0.55rem 0.8rem 0.7rem; }
+  .ticket ul.sec li {
+    font-size: 0.75rem; line-height: 1.4; color: var(--muted);
+    padding: 0.26rem 0; margin: 0; border: none; display: block;
+  }
+  .ticket ul.sec li b { color: #232b36; font-weight: 650; }
+  .ticket ul.sec li.add { color: #232b36; }
+  .ticket ul.sec li.add::before {
+    content: "＋ new"; display: inline-block; margin-right: 0.4rem;
+    font-size: 0.58rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+    color: var(--accent); background: #fff; border: 1px solid #c9d8f6;
+    border-radius: 3px; padding: 0.02em 0.34em; vertical-align: 1px;
+  }
+  .ticket ul.sec li.gone { color: var(--amber); font-style: italic; }
+  .ticket ul.sec li.gone::before {
+    content: "✕"; margin-right: 0.4rem; font-style: normal; font-weight: 700; color: var(--amber);
+  }
+  .ticket-cap {
+    font-family: var(--sans); font-size: 0.74rem; line-height: 1.5;
+    color: var(--muted); margin: 0 0 1.8rem;
+  }
+  .ticket-cap b { color: var(--accent); }
+  @media (max-width: 620px) { .ticket-diff { grid-template-columns: 1fr; } }
+
   hr.div { border: none; border-top: 1px solid var(--hair); margin: 3rem 0; }
 
   .closer {
@@ -796,6 +847,46 @@
     not <code>setReadOnly(true)</code>, and collapsing it either way is a recorded fidelity
     loss.</li>
   </ul>
+
+  <p>Here is what that looks like in a real ticket. The <em>same construct</em> — inline
+  line-item editing — cut against v2 and against v3:</p>
+
+  <div class="ticket-diff">
+    <div class="ticket v2">
+      <header>
+        <span class="vchip">v2 · issue #45</span>
+        <span class="tt">ORDERS: inline line-item editing + detail record actions + delete guard</span>
+      </header>
+      <ul class="sec">
+        <li><b>What to build</b> — prose</li>
+        <li><b>Acceptance criteria</b> — checklist</li>
+        <li><b>Blocked by</b> — #44</li>
+        <li class="gone"><code>QUANTITY_SHIPPED</code> — not mentioned</li>
+      </ul>
+    </div>
+    <div class="ticket v3">
+      <header>
+        <span class="vchip">v3 · issue #91</span>
+        <span class="tt">… + <code>QUANTITY_SHIPPED</code> insert-only</span>
+      </header>
+      <ul class="sec">
+        <li><b>What to build</b> — prose</li>
+        <li class="add"><b>Covers</b> — 12 ledger row ids, incl.
+        <code>property:S_ITEM.QUANTITY_SHIPPED.editability.updateAllowed</code></li>
+        <li class="add"><b>Field fidelity</b> — a per-field matrix; "implement against this
+        matrix, not prose"</li>
+        <li class="add"><code>QUANTITY_SHIPPED</code> — first-class <b>insert-only</b> row
+        (editable while new, read-only once saved)</li>
+        <li class="add"><b>Acceptance criterion + DramaFinder test</b> — shipped editable on a
+        new line, read-only on a saved line</li>
+        <li><b>Blocked by</b> — #90</li>
+      </ul>
+    </div>
+  </div>
+
+  <p class="ticket-cap">Same step, same spine. v2's ticket had <em>no slot</em> for the
+  insert-only property, so it fell out silently. v3's ticket can't be cut until that ledger row
+  has a disposition — and the row rides all the way to a <b>test that asserts it at runtime.</b></p>
 
   <h3>What v3 changes about the thesis</h3>
 

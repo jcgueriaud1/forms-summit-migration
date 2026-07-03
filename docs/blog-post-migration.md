@@ -454,6 +454,23 @@ Two consequences close the loop back to the thesis:
   *record-mode state flip*, not `setReadOnly(true)`, and collapsing it either
   way is a recorded fidelity loss.
 
+Here is what that looks like in a real ticket — the *same construct*, inline
+line-item editing, cut against v2 and against v3:
+
+| | **v2 — issue #45** | **v3 — issue #91** |
+|---|---|---|
+| Title | inline editing + record actions + delete guard | *… + `QUANTITY_SHIPPED` insert-only* |
+| What to build | prose | prose |
+| **Covers** (ledger rows) | — | **12 row ids**, incl. `property:S_ITEM.QUANTITY_SHIPPED.editability.updateAllowed` |
+| **Field fidelity** | — | **per-field matrix** — "implement against this matrix, not prose" |
+| `QUANTITY_SHIPPED` | **not mentioned** | first-class **insert-only** row (editable while new, read-only once saved) |
+| Acceptance criteria | checklist | checklist **+ a DramaFinder test** asserting shipped is editable on a new line, read-only on a saved line |
+
+Same step, same spine. v2's ticket had *no slot* for the insert-only property,
+so it fell out silently. v3's ticket **can't be cut** until that ledger row has
+a disposition — and the row rides all the way to a **test that asserts it at
+runtime.**
+
 ### What v3 changes about the thesis
 
 v1 → v2 is the ratio *compounding*. v3 is the **inventory the ratio sorts over**
