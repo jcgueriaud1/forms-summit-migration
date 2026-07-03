@@ -254,6 +254,57 @@
   }
   .builds .wip { color: var(--amber); font-weight: 600; }
 
+  /* ---- Ticket diff (v2 vs v3) ---- */
+  .ticket-diff {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.9rem;
+    margin: 1.8rem 0 0.7rem;
+    align-items: start;
+  }
+  .ticket {
+    border: 1px solid var(--hair);
+    border-radius: 8px;
+    background: #fff;
+    overflow: hidden;
+    font-family: var(--sans);
+  }
+  .ticket.v3 { border-color: #c9d8f6; box-shadow: 0 0 0 2px #eaf0fc; }
+  .ticket > header { padding: 0.6rem 0.8rem; border-bottom: 1px solid var(--hair); background: #f6f8fb; }
+  .ticket.v3 > header { background: var(--accent-soft); border-bottom-color: #d7e2f8; }
+  .ticket .vchip {
+    font-size: 0.63rem; font-weight: 700; letter-spacing: 0.09em; text-transform: uppercase;
+    color: var(--muted);
+  }
+  .ticket.v3 .vchip { color: var(--accent); }
+  .ticket .tt {
+    display: block; margin-top: 0.28rem;
+    font-size: 0.8rem; font-weight: 650; line-height: 1.32; color: var(--ink);
+  }
+  .ticket ul.sec { list-style: none; margin: 0; padding: 0.55rem 0.8rem 0.7rem; }
+  .ticket ul.sec li {
+    font-size: 0.75rem; line-height: 1.4; color: var(--muted);
+    padding: 0.26rem 0; margin: 0; border: none; display: block;
+  }
+  .ticket ul.sec li b { color: #232b36; font-weight: 650; }
+  .ticket ul.sec li.add { color: #232b36; }
+  .ticket ul.sec li.add::before {
+    content: "＋ new"; display: inline-block; margin-right: 0.4rem;
+    font-size: 0.58rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+    color: var(--accent); background: #fff; border: 1px solid #c9d8f6;
+    border-radius: 3px; padding: 0.02em 0.34em; vertical-align: 1px;
+  }
+  .ticket ul.sec li.gone { color: var(--amber); font-style: italic; }
+  .ticket ul.sec li.gone::before {
+    content: "✕"; margin-right: 0.4rem; font-style: normal; font-weight: 700; color: var(--amber);
+  }
+  .ticket-cap {
+    font-family: var(--sans); font-size: 0.74rem; line-height: 1.5;
+    color: var(--muted); margin: 0 0 1.8rem;
+  }
+  .ticket-cap b { color: var(--accent); }
+  @media (max-width: 620px) { .ticket-diff { grid-template-columns: 1fr; } }
+
   hr.div { border: none; border-top: 1px solid var(--hair); margin: 3rem 0; }
 
   .closer {
@@ -703,6 +754,155 @@
     fidelity, record actions, the review-ticket discipline) now apply to <strong>every</strong>
     form, not just ORDERS. A Forms shop doesn't get to re-run its own history — but it inherits
     the accumulated ruleset, so its <em>first</em> pass starts where our <em>second</em> one did.</p>
+  </div>
+
+  <h2>Running it a third time: the losses no guarantee caught</h2>
+
+  <p>v1 → v2 proved the <em>ratio</em> compounds. v3 tested something the ratio quietly
+  assumes: <strong>that you see every loss in the first place.</strong> A fix can only be
+  sorted if it surfaces as a correction. But what about the losses that never surface — the
+  ones every guarantee we had built sails right past?</p>
+
+  <p>Before regenerating v3 we ran a <strong>retrofit audit</strong> of the shipped v2 build.
+  Not "does it match the live form on the spine flow" — it did — but the stricter question:
+  <em>walk every decision-prone fact in the spec and prove the build consumed it.</em> It found
+  <strong>four losses</strong>:</p>
+
+  <ul>
+    <li><strong>The <code>GLOBAL.customer_id</code> calling-context contract.</strong> ORDERS
+    can be launched <em>already filtered to a customer</em>: Forms' <code>PRE-QUERY</code> reads
+    <code>:GLOBAL.customer_id</code>, <code>WHEN-CREATE-RECORD</code> defaults a new order's
+    customer from it, <code>PRE-FORM</code> clears it. An entire cross-form interface —
+    invisible in v2.</li>
+    <li><strong>The <code>DATE_ORDERED</code> <code>$$date$$</code> default</strong> — a new
+    order should default its ordered-date to today. Dropped.</li>
+    <li><strong>The <code>QUANTITY_SHIPPED</code> insert-only mode</strong> —
+    <code>updateAllowed=false, insertAllowed=true</code>: editable while a line is new,
+    read-only once saved. Flattened to plain editable.</li>
+    <li><strong>The <code>SALES_REP_ID</code> read-only deviation</strong> — v2 made the field
+    read-only, and that was the <em>right</em> call (the rep comes from the customer lookup). But
+    <em>nowhere was it recorded that this deviated from the spec's "editable".</em> An
+    undocumented right answer is still a hole: the next reviewer can't tell it from an
+    accident.</li>
+  </ul>
+
+  <p>Here is what made these different from every v1/v2 correction — and why they matter more.
+  <strong>Each one had spec data <em>and</em> a matching ruleset entry.</strong> The tool was
+  not missing a rule. The <code>$$date$$</code> default was in the spec; the editability flags
+  were in the spec; the <code>:GLOBAL</code> reference was sitting in a trigger body. The
+  failure was <em>downstream of knowing</em>: <strong>nothing consumed the fact.</strong> The
+  census counts spec elements — all 183 present. ✓ The scorecard and the tickets are cut at
+  <em>construct</em> grain ("migrate the master block") — too coarse to notice one property
+  inside a construct went missing. ADR-0014's deferred lane catches whole <em>surfaces</em>, not
+  properties. Every gate we owned was green while the fact fell through the floor.</p>
+
+  <div class="seam">
+    <span class="tag">The failure mode, named</span>
+    <p>A fifth finding named it precisely: v2's code justified one gap with a confident
+    <strong>false-absence claim</strong> — a comment asserting "S_ORD has no
+    <code>WHEN-CREATE-RECORD</code>" that nothing ever checked against the spec. It does have
+    one. The absence was invented to make a silent drop look intentional.</p>
+  </div>
+
+  <h3>The fix: a disposition ledger, gated before code exists</h3>
+
+  <p>The correction here is <em>not</em> another rule in <code>migration-rules.yaml</code> — the
+  rules were already right. It is a <strong>completeness gate at the right grain.</strong>
+  ADR-0015 introduces a <strong>disposition ledger</strong>: generated from the structural spec,
+  <strong>one row per form object plus one row per decision-prone mapped property</strong> —
+  every default, editability mode, visibility rule, value-propagation and cross-form contract
+  gets its own row. For ORDERS that is <strong>151 rows.</strong></p>
+
+  <p>Every row must end in exactly one disposition <em>before any build ticket is cut</em>:</p>
+
+  <ul>
+    <li><strong><code>migrated-as</code></strong> — with a ref to the ticket/PR that carries
+    it;</li>
+    <li><strong><code>re-decided</code></strong> — a deliberate deviation, rationale and decider
+    recorded <em>on the row</em> (this is where <code>SALES_REP_ID</code> now lives — the right
+    answer, finally visible <em>as a decision</em>);</li>
+    <li><strong><code>deferred</code></strong> — with a tracking ticket;</li>
+    <li><strong><code>obsolete</code></strong> — with the rule id that dissolves it.</li>
+  </ul>
+
+  <p>The teeth: <strong><code>to-issues</code> refuses to cut build tickets while any row is
+  unassigned.</strong> The gate bites <em>before code exists</em> — at ticket-cutting time, not
+  review time — which is the entire point. Gating at review, as v2 effectively did, catches the
+  gap only after you have built on top of it. And so the ledger can't rot into
+  confident-looking stale pointers, <code>--check-refs</code> verifies every citation is live: a
+  cited ticket must exist; a <code>deferred</code> row must point at one still open.</p>
+
+  <p>Two consequences close the loop back to the thesis:</p>
+
+  <ul>
+    <li><strong>A <code>migrated-as</code> disposition proves <em>decided</em>, not
+    <em>delivered</em>.</strong> So every <code>migrated-as</code> row a ticket covers becomes a
+    <strong>runtime acceptance criterion</strong> — a UI test asserting the named behaviour.
+    Property rows are exactly the ones that slip otherwise: the screen looks completely correct
+    without a default or an insert-only mode. You have to <em>assert</em> those, because you
+    cannot <em>see</em> their absence.</li>
+    <li><strong>The re-decision that generalizes still flows into the ruleset.</strong> The
+    insert-only mode earned a first-class ruleset meaning — <code>forms-insert-only-field</code>:
+    <code>updateAllowed=false, insertAllowed=true</code> is a <em>record-mode state flip</em>,
+    not <code>setReadOnly(true)</code>, and collapsing it either way is a recorded fidelity
+    loss.</li>
+  </ul>
+
+  <p>Here is what that looks like in a real ticket. The <em>same construct</em> — inline
+  line-item editing — cut against v2 and against v3:</p>
+
+  <div class="ticket-diff">
+    <div class="ticket v2">
+      <header>
+        <span class="vchip">v2 · issue #45</span>
+        <span class="tt">ORDERS: inline line-item editing + detail record actions + delete guard</span>
+      </header>
+      <ul class="sec">
+        <li><b>What to build</b> — prose</li>
+        <li><b>Acceptance criteria</b> — checklist</li>
+        <li><b>Blocked by</b> — #44</li>
+        <li class="gone"><code>QUANTITY_SHIPPED</code> — not mentioned</li>
+      </ul>
+    </div>
+    <div class="ticket v3">
+      <header>
+        <span class="vchip">v3 · issue #91</span>
+        <span class="tt">… + <code>QUANTITY_SHIPPED</code> insert-only</span>
+      </header>
+      <ul class="sec">
+        <li><b>What to build</b> — prose</li>
+        <li class="add"><b>Covers</b> — 12 ledger row ids, incl.
+        <code>property:S_ITEM.QUANTITY_SHIPPED.editability.updateAllowed</code></li>
+        <li class="add"><b>Field fidelity</b> — a per-field matrix; "implement against this
+        matrix, not prose"</li>
+        <li class="add"><code>QUANTITY_SHIPPED</code> — first-class <b>insert-only</b> row
+        (editable while new, read-only once saved)</li>
+        <li class="add"><b>Acceptance criterion + DramaFinder test</b> — shipped editable on a
+        new line, read-only on a saved line</li>
+        <li><b>Blocked by</b> — #90</li>
+      </ul>
+    </div>
+  </div>
+
+  <p class="ticket-cap">Same step, same spine. v2's ticket had <em>no slot</em> for the
+  insert-only property, so it fell out silently. v3's ticket can't be cut until that ledger row
+  has a disposition — and the row rides all the way to a <b>test that asserts it at runtime.</b></p>
+
+  <h3>What v3 changes about the thesis</h3>
+
+  <p>v1 → v2 is the ratio <em>compounding</em>. v3 is the <strong>inventory the ratio sorts
+  over</strong> becoming <em>complete</em>. The sort is only as trustworthy as your guarantee
+  that every correction <em>reaches</em> it — and a correction that never surfaces can't be
+  sorted at all.</p>
+
+  <div class="thesis">
+    <p>"Nothing dropped silently" now holds at <strong>three grains</strong>: the spec census
+    (every element), the slice boundary (every deferred surface), and — new in v3 —
+    <strong>migration content</strong> (every decision-prone property has a recorded
+    disposition, backed by a test or a tracked defer). For a Forms shop the practical upgrade is
+    blunt: the failure that should scare you is not the loss you argue about in review — it is
+    the one nobody noticed was gone. v3 is the machinery that keeps the second kind from
+    reaching production silently.</p>
   </div>
 
   <h2>Reproducibility: a guaranteed tier and an honest tier</h2>
