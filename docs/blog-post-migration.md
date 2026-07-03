@@ -369,6 +369,108 @@ the accumulated ruleset, so its *first* pass starts where our *second* one did.
 
 ---
 
+## Running it a third time: the losses no guarantee caught
+
+v1 → v2 proved the *ratio* compounds. v3 tested something the ratio quietly
+assumes: **that you see every loss in the first place.** A fix can only be
+sorted if it surfaces as a correction. But what about the losses that never
+surface — the ones every guarantee we had built sails right past?
+
+Before regenerating v3 we ran a **retrofit audit** of the shipped v2 build. Not
+"does it match the live form on the spine flow" — it did — but the stricter
+question: *walk every decision-prone fact in the spec and prove the build
+consumed it.* It found **four losses**:
+
+- **The `GLOBAL.customer_id` calling-context contract.** ORDERS can be launched
+  *already filtered to a customer*: Forms' `PRE-QUERY` reads
+  `:GLOBAL.customer_id`, `WHEN-CREATE-RECORD` defaults a new order's customer
+  from it, `PRE-FORM` clears it. An entire cross-form interface — invisible in
+  v2.
+- **The `DATE_ORDERED` `$$date$$` default** — a new order should default its
+  ordered-date to today. Dropped.
+- **The `QUANTITY_SHIPPED` insert-only mode** — `updateAllowed=false,
+  insertAllowed=true`: editable while a line is new, read-only once saved.
+  Flattened to plain editable.
+- **The `SALES_REP_ID` read-only deviation** — v2 made the field read-only, and
+  that was the *right* call (the rep comes from the customer lookup). But
+  *nowhere was it recorded that this deviated from the spec's "editable".* An
+  undocumented right answer is still a hole: the next reviewer can't tell it
+  from an accident.
+
+Here is what made these different from every v1/v2 correction — and why they
+matter more. **Each one had spec data *and* a matching ruleset entry.** The
+tool was not missing a rule. The `$$date$$` default was in the spec; the
+editability flags were in the spec; the `:GLOBAL` reference was sitting in a
+trigger body. The failure was *downstream of knowing*: **nothing consumed the
+fact.** The census counts spec elements — all 183 present. ✓ The scorecard and
+the tickets are cut at *construct* grain ("migrate the master block") — too
+coarse to notice one property inside a construct went missing. ADR-0014's
+deferred lane catches whole *surfaces*, not properties. Every gate we owned was
+green while the fact fell through the floor.
+
+A fifth finding named the failure mode precisely: v2's code justified one gap
+with a confident **false-absence claim** — a comment asserting "S_ORD has no
+`WHEN-CREATE-RECORD`" that nothing ever checked against the spec. It does have
+one. The absence was invented to make a silent drop look intentional.
+
+### The fix: a disposition ledger, gated before code exists
+
+The correction here is *not* another rule in `migration-rules.yaml` — the rules
+were already right. It is a **completeness gate at the right grain.**
+[ADR-0015](adr/0015-disposition-ledger-gates-ticket-generation.md) introduces a
+**disposition ledger**: generated from the structural spec, **one row per form
+object plus one row per decision-prone mapped property** — every default,
+editability mode, visibility rule, value-propagation and cross-form contract
+gets its own row. For ORDERS that is **151 rows.**
+
+Every row must end in exactly one disposition *before any build ticket is cut*:
+
+- **`migrated-as`** — with a ref to the ticket/PR that carries it;
+- **`re-decided`** — a deliberate deviation, rationale and decider recorded *on
+  the row* (this is where `SALES_REP_ID` now lives — the right answer, finally
+  visible *as a decision*);
+- **`deferred`** — with a tracking ticket;
+- **`obsolete`** — with the rule id that dissolves it.
+
+The teeth: **`to-issues` refuses to cut build tickets while any row is
+unassigned.** The gate bites *before code exists* — at ticket-cutting time, not
+review time — which is the entire point. Gating at review, as v2 effectively
+did, catches the gap only after you have built on top of it. And so the ledger
+can't rot into confident-looking stale pointers, `--check-refs` verifies every
+citation is live: a cited ticket must exist; a `deferred` row must point at one
+still open.
+
+Two consequences close the loop back to the thesis:
+
+- **A `migrated-as` disposition proves *decided*, not *delivered*.** So every
+  `migrated-as` row a ticket covers becomes a **runtime acceptance criterion** —
+  a UI test asserting the named behaviour. Property rows are exactly the ones
+  that slip otherwise: the screen looks completely correct without a default or
+  an insert-only mode. You have to *assert* those, because you cannot *see*
+  their absence.
+- **The re-decision that generalizes still flows into the ruleset.** The
+  insert-only mode earned a first-class ruleset meaning —
+  `forms-insert-only-field`: `updateAllowed=false, insertAllowed=true` is a
+  *record-mode state flip*, not `setReadOnly(true)`, and collapsing it either
+  way is a recorded fidelity loss.
+
+### What v3 changes about the thesis
+
+v1 → v2 is the ratio *compounding*. v3 is the **inventory the ratio sorts over**
+becoming *complete*. The sort is only as trustworthy as your guarantee that
+every correction *reaches* it — and a correction that never surfaces can't be
+sorted at all. "Nothing dropped silently" now holds at **three grains**: the
+spec census (every element), the slice boundary (every deferred surface), and —
+new in v3 — **migration content** (every decision-prone property has a recorded
+disposition, backed by a test or a tracked defer).
+
+For a Forms shop the practical upgrade is blunt: the failure that should scare
+you is not the loss you argue about in review — it is the one nobody noticed was
+gone. v3 is the machinery that keeps the second kind from reaching production
+silently.
+
+---
+
 ## Reproducibility: a guaranteed tier and an honest tier
 
 - **Tier 1 — guaranteed.** Clone, `docker compose up`, run. The Summit slice runs
