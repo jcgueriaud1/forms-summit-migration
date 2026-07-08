@@ -88,6 +88,36 @@ The header is structurally the same screen, not a re-imagining:
 **On the user's hypothesis "the layout migration looks ok" — confirmed**, with one
 maintainability caveat in §3.2.
 
+### 1.4 AI-assisted comprehension of Forms semantics (an under-credited win)
+
+A quieter win that doesn't show up in a diff: the AI was genuinely useful for
+*understanding what a Forms construct means* before deciding how to migrate it — the
+semantics of an idiom, not just its syntax. Forms behaviours that a web developer
+has no mental model for were surfaced and explained, which is what let the migration
+make **conscious** decisions instead of accidental ones.
+
+The clearest example is **validation-driven navigation**. In Oracle Forms,
+`WHEN-VALIDATE-ITEM` / `WHEN-VALIDATE-RECORD` are **navigation-blocking**: the
+trigger fires as focus leaves the item/record, and on failure it raises
+`FORM_TRIGGER_FAILURE`, which *keeps the cursor where it is* — the user physically
+cannot move off an invalid field. Validation and navigation are the same event.
+
+The migrated app deliberately **does not** replicate that coupling:
+
+- Field validation runs through a **Binder** (field-at-a-time, non-blocking — an
+  invalid field is flagged, but focus is free to move).
+- Line edits **commit per cell** in the grid, rather than gating on record-exit.
+- The real integrity guarantee moves to a **save-gate** in `OrderService.save()`
+  (`shipDateValid()` re-checked before the whole-graph commit), so nothing invalid
+  is ever persisted — the *when* of enforcement changed, the *what* did not.
+
+This is the same "documentable seam" the blog post names (Grid commits per cell;
+Forms validates per item on navigation). The finding worth recording *here* is that
+**recognising it as a seam at all depended on first understanding the Forms
+semantic** — that blocking navigation is a validation mechanism, not incidental UX.
+Left unexplained, it would have been an easy silent behaviour-change; understood, it
+became a deliberate, defensible parity decision.
+
 ---
 
 ## 2. What's missing — and the distinction that matters

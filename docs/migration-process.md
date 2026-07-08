@@ -38,6 +38,14 @@ form is*. The PRD is where *what it should become* is decided — that is where 
 and your chosen architecture enter. `migration-to-issues` then turns that into
 buildable work. Skills live under `.agents/skills/`.
 
+**The flow also runs backwards.** Steps 4 and 5 don't just consume the process —
+they *improve* it. Every correction and every review finding is sorted
+generalizable-vs-specific; the generalizable ones flow back into the reusable IP
+(`migration-rules.yaml`, the skills, the ADRs) so the *next* form starts smarter.
+That loop is the point of the POC, not a side effect — see
+[Continuous improvement](#continuous-improvement--the-method-gets-smarter-each-form)
+below.
+
 ---
 
 ## Step 0 — Convert the `.fmb` to XML
@@ -165,10 +173,9 @@ View  ◀  Presenter  ◀  Service  ◀  Domain  ◀  (JdbcClient)  ◀  Data
 
 Build the **riskiest construct first** (for ORDERS: master-detail + totals, and the
 LookupField lazy-paging go/no-go) while a rebuild is still cheap. As you correct
-generated code, **sort every fix**: *generalizable* (a rule the tool should have
-known) → push it into `migration-rules.yaml` as the new behaviour and regenerate;
-*specific* (an irreducible quirk of this form) → hand-fix and log it. That ratio is
-the number the POC exists to report.
+generated code, **sort every fix** generalizable-vs-specific and feed the
+generalizable ones back into the ruleset — this is the improvement loop, described
+in full under [Continuous improvement](#continuous-improvement--the-method-gets-smarter-each-form).
 
 ---
 
@@ -207,6 +214,53 @@ the careful-review ticket is worked. The form is done when every construct is do
 
 ---
 
+## Continuous improvement — the method gets smarter each form
+
+The steps above migrate *one* form. This section is the cross-cutting discipline
+that makes migrating the *next* one cheaper: **every correction and every review
+finding is sorted, and the reusable half is pushed back into the tooling.** It is
+not a phase — it runs throughout Steps 4 and 5. This sort *is* the finding the POC
+exists to report; the rationale lives in [`PLAN.md`](../PLAN.md#the-finding-what-this-poc-actually-argues).
+
+**The sort.** Every fix is exactly one of two things:
+
+- **Generalizable** — a rule the tool *should* have known. It earns this status
+  only when the rule can be **stated in form-construct terms** (e.g. "any
+  table-level audit trigger stays in the DB"). Push it into the reusable IP and
+  regenerate.
+- **Specific** — an irreducible quirk of *this* form. Hand-fix it, log it, move on.
+
+A fix is **specific by default**: if you can't articulate the general rule, it does
+not go into the tooling. That conservatism is what keeps the ruleset reusable
+instead of secretly overfit to one form.
+
+**Where a generalizable fix lands** (don't fork per form — *extend* the shared asset):
+
+| You learned… | Push it into… |
+|---|---|
+| A Forms-construct → Vaadin-target rule the PRD got wrong | [`migration-rules.yaml`](migration-rules.yaml), then regenerate the PRD |
+| A build habit an agent kept getting wrong | the relevant Vaadin skill under `.agents/skills/` |
+| An architecture decision that should bind every form | a new/amended ADR in [`docs/adr/`](adr/) |
+| A generic Forms affordance baked into one view (record actions, filter bar, `ORA_ROWSCN` path) | a **generalization-review** ticket (Step 5) recommending a reusable layer |
+
+**The three entry points where the loop fires:**
+
+1. **Correcting generated code (Step 4)** — the *reactive* entry point. You fixed
+   something the agent produced; sort the fix before moving on.
+2. **Generalization-review tickets (Step 5, type 3)** — the *proactive* entry
+   point. Before you even hit a bug, the review flags an affordance the ruleset
+   solved for one form that belongs in a reusable layer.
+3. **A `re-decided` ledger row** — when a build deliberately deviates from a spec
+   value, the ledger row flips to `re-decided` with `reason` + `decidedBy`. If that
+   re-decision is generalizable, it is also a ruleset change, not just a one-off.
+
+**The number this produces.** The **ratio of generalizable-to-specific fixes** is
+the single metric the audience cares about — it is their automation ceiling. Keeping
+the migration log sorted live (not reconstructed afterward) is what makes that ratio
+trustworthy. Log the fix *when you make it*, sorted, or the finding is lost.
+
+---
+
 ## Reference map
 
 | Step | Skill / artifact |
@@ -217,5 +271,6 @@ the careful-review ticket is worked. The form is done when every construct is do
 | 3 Issues | [`migration-to-issues`](../.agents/skills/migration-to-issues/SKILL.md); ledger gate = [ADR-0015](adr/0015-disposition-ledger-gates-ticket-generation.md) |
 | 4 Implementation | the Vaadin skills; layering per ADR-0001/0002/0008/0012/0013 |
 | 5 Review | [`migration-review`](../.agents/skills/migration-review/SKILL.md); [ADR-0014](adr/0014-hitl-review-tickets.md) |
+| ↩ Improve | the generalizable-vs-specific sort → [`migration-rules.yaml`](migration-rules.yaml), the skills, [`docs/adr/`](adr/); ratio = automation ceiling |
 | Method & vocabulary | [`PLAN.md`](../PLAN.md), [`CONTEXT.md`](../CONTEXT.md) |
 | Worked example (ORDERS) | `docs/generated/ORDERS.*`, `docs/orders-form-spec.md`, `docs/prd-orders-view*.md` |
