@@ -89,14 +89,11 @@ cleanly into Oracle Free:
   Strip that clause so objects default to the `USERS` tablespace.
 
 ```bash
-# Strip the SYSTEM tablespace clause into a sanitized copy
 sed -E 's/TABLESPACE +"SYSTEM"//g' forms-summit-example/init-summit.sql > /tmp/init-summit.users.sql
 
-# Grant CREATE VIEW (not included in the default RESOURCE role)
 docker exec -i summit-oracle bash -lc \
   'echo "GRANT CREATE VIEW TO summit;" | sqlplus -s system/summit_sys@localhost:1521/FREEPDB1'
 
-# Load as the summit user
 docker cp /tmp/init-summit.users.sql summit-oracle:/tmp/init-summit.users.sql
 docker exec -i summit-oracle bash -lc \
   'sqlplus -s summit/summit@localhost:1521/FREEPDB1 @/tmp/init-summit.users.sql'
