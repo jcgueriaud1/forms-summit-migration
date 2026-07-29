@@ -1,0 +1,1159 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Migrating Oracle Forms to Vaadin with AI</title>
+<style>
+  :root {
+    --paper: #fbfcfd;
+    --ink: #13171e;
+    --muted: #5b6776;
+    --faint: #8a94a2;
+    --accent: #2b5fd0;
+    --accent-soft: #eaf0fc;
+    --hair: #e4e8ef;
+    --amber: #9a6212;
+    --amber-soft: #fbf3e3;
+    --green: #1c6b35;
+    --green-soft: #e9f4ec;
+    --code-bg: #f3f5f8;
+    --serif: Georgia, "Iowan Old Style", "Times New Roman", serif;
+    --sans: system-ui, -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+    --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--serif);
+    font-size: 19px;
+    line-height: 1.7;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  .wrap { max-width: 720px; margin: 0 auto; padding: clamp(2.5rem, 6vw, 5.5rem) clamp(1.25rem, 5vw, 2rem) 6rem; }
+
+  /* ---- Masthead ---- */
+  .eyebrow {
+    font-family: var(--sans); font-size: 0.72rem; font-weight: 600;
+    letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent); margin: 0 0 1.4rem;
+  }
+  h1 {
+    font-family: var(--sans); font-weight: 700;
+    font-size: clamp(2.05rem, 5.5vw, 3rem); line-height: 1.08;
+    letter-spacing: -0.02em; text-wrap: balance; margin: 0 0 1.5rem;
+  }
+  .meta {
+    font-family: var(--sans); font-size: 0.82rem; color: var(--faint);
+    display: flex; flex-wrap: wrap; gap: 0.5rem 1.1rem;
+    padding-bottom: 2.2rem; margin-bottom: 2.6rem; border-bottom: 1px solid var(--hair);
+  }
+  .meta span { display: inline-flex; align-items: center; gap: 0.4rem; }
+  .meta .dot { width: 5px; height: 5px; border-radius: 50%; background: var(--accent); }
+
+  /* ---- Flow ---- */
+  p { margin: 0 0 1.35rem; }
+  .lede { font-size: 1.18rem; line-height: 1.6; color: #2c3440; }
+
+  h2 {
+    font-family: var(--sans); font-weight: 700; font-size: 1.5rem;
+    letter-spacing: -0.015em; line-height: 1.2; text-wrap: balance;
+    margin: 3.4rem 0 1.1rem; padding-top: 0.4rem;
+  }
+  h2 .sec {
+    display: block; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.12em;
+    text-transform: uppercase; color: var(--accent); margin-bottom: 0.45rem;
+  }
+  h3 {
+    font-family: var(--sans); font-weight: 650; font-size: 1.12rem;
+    letter-spacing: -0.01em; margin: 2.2rem 0 0.8rem; color: #232b36;
+  }
+
+  a { color: var(--accent); text-decoration: none; border-bottom: 1px solid var(--accent-soft); }
+  a:hover { border-bottom-color: var(--accent); }
+  a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 2px; }
+
+  strong { font-weight: 700; color: #0c1016; }
+  em { font-style: italic; }
+
+  code {
+    font-family: var(--mono); font-size: 0.84em; background: var(--code-bg);
+    padding: 0.12em 0.4em; border-radius: 4px; border: 1px solid var(--hair);
+    color: #2a3340; word-break: break-word;
+  }
+
+  ul, ol { margin: 0 0 1.35rem; padding-left: 1.3rem; }
+  li { margin-bottom: 0.6rem; }
+  li::marker { color: var(--faint); }
+
+  /* ---- Thesis / pull blockquote ---- */
+  .thesis {
+    margin: 0 0 2rem; padding: 1.4rem 1.6rem; background: var(--accent-soft);
+    border-radius: 6px; font-size: 1.06rem; line-height: 1.55;
+  }
+  .thesis p { margin: 0; }
+  .thesis strong { color: var(--accent); }
+
+  /* ---- Asides ---- */
+  .seam {
+    margin: 1.8rem 0; padding: 1.1rem 1.3rem; background: var(--amber-soft);
+    border-left: 3px solid var(--amber); border-radius: 0 6px 6px 0;
+    font-size: 0.95rem; line-height: 1.6;
+  }
+  .seam .tag {
+    font-family: var(--sans); font-size: 0.68rem; font-weight: 700;
+    letter-spacing: 0.12em; text-transform: uppercase; color: var(--amber);
+    display: block; margin-bottom: 0.4rem;
+  }
+  .seam p { margin: 0; }
+  .seam p + p { margin-top: 0.7rem; }
+  .seam.blue { background: var(--accent-soft); border-left-color: var(--accent); }
+  .seam.blue .tag { color: var(--accent); }
+  .seam.green { background: var(--green-soft); border-left-color: var(--green); }
+  .seam.green .tag { color: var(--green); }
+  .seam ul { margin: 0.5rem 0 0; }
+  .seam li { margin-bottom: 0.35rem; }
+
+  /* ---- TOC ---- */
+  .toc {
+    font-family: var(--sans); font-size: 0.86rem; line-height: 1.5;
+    border: 1px solid var(--hair); border-radius: 8px; background: #fff;
+    padding: 1.1rem 1.3rem; margin: 0 0 2.6rem;
+  }
+  .toc b {
+    display: block; font-size: 0.68rem; letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--faint); font-weight: 700; margin-bottom: 0.7rem;
+  }
+  .toc ol { margin: 0; padding-left: 1.4rem; }
+  .toc li { margin-bottom: 0.3rem; color: var(--muted); }
+  .toc a { border-bottom: none; }
+  .toc a:hover { border-bottom: 1px solid var(--accent); }
+
+  /* ---- Diagram ---- */
+  .diagram {
+    font-family: var(--mono); font-size: 0.84rem; line-height: 1.5;
+    background: var(--ink); color: #cdd6e2; padding: 1.1rem 1.3rem;
+    border-radius: 6px; overflow-x: auto; margin: 0 0 1.6rem;
+  }
+  .diagram .arrow { color: #7fa6ee; }
+  .diagram .layer { color: #fff; }
+
+  /* ---- Stats ---- */
+  .stats {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 0.8rem; margin: 0 0 1.8rem; font-family: var(--sans);
+  }
+  .stat { border: 1px solid var(--hair); border-radius: 8px; background: #fff; padding: 0.8rem 0.9rem; }
+  .stat .v { font-size: 1.5rem; font-weight: 700; letter-spacing: -0.02em; line-height: 1; color: var(--ink); font-variant-numeric: tabular-nums; }
+  .stat .l { font-size: 0.72rem; line-height: 1.35; color: var(--muted); margin-top: 0.4rem; }
+  .stat.hl .v { color: var(--accent); }
+
+  /* ---- Code block (spec excerpt) ---- */
+  .codeblock {
+    font-family: var(--mono); font-size: 0.76rem; line-height: 1.55;
+    background: var(--ink); color: #cdd6e2; padding: 1rem 1.2rem;
+    border-radius: 6px; overflow-x: auto; margin: 0 0 0.6rem;
+    white-space: pre;
+  }
+  .codeblock .k { color: #8fb6f2; }
+  .codeblock .s { color: #b7dba8; }
+  .codeblock .b { color: #e0c58a; }
+  .codeblock .c { color: #7d8a9c; font-style: italic; }
+  .codecap {
+    font-family: var(--sans); font-size: 0.74rem; color: var(--faint);
+    margin: 0 0 1.6rem; line-height: 1.5;
+  }
+  .steplabel {
+    display: inline-block; font-family: var(--sans); font-size: 0.66rem; font-weight: 700;
+    letter-spacing: 0.09em; text-transform: uppercase; padding: 0.2em 0.55em;
+    border-radius: 4px; margin-bottom: 0.6rem;
+  }
+  .steplabel.one { background: #eef1f6; color: #3c4a5e; }
+  .steplabel.two { background: var(--accent-soft); color: var(--accent); }
+
+  /* ---- Three-fates chart ---- */
+  .fates { margin: 1.6rem 0 1.8rem; font-family: var(--sans); }
+  .fates .src {
+    text-align: center; font-size: 0.8rem; font-weight: 650; color: var(--ink);
+    background: #f6f8fb; border: 1px solid var(--hair); border-radius: 6px;
+    padding: 0.55rem 0.8rem;
+  }
+  .fates .stem { height: 1.1rem; border-left: 1px solid #c3ccd9; width: 0; margin: 0 auto; }
+  .fates .fan { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.7rem; }
+  .fates .fate {
+    border: 1px solid var(--hair); border-top: 3px solid var(--faint);
+    border-radius: 0 0 6px 6px; background: #fff; padding: 0.7rem 0.8rem; text-align: center;
+  }
+  .fates .fate b {
+    display: block; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.09em;
+    text-transform: uppercase; margin-bottom: 0.3rem;
+  }
+  .fates .fate span { font-size: 0.75rem; line-height: 1.4; color: var(--muted); display: block; }
+  .fates .fate.db { border-top-color: var(--amber); }
+  .fates .fate.db b { color: var(--amber); }
+  .fates .fate.java { border-top-color: var(--accent); }
+  .fates .fate.java b { color: var(--accent); }
+  .fates .fate.gone { border-top-color: var(--green); }
+  .fates .fate.gone b { color: var(--green); }
+  @media (max-width: 620px) { .fates .fan { grid-template-columns: 1fr; } }
+
+  /* ---- Destination chips (PL/SQL landing table) ---- */
+  .dest {
+    display: inline-block; font-family: var(--sans); font-size: 0.66rem; font-weight: 700;
+    letter-spacing: 0.05em; text-transform: uppercase; padding: 0.15em 0.5em;
+    border-radius: 4px; white-space: nowrap;
+  }
+  .dest.domain { background: var(--accent-soft); color: var(--accent); }
+  .dest.svc { background: #eef1f6; color: #3c4a5e; }
+  .dest.db { background: var(--amber-soft); color: var(--amber); }
+  .dest.gone { background: var(--green-soft); color: var(--green); }
+
+  /* ---- Tables ---- */
+  .table-scroll { overflow-x: auto; margin: 0 0 1.8rem; border: 1px solid var(--hair); border-radius: 6px; }
+  table { border-collapse: collapse; width: 100%; font-family: var(--sans); font-size: 0.88rem; }
+  thead th {
+    text-align: left; font-weight: 650; font-size: 0.74rem; letter-spacing: 0.06em;
+    text-transform: uppercase; color: var(--muted); background: #f6f8fb;
+    padding: 0.7rem 0.9rem; border-bottom: 1px solid var(--hair); white-space: nowrap;
+  }
+  td { padding: 0.75rem 0.9rem; border-bottom: 1px solid var(--hair); vertical-align: top; line-height: 1.45; }
+  tbody tr:last-child td { border-bottom: none; }
+  td code { font-size: 0.82em; }
+  td.ok { color: var(--green); }
+  td.no { color: #a3341f; }
+  .yes { color: var(--green); font-weight: 700; }
+
+  /* ---- Before / after pair ---- */
+  .ba { display: grid; grid-template-columns: 1fr 1fr; gap: 0.9rem; margin: 1.6rem 0 0.7rem; }
+  .ba figure { margin: 0; }
+  .ba img {
+    width: 100%; height: auto; display: block; background: #fff;
+    border: 1px solid var(--hair); border-radius: 6px;
+  }
+  .ba .before img { border-color: #e0d3bd; }
+  .ba .after img { border-color: #c9d8f6; }
+  .ba figcaption {
+    font-family: var(--sans); font-size: 0.7rem; font-weight: 700; letter-spacing: 0.09em;
+    text-transform: uppercase; margin-bottom: 0.45rem; color: var(--muted);
+  }
+  .ba .before figcaption { color: var(--amber); }
+  .ba .after figcaption { color: var(--accent); }
+  .ba figcaption { order: -1; }
+  .ba figure { display: flex; flex-direction: column; }
+  @media (max-width: 620px) { .ba { grid-template-columns: 1fr; gap: 1.4rem; } }
+
+  /* ---- Prototype screenshot ---- */
+  figure.shot { margin: 0 0 1.8rem; }
+  figure.shot img {
+    width: 100%; height: auto; display: block; background: #fff;
+    border: 1px solid #bcdcc4; border-radius: 6px; box-shadow: 0 0 0 2px #e6f4ea;
+  }
+  figure.shot figcaption {
+    font-family: var(--sans); font-size: 0.76rem; line-height: 1.5;
+    color: var(--muted); margin-top: 0.6rem;
+  }
+  figure.shot figcaption b { color: var(--accent); }
+
+  /* ---- Verdict chips ---- */
+  .verdict {
+    display: inline-block; font-size: 0.66rem; font-weight: 700; letter-spacing: 0.06em;
+    text-transform: uppercase; padding: 0.15em 0.5em; border-radius: 4px;
+    margin-right: 0.45rem; vertical-align: 1px;
+  }
+  .verdict.win { background: var(--accent-soft); color: var(--accent); }
+  .verdict.cut { background: #f1f3f6; color: var(--muted); }
+
+  /* ---- Two-card split (the sort) ---- */
+  .split { display: grid; grid-template-columns: 1fr 1fr; gap: 0.9rem; margin: 0 0 1.6rem; }
+  .split .box {
+    border: 1px solid var(--hair); border-radius: 8px; background: #fff;
+    padding: 1rem 1.1rem; font-family: var(--sans); font-size: 0.87rem; line-height: 1.5;
+  }
+  .split .box.g { border-color: #bcdcc4; background: var(--green-soft); }
+  .split .box.s { border-color: #e8cfa8; background: var(--amber-soft); }
+  .split .box b.h {
+    display: block; font-size: 0.68rem; letter-spacing: 0.1em; text-transform: uppercase;
+    margin-bottom: 0.45rem;
+  }
+  .split .box.g b.h { color: var(--green); }
+  .split .box.s b.h { color: var(--amber); }
+  .split .box p { margin: 0; color: var(--muted); }
+  .split .box p strong { color: #0c1016; }
+  @media (max-width: 620px) { .split { grid-template-columns: 1fr; } }
+
+  /* ---- Admissions ---- */
+  .admissions { margin: 0 0 1.8rem; }
+  .adm {
+    border: 1px solid #e8cfa8; border-left: 3px solid var(--amber); background: var(--amber-soft);
+    border-radius: 0 8px 8px 0; padding: 0.95rem 1.15rem; margin-bottom: 0.8rem;
+    font-family: var(--sans); font-size: 0.88rem; line-height: 1.55;
+  }
+  .adm b.h { display: block; color: var(--amber); font-size: 0.95rem; margin-bottom: 0.3rem; }
+  .adm p { margin: 0; color: var(--muted); }
+  .adm p strong { color: #43310f; }
+
+  /* ---- Traceability chain ---- */
+  .chain {
+    display: grid; grid-template-columns: repeat(5, 1fr); gap: 0.4rem;
+    margin: 1.6rem 0 0.6rem; font-family: var(--sans);
+  }
+  .chain .link {
+    background: #fff; border: 1px solid var(--hair); border-top: 3px solid var(--accent);
+    border-radius: 0 0 6px 6px; padding: 0.6rem 0.55rem; position: relative;
+  }
+  .chain .link b {
+    display: block; font-size: 0.72rem; font-weight: 700; color: var(--accent);
+    letter-spacing: 0.04em; margin-bottom: 0.3rem; line-height: 1.25;
+  }
+  .chain .link span { font-size: 0.68rem; line-height: 1.4; color: var(--muted); display: block; }
+  .chain .link code { font-size: 0.9em; padding: 0 0.2em; }
+  .chain .link::after {
+    content: "→"; position: absolute; right: -0.32rem; top: 50%;
+    transform: translate(50%, -50%); color: var(--faint); font-size: 0.85rem;
+    background: var(--paper); line-height: 1;
+  }
+  .chain .link:last-child::after { content: ""; }
+  .chain-notes {
+    border-left: 3px solid var(--amber); background: var(--amber-soft);
+    border-radius: 0 6px 6px 0; padding: 0.7rem 1rem; margin: 0 0 1.6rem;
+    font-family: var(--sans); font-size: 0.78rem; line-height: 1.5;
+  }
+  .chain-notes p { margin: 0; color: var(--muted); }
+  .chain-notes p + p { margin-top: 0.3rem; }
+  .chain-notes b { color: var(--amber); }
+  @media (max-width: 720px) {
+    .chain { grid-template-columns: 1fr; }
+    .chain .link { border-radius: 0 6px 6px 0; border-top: 1px solid var(--hair); border-left: 3px solid var(--accent); }
+    .chain .link::after { content: ""; }
+  }
+
+  /* ---- Ticket diff (v2 vs v3) ---- */
+  .ticket-diff {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 0.9rem;
+    margin: 1.8rem 0 0.7rem; align-items: start;
+  }
+  .ticket {
+    border: 1px solid var(--hair); border-radius: 8px; background: #fff;
+    overflow: hidden; font-family: var(--sans);
+  }
+  .ticket.v3 { border-color: #c9d8f6; box-shadow: 0 0 0 2px #eaf0fc; }
+  .ticket > header { padding: 0.6rem 0.8rem; border-bottom: 1px solid var(--hair); background: #f6f8fb; }
+  .ticket.v3 > header { background: var(--accent-soft); border-bottom-color: #d7e2f8; }
+  .ticket .vchip { font-size: 0.63rem; font-weight: 700; letter-spacing: 0.09em; text-transform: uppercase; color: var(--muted); }
+  .ticket.v3 .vchip { color: var(--accent); }
+  .ticket .tt { display: block; margin-top: 0.28rem; font-size: 0.8rem; font-weight: 650; line-height: 1.32; color: var(--ink); }
+  .ticket ul.sec { list-style: none; margin: 0; padding: 0.55rem 0.8rem 0.7rem; }
+  .ticket ul.sec li { font-size: 0.75rem; line-height: 1.4; color: var(--muted); padding: 0.26rem 0; margin: 0; border: none; display: block; }
+  .ticket ul.sec li b { color: #232b36; font-weight: 650; }
+  .ticket ul.sec li.add { color: #232b36; }
+  .ticket ul.sec li.add::before {
+    content: "＋ new"; display: inline-block; margin-right: 0.4rem;
+    font-size: 0.58rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+    color: var(--accent); background: #fff; border: 1px solid #c9d8f6;
+    border-radius: 3px; padding: 0.02em 0.34em; vertical-align: 1px;
+  }
+  .ticket ul.sec li.gone { color: var(--amber); font-style: italic; }
+  .ticket ul.sec li.gone::before { content: "✕"; margin-right: 0.4rem; font-style: normal; font-weight: 700; color: var(--amber); }
+  .ticket-cap { font-family: var(--sans); font-size: 0.74rem; line-height: 1.5; color: var(--muted); margin: 0 0 1.8rem; }
+  .ticket-cap b { color: var(--accent); }
+  @media (max-width: 620px) { .ticket-diff { grid-template-columns: 1fr; } }
+
+  hr.div { border: none; border-top: 1px solid var(--hair); margin: 3rem 0; }
+
+  .closer {
+    font-family: var(--sans); font-size: 0.85rem; color: var(--faint); line-height: 1.6;
+    border-top: 1px solid var(--hair); padding-top: 1.6rem; margin-top: 3rem;
+  }
+
+  @media (max-width: 540px) { body { font-size: 18px; } }
+</style>
+</head>
+<body>
+
+<article class="wrap">
+
+  <p class="eyebrow">Modernization · Proof of concept</p>
+  <h1>Migrating Oracle Forms to Vaadin with AI</h1>
+  <div class="meta">
+    <span><span class="dot"></span>Vaadin 25 + Spring Boot 4</span>
+    <span>Oracle Summit · ORDERS form</span>
+    <span>~14 min read</span>
+  </div>
+
+  <p class="lede">This is the write-up of a time-boxed proof of concept. We took one representative
+  Oracle Forms module, migrated it to Vaadin 25 + Spring Boot 4 using a set of composable AI skills,
+  and then ran the same migration twice more, feeding each pass's corrections back into the
+  tooling.</p>
+
+  <p>Two things are worth measuring in an exercise like this: how much of each construct the tooling
+  produces without correction, and which corrections can be encoded as rules that apply to every form
+  rather than as fixes to one. Sections 5 and 6 report both. Section 6 also covers five items that a
+  shipped build was missing while matching the original form on every check in place at the time, and
+  section 7 states what the result does not demonstrate.</p>
+
+  <nav class="toc">
+    <b>Contents</b>
+    <ol>
+      <li><a href="#s1">What we actually migrated</a></li>
+      <li><a href="#s2">Why this is hard, and why a naive port misses it</a></li>
+      <li><a href="#s3">Goals — and non-goals</a></li>
+      <li><a href="#s4">The workflow</a></li>
+      <li><a href="#s5">Sorting corrections: generalizable or specific</a></li>
+      <li><a href="#s6">Three iterations, three different lessons</a></li>
+      <li><a href="#s7">Limitations</a></li>
+      <li><a href="#s8">How to try it</a></li>
+      <li><a href="#s9">Open questions and next experiments</a></li>
+    </ol>
+  </nav>
+
+  <!-- ================= 1 ================= -->
+  <h2 id="s1"><span class="sec">Section one</span>What we actually migrated</h2>
+
+  <p>The subject is the <strong>ORDERS</strong> form from Oracle's <strong>Summit</strong> demo
+  schema: the <code>S_ORD</code> master / <code>S_ITEM</code> detail spine, with trigger-driven
+  totals, an LOV-backed product lookup, a credit-rating guard and a <code>COMMIT_FORM</code>
+  locking model. In numbers:</p>
+
+  <div class="stats">
+    <div class="stat"><div class="v">183</div><div class="l">form elements in the spec</div></div>
+    <div class="stat hl"><div class="v">45</div><div class="l">PL/SQL triggers</div></div>
+    <div class="stat"><div class="v">34</div><div class="l">items across 4 blocks</div></div>
+    <div class="stat"><div class="v">1</div><div class="l">LOV-backed lookup</div></div>
+  </div>
+
+  <p>The target is <strong>Vaadin 25 + Spring Boot 4</strong>, running against the real Oracle
+  database the form itself runs against. Every migrated construct ships behind a Playwright browser
+  test that drives the running app against a real Oracle via Testcontainers, exercising all five
+  layers of the architecture:</p>
+
+  <div class="diagram"><span class="layer">View</span> <span class="arrow">←</span> <span class="layer">Presenter</span> <span class="arrow">←</span> <span class="layer">Service</span> <span class="arrow">←</span> <span class="layer">Domain</span> <span class="arrow">←</span> <span class="layer">Data</span> (JdbcClient)</div>
+
+  <p>Small enough to finish inside a time-box; real enough to hit the seams that actually hurt —
+  optimistic locking, whole-graph commit, lazy-paged lookups.</p>
+
+  <h3>Before and after</h3>
+
+  <div class="ba">
+    <figure class="before">
+      <figcaption>Before — Oracle Forms</figcaption>
+      <img src="images/forms-orders.png" alt="The Oracle Forms &quot;Orders and Items&quot; window: an Order Information group with Date Ordered, Customer Id, Customer Name, Sales Rep Id, Sales Rep Name and Date Shipped, Cash/Credit radio buttons, an Order Filled checkbox, and a line-items grid with an order total">
+    </figure>
+    <figure class="after">
+      <figcaption>After — Vaadin, as built</figcaption>
+      <img src="images/vaadin-orders.png" alt="The migrated Vaadin view: a Find order lookup with a Previous/Next record pager and Commit, New/Duplicate/Delete order actions, the same Order Information group and field order, Payment Type as a radio group, and a line-items grid with an order total">
+    </figure>
+  </div>
+
+  <p>The structure carries over. The "Order Information" heading and its bordered group are there, the
+  fields appear in the form's order (Date Ordered, Customer Id, Customer Name, Sales Rep Id, Sales Rep
+  Name, Date Shipped), Payment Type is still a <strong>radio group</strong> rather than a text field,
+  Order Filled is still a checkbox, and the line-items grid keeps the same columns and an order
+  total.</p>
+
+  <p>What is new belongs to the web: a lookup field and a <code>Previous / Record n of m / Next</code>
+  pager in place of Execute/Enter-Query and the record scrollbar, an explicit <code>Commit</code>, and
+  New / Duplicate / Delete actions at both master and line level. What is absent is deliberate — the
+  <code>Immediate</code> and <code>Auto Query</code> runtime checkboxes and the <code>Stock</code>,
+  <code>Image On</code> and <code>Help</code> buttons were deferred out of this slice.</p>
+
+  <div class="seam">
+    <span class="tag">One visible difference, and the class of detail section 6 is about</span>
+    <p>The ordered date renders as <code>DD-MON-YYYY</code> in Forms and <code>DD/MM/YYYY</code> in the
+    migrated view — a format-mask property, not a layout question. (The two screenshots also show
+    different orders.)</p>
+  </div>
+
+  <h3>Styling is a separate concern</h3>
+
+  <p>The view above is deliberately unstyled beyond component defaults: ADR-0008 makes the theme the
+  single owner of visual styling, so Forms' per-field fonts, colours and bevels are <strong>dropped
+  rather than translated</strong>. Applying a design system is a separate step, and it is what closes
+  the gap between the screenshot above and this:</p>
+
+  <figure class="shot">
+    <img src="images/vA.png" alt="The same Orders view with a design system applied: a page heading, a card-based quick search with advanced search, an order header card with a status badge and a record pager, and a line-items card">
+    <figcaption>The intended appearance once a design system is applied — from the design prototype,
+    which is why it carries an annotation box. <b>This is a design target, not the current build.</b></figcaption>
+  </figure>
+
+  <p>The distinction matters for reading the rest of this post: <strong>structure is migrated, styling
+  is not.</strong> Getting that line in the wrong place is what section 6.1 is about.</p>
+
+  <h3>What is migrated</h3>
+
+  <p>Three parts, and the second is the one most often assumed wrong.</p>
+
+  <p><strong>The same database.</strong> Not a copy, not a converted schema, not a new data model.
+  The Vaadin app connects to the same Oracle instance the form connects to, and reads and writes the
+  same tables. <strong>No schema change</strong> — not even to support optimistic locking, which uses
+  Oracle's built-in <code>ORA_ROWSCN</code> pseudocolumn rather than a version column we add. Nothing
+  in this project is a database migration.</p>
+
+  <p><strong>The PL/SQL <em>in</em> the database is not migrated at all.</strong> It stays exactly
+  where it is and keeps firing. The <code>AUDIT_S_ITEM</code> trigger still writes its audit rows —
+  inside the Vaadin app's own commit transaction, with zero Java written to make that happen. This is
+  a deliberate boundary, not an omission: <strong>table-level and data-integrity logic belongs to the
+  database, and moving it into Java would be the mistake.</strong></p>
+
+  <p><strong>The PL/SQL <em>in the form</em> is what gets migrated</strong> — the 45 triggers,
+  formulas and summaries that live inside the <code>.fmb</code>. Each one has exactly one of three
+  fates:</p>
+
+  <div class="fates">
+    <div class="src">PL/SQL in the form — 45 triggers, formulas and summaries</div>
+    <div class="stem"></div>
+    <div class="fan">
+      <div class="fate db">
+        <b>Stays</b>
+        <span>in the database — data integrity is not the form's to own</span>
+      </div>
+      <div class="fate java">
+        <b>Moves</b>
+        <span>to Java — form-serving logic, into Domain / Presenter / Service</span>
+      </div>
+      <div class="fate gone">
+        <b>Dissolves</b>
+        <span>the new architecture already does it — nothing to write</span>
+      </div>
+    </div>
+  </div>
+
+  <p>And here is where each construct on the spine actually landed:</p>
+
+  <div class="table-scroll">
+    <table>
+      <thead><tr><th>Forms construct</th><th>Lands in</th><th>As</th></tr></thead>
+      <tbody>
+        <tr><td><code>ITEM_TOTAL</code> formula (<code>quantity_shipped * price</code>)</td><td><span class="dest domain">domain</span></td><td><code>OrderLine.itemTotal()</code> — pure, unit-tested</td></tr>
+        <tr><td><code>TOTAL</code> summary (<code>Sum</code>)</td><td><span class="dest domain">domain</span></td><td><code>Order.total(lines)</code> — a stream sum</td></tr>
+        <tr><td><code>PRE-INSERT</code> (<code>MAX(item_id)+1</code> per order)</td><td><span class="dest domain">domain</span></td><td><code>Order.nextItemId()</code>, computed over working lines</td></tr>
+        <tr><td><code>WHEN-VALIDATE-RECORD</code> (ship-date guard)</td><td><span class="dest domain">domain</span></td><td><code>Order.shipDateValid()</code> — in a Binder validator <em>and</em> re-checked on save</td></tr>
+        <tr><td>Credit-rating rule</td><td><span class="dest domain">domain</span></td><td><code>PaymentEligibility.allows()</code> — a set-membership check</td></tr>
+        <tr><td>Delete cascade guard (non-isolated relation)</td><td><span class="dest domain">domain</span></td><td><code>Order.hasLineItems()</code> + <code>CascadeDeleteBlockedException</code></td></tr>
+        <tr><td><code>WHEN-VALIDATE-ITEM</code> (product defaulter)</td><td><span class="dest svc">presenter + service</span></td><td><code>applyProductDefaults()</code>; <code>NO_DATA_FOUND → RAISE</code> becomes a rejected field</td></tr>
+        <tr><td><code>WHEN-VALIDATE-ITEM</code> (customer lookup)</td><td><span class="dest svc">presenter + service</span></td><td><code>lookupCustomer()</code></td></tr>
+        <tr><td><code>COMMIT_FORM</code></td><td><span class="dest svc">service</span></td><td><code>OrderService.save()</code> — one <code>@Transactional</code> whole-graph save</td></tr>
+        <tr><td>Pessimistic lock across think-time</td><td><span class="dest svc">service + data</span></td><td>optimistic <code>ORA_ROWSCN</code> re-check, <strong>no schema change</strong></td></tr>
+        <tr><td><code>AUDIT_S_ITEM</code> table trigger</td><td><span class="dest db">stays in db</span></td><td>untouched; fires inside the Vaadin commit</td></tr>
+        <tr><td><code>get_product_image</code> function</td><td><span class="dest gone">dissolves</span></td><td>the lookup query already fetches the row</td></tr>
+        <tr><td><code>POST-QUERY</code> display re-fetches</td><td><span class="dest gone">dissolves</span></td><td>folded into JOINs in the load path — no N+1</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>The boundary rule in one line: <strong>table-level and data-integrity logic stays in the
+  database; form-serving logic moves to the Java layers; logic the new architecture absorbs simply
+  dissolves.</strong> The domain formulas quote almost 1:1 from the original PL/SQL —
+  <code>itemTotal()</code> is literally <code>price × quantityShipped</code>.</p>
+
+  <div class="seam">
+    <span class="tag">One qualification on that table</span>
+    <p>Summit is a teaching demo, so its business logic is deliberately simple. Section 7 quantifies
+    that, and says what it means for how far the result generalises.</p>
+  </div>
+
+  <!-- ================= 2 ================= -->
+  <h2 id="s2"><span class="sec">Section two</span>Why this is hard, and why a naive port misses it</h2>
+
+  <p>An <code>.fmb</code> is not a UI layout. It is a dense bundle of:</p>
+
+  <ul>
+    <li><strong>blocks</strong> bound to base tables, with master-detail <strong>relations</strong>
+    that keep a header and its lines navigating together;</li>
+    <li><strong>triggers</strong> carrying validation, defaulting, query and commit logic in PL/SQL;</li>
+    <li><strong>items whose type carries meaning</strong> — a Radio Group says "small fixed choice",
+    an LOV says "lookup", a Display Item says "computed, read-only";</li>
+    <li><strong>frames and boilerplate text</strong> that group fields and title sections;</li>
+    <li><strong>LOVs and record groups</strong> backing type-ahead lookups;</li>
+    <li>a <strong>locking and commit model</strong> — <code>COMMIT_FORM</code> flushes the whole
+    master-detail graph as one unit.</li>
+  </ul>
+
+  <p>A migration that only looks at the screen drops most of this silently. The interesting work is
+  deciding, construct by construct, what each of these <em>becomes</em> on the web — and being
+  honest about what doesn't survive the trip.</p>
+
+  <h3>Runtime behaviour that is not in the file</h3>
+
+  <p>Everything above is <em>in</em> the <code>.fmb</code>, so a good analyzer can inventory it. The
+  harder problem is that <strong>Oracle Forms is a runtime, and a large part of what your users
+  experience as "the application" is behaviour that runtime provides implicitly.</strong> It is
+  nowhere in the XML export. There is no element to count, no trigger to read — it is simply how
+  Forms works, documented in Oracle's manuals and known by your developers.</p>
+
+  <div class="seam blue">
+    <span class="tag">The clearest example — validation blocks navigation</span>
+    <p>In Forms, a <code>WHEN-VALIDATE-ITEM</code> trigger that raises
+    <code>FORM_TRIGGER_FAILURE</code> keeps the cursor in the field. You <strong>cannot leave</strong>
+    until the value is valid. Validation is not a message shown next to an input — it is a modal gate
+    wired into the navigation model, cascading item → record → block → form as the cursor moves. The
+    web has no such thing, and simulating it faithfully would produce an app nobody wants to use.</p>
+  </div>
+
+  <p>Every one of these has to be re-decided rather than translated:</p>
+
+  <div class="table-scroll">
+    <table>
+      <thead><tr><th>Forms runtime behaviour</th><th>What the web does instead</th><th>The seam you must document</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><strong>Validation blocks navigation</strong> — invalid field traps the cursor</td>
+          <td>Field is flagged; the user can move on, but <strong>save is gated</strong></td>
+          <td>You can <em>leave</em> an invalid field; you cannot <em>commit</em> one</td>
+        </tr>
+        <tr>
+          <td><strong>Enter-Query is a modal runtime state</strong> — keystrokes change meaning</td>
+          <td>A persistent filter bar</td>
+          <td>Arbitrary query-by-example lost; curated, discoverable filters gained</td>
+        </tr>
+        <tr>
+          <td><strong>Row locked on first keystroke</strong>, held across think-time</td>
+          <td>Optimistic <code>ORA_ROWSCN</code> re-check at commit</td>
+          <td>Conflicts surface at <em>save</em>, not at <em>edit</em></td>
+        </tr>
+        <tr>
+          <td><strong>Exactly one "current record"</strong>, walked with a record scrollbar</td>
+          <td>Single-select grid with deselect disabled + a prev/next pager</td>
+          <td>Fidelity kept, but the scrollbar idiom is gone</td>
+        </tr>
+        <tr>
+          <td><strong>Trigger firing order</strong> — item → record → block → form, on cursor movement</td>
+          <td>Explicit orchestration in the presenter</td>
+          <td>The cascade must be re-derived by hand; nothing declares it</td>
+        </tr>
+        <tr>
+          <td><strong><code>MESSAGE()</code> on a fixed console line</strong>, blocking alerts</td>
+          <td>Notifications and dialogs</td>
+          <td>Different attention model entirely</td>
+        </tr>
+        <tr>
+          <td><strong>F7 / F8 / F10 keyboard model</strong></td>
+          <td>Buttons and actions</td>
+          <td>Muscle memory does not transfer</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>This matters more than it first appears, and it is worth being blunt about: <strong>no analyzer
+  can count what is not in the file, and no completeness census can prove you handled it.</strong>
+  The method's guarantee is scoped to the form's contents; the runtime semantics have to come from
+  someone who knows what Forms actually does — which is precisely why human sign-off is a separate output
+  rather than a formality (section 6.2), and the same shape as the finding in section 6.3: a guarantee
+  about the file cannot cover behaviour that was never in the file.</p>
+
+  <!-- ================= 3 ================= -->
+  <h2 id="s3"><span class="sec">Section three</span>Goals — and non-goals</h2>
+
+  <p>We are not claiming AI rewrites your forms. The goals were narrower and measurable:</p>
+
+  <ul>
+    <li>Find out how much of each construct AI does <strong>unaided</strong>.</li>
+    <li>Measure the <strong>ratio of generalizable to specific fixes</strong> — because that ratio
+    <em>is</em> a Forms shop's automation ceiling (more on this in section 5).</li>
+    <li>Locate the places where "faithful migration" and "good web app" pull against each other,
+    and document those seams instead of papering over them.</li>
+    <li>Prove the database is untouched. <strong>No schema change.</strong> That is the first thing
+    a DBA will test, and it has to hold.</li>
+  </ul>
+
+  <div class="seam">
+    <span class="tag">Explicit non-goals</span>
+    <p>Pixel fidelity — visual styling is deliberately dropped, the theme owns it (ADR-0008). The
+    whole form — we took the spine. A finished product. And migrating the database logic that
+    should stay in the database.</p>
+  </div>
+
+  <p>What a Forms shop can actually act on is <strong>a classified migration backlog</strong> —
+  recommended target per construct, decisions flagged, nothing dropped. Not a finished app.</p>
+
+  <!-- ================= 4 ================= -->
+  <h2 id="s4"><span class="sec">Section four</span>The workflow</h2>
+
+  <h3>4.1 &nbsp;The pipeline</h3>
+
+  <p>One form, end to end. Each step consumes the previous one's output.</p>
+
+  <div class="table-scroll">
+    <table>
+      <thead><tr><th>Step</th><th>What runs</th><th>Output</th></tr></thead>
+      <tbody>
+        <tr><td>0</td><td><code>frmf2xml</code></td><td><code>&lt;FORM&gt;_fmb.xml</code></td></tr>
+        <tr><td>1</td><td><code>forms-xml-analyzer</code> — decision-free structural spec</td><td><code>&lt;FORM&gt;.spec.json</code></td></tr>
+        <tr><td>2</td><td><code>to-prd</code> — <strong>the Vaadin and architecture decisions enter here</strong></td><td>a PRD</td></tr>
+        <tr><td>3</td><td>disposition-ledger <strong>gate</strong> → construct-grain tickets</td><td><code>ready-for-agent</code> issues</td></tr>
+        <tr><td>4</td><td>implementation — can run unattended</td><td>Vaadin view + tests</td></tr>
+        <tr><td>5</td><td><code>migration-review</code> — human sign-off</td><td><code>ready-for-human</code> tickets</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>Step 3 is not bookkeeping. Clustering to <strong>construct grain</strong> <em>is</em> the
+  architectural-decision step: roughly seven tickets an architect recognizes — master block, detail
+  block, filter bar, LOV, totals, locking model — rather than a wall of forty "migrate
+  KEY-NEXT-ITEM" non-tickets.</p>
+
+  <h3>4.2 &nbsp;Unopinionated, then opinionated</h3>
+
+  <p>The split between steps 1 and 2 is the load-bearing design choice.</p>
+
+  <p>The analyzer records <strong>what the form is</strong>: every block, item, trigger, relation,
+  LOV and frame, verbatim. It has no Vaadin knowledge and makes no migration decisions — a Formula
+  item's expression is captured, not translated. The PRD then decides <strong>what it
+  becomes</strong>, from two published inputs: the mapping ruleset
+  (<code>migration-rules.yaml</code>) and the ADRs. A different target architecture produces a
+  different PRD from the <em>same</em> spec.</p>
+
+  <p><strong>An example: one radio group.</strong> The ORDERS form has a
+  <code>PAYMENT_TYPE</code> item — Cash or Credit, defaulting to Cash, with a trigger that refuses
+  Credit for customers whose credit rating isn't good enough.</p>
+
+  <p><span class="steplabel one">step 1 · what the analyzer records</span></p>
+
+  <div class="codeblock">{
+  <span class="k">"name"</span>: <span class="s">"PAYMENT_TYPE"</span>,
+  <span class="k">"itemType"</span>: <span class="s">"Radio Group"</span>,
+  <span class="k">"prompt"</span>: <span class="s">"Payment Type"</span>,
+  <span class="k">"initializeValue"</span>: <span class="s">"CASH"</span>,
+  <span class="k">"maximumLength"</span>: <span class="s">"6"</span>,
+  <span class="k">"geometry"</span>: { <span class="k">"x"</span>: <span class="s">"121"</span>, <span class="k">"y"</span>: <span class="s">"167"</span>, <span class="k">"width"</span>: <span class="s">"48"</span>, <span class="k">"height"</span>: <span class="s">"14"</span> },
+  <span class="k">"editability"</span>: { <span class="k">"updateAllowed"</span>: <span class="b">true</span>, <span class="k">"insertAllowed"</span>: <span class="b">true</span>, <span class="k">"queryAllowed"</span>: <span class="b">true</span> },
+  <span class="k">"radioButtons"</span>: [
+    { <span class="k">"name"</span>: <span class="s">"CASH_BUTTON"</span>,   <span class="k">"radioButtonValue"</span>: <span class="s">"CASH"</span>,   <span class="k">"label"</span>: <span class="s">"Cash"</span> },
+    { <span class="k">"name"</span>: <span class="s">"CREDIT_BUTTON"</span>, <span class="k">"radioButtonValue"</span>: <span class="s">"CREDIT"</span>, <span class="k">"label"</span>: <span class="s">"Credit"</span> }
+  ],
+  <span class="k">"triggers"</span>: [
+    { <span class="k">"name"</span>: <span class="s">"WHEN-RADIO-CHANGED"</span>, <span class="k">"bodyShape"</span>: <span class="s">"select-into"</span>,
+      <span class="k">"body"</span>: <span class="s">"IF :S_ORD.payment_type = 'CREDIT' THEN SELECT credit_rating INTO
+               v_credit FROM S_CUSTOMER WHERE :S_ORD.customer_id = id; IF v_credit
+               NOT IN ('GOOD','EXCELLENT') THEN :S_ORD.payment_type := 'CASH';
+               n := SHOW_ALERT('Payment_Type_Alert'); END IF; END IF;"</span> }
+  ]
+}</div>
+  <p class="codecap">Trimmed, but otherwise verbatim from <code>ORDERS.spec.json</code>.</p>
+
+  <p>Note what is <strong>not</strong> in there. The word "Vaadin" appears nowhere. No component is
+  chosen. The PL/SQL body is stored as <em>text</em> — the analyzer does not decide that this trigger
+  "is a credit check", only that it exists, that its shape is a <code>select-into</code>, and what it
+  says. Even <code>geometry</code> is recorded rather than judged, because deciding whether pixels
+  matter is not the analyzer's job.</p>
+
+  <p><span class="steplabel two">step 2 · where every fact gets a fate</span></p>
+
+  <div class="table-scroll">
+    <table>
+      <thead><tr><th>What step 1 recorded</th><th>What step 2 decided</th><th>Where that decision came from</th></tr></thead>
+      <tbody>
+        <tr><td><code>itemType: "Radio Group"</code></td><td>a <code>RadioButtonGroup</code></td><td>ruleset rule <code>radio-group</code></td></tr>
+        <tr><td>the two <code>radioButtons</code> + labels</td><td>the group's two options, Cash / Credit</td><td>same rule</td></tr>
+        <tr><td><code>initializeValue: "CASH"</code></td><td><code>Order.blank()</code> defaults payment type to Cash</td><td>the property rides into the domain factory</td></tr>
+        <tr><td>the <code>WHEN-RADIO-CHANGED</code> body</td><td>a <strong>pure domain rule</strong> — <code>PaymentEligibility.allows()</code>, a set-membership check against <code>{GOOD, EXCELLENT}</code></td><td>ADR-0001: business logic lives in the domain layer</td></tr>
+        <tr><td><code>SHOW_ALERT('Payment_Type_Alert')</code></td><td>a Notification shown when credit is refused</td><td>ruleset alert mapping</td></tr>
+        <tr><td><code>geometry</code></td><td><strong>dropped</strong> — but field <em>order</em> and <em>grouping</em> preserved</td><td>ADR-0008 (theme owns styling) + ADR-0012 (structure is not styling)</td></tr>
+        <tr><td><code>prompt: "Payment Type"</code></td><td>the component's own label — the separate boilerplate text object dissolves</td><td>ruleset boilerplate rule</td></tr>
+        <tr><td><code>maximumLength: "6"</code></td><td>nothing. A radio group cannot overflow</td><td>dissolves</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>Two points follow from this example. First, <strong>the same file yields different decisions
+  under a different architecture</strong>: change ADR-0001 to say business logic lives in the service
+  layer, or drop ADR-0008 so styling <em>is</em> translated, and step 2 produces different answers
+  from a byte-identical step 1. That is how you test whether a spec is genuinely
+  decision-free. Second, one small item carries a large amount of decision surface: this radio group
+  generates <strong>five rows</strong> in the disposition ledger described in section 6.4, including
+  one for the <code>CASH</code> default, which a screen-level review would not normally check.</p>
+
+  <p>That separation is also what makes a correction <strong>routable</strong>. When generated code is
+  wrong, you can say which box failed: bad ticket → fix the <em>ruleset</em>; ticket right but code
+  buggy → fix the <em>execution skill</em>; irreducible form quirk → hand-fix and touch no skill. A
+  single black box makes that diagnosis impossible, and without the diagnosis nothing downstream
+  compounds.</p>
+
+  <h3>4.3 &nbsp;The inner loop: per construct</h3>
+
+  <p>Riskiest construct first, while a rebuild is still cheap:</p>
+
+  <ol>
+    <li><strong>Generate</strong> the construct from its ticket.</li>
+    <li><strong>Validate</strong> against the live Forms app — the behavioural oracle.</li>
+    <li><strong>Diagnose which layer failed</strong> (the routing above).</li>
+    <li><strong>Sort the fix</strong> — generalizable or specific.</li>
+  </ol>
+
+  <p>Two rules keep this from becoming a grind. <strong>Cap refinement at about two passes per
+  construct.</strong> And if a construct won't converge, <strong>stop and write it up</strong>:
+  non-convergence is the most valuable finding, not a reason to keep pushing.</p>
+
+  <!-- ================= 5 ================= -->
+  <h2 id="s5"><span class="sec">Section five</span>Sorting corrections: generalizable or specific</h2>
+
+  <p>Every correction you make to AI-generated code is one of exactly two things.</p>
+
+  <div class="split">
+    <div class="box g">
+      <b class="h">Generalizable</b>
+      <p>A rule the tool <em>should</em> have known. You push it back into the mapping ruleset, and
+      it now works for <strong>every form, forever</strong>.</p>
+    </div>
+    <div class="box s">
+      <b class="h">Specific</b>
+      <p>An irreducible quirk of <em>this</em> form. You hand-fix it, log it, move on. It teaches
+      the tool <strong>nothing</strong>.</p>
+    </div>
+  </div>
+
+  <p>The reusable asset is the accumulated generalizable set; it gets smarter every time a fix is
+  sorted correctly. And one rule keeps the whole thing honest: <strong>a fix is "specific" by
+  default.</strong> It only earns generalizable status when the rule behind it can be stated in
+  <em>form-construct terms</em> — "any table-level audit trigger stays in the database", not "the
+  ORDERS header needed an extra field". That conservatism is exactly what separates a reusable
+  ruleset from one quietly overfit to Summit.</p>
+
+  <!-- ================= 6 ================= -->
+  <h2 id="s6"><span class="sec">Section six</span>Three iterations, three different lessons</h2>
+
+  <p>We ran the whole migration three times. Crucially, each pass is <strong>not a patched version of
+  the last one</strong>: after sorting every correction and pushing the generalizable ones into the
+  ruleset and the skills, the entire slice was <strong>regenerated from scratch</strong>. So each pass
+  is what the <em>smarter tool</em> produces on the same form — which is what makes the compounding
+  measurable rather than merely asserted.</p>
+
+  <div class="table-scroll">
+    <table>
+      <thead><tr><th>Pass</th><th>What changed in the tool</th><th>What it caught</th><th>What it still missed</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><strong>v1</strong></td>
+          <td>First full attempt</td>
+          <td>A working spine — and the <em>counted ≠ rendered</em> gap, found mid-build</td>
+          <td>Layout drift shipped before anything caught it</td>
+        </tr>
+        <tr>
+          <td><strong>v2</strong></td>
+          <td>Layout fidelity front-loaded; record actions became a rule; human judgment became an up-front output</td>
+          <td>Whole capability families arrived <strong>for free</strong>; the spine finished</td>
+          <td>Four features that had spec data <em>and</em> a rule, never built</td>
+        </tr>
+        <tr>
+          <td><strong>v3</strong></td>
+          <td>A <strong>disposition ledger</strong> gating ticket-cutting at property grain</td>
+          <td>All four losses, by construction, before code exists</td>
+          <td>Designed, <strong>never built</strong> — unproven at scale</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>6.1 &nbsp;v1 — the spec census does not prove the screen is right</h3>
+
+  <p>The migrated ORDERS header shipped with its fields <strong>reordered</strong>, its bordered
+  "Order Information" group <strong>gone</strong>, its section title <strong>missing</strong>, and
+  <code>PAYMENT_TYPE</code> <strong>flattened from a radio group to a text field</strong>.</p>
+
+  <div class="seam">
+    <span class="tag">Meanwhile, the spec census read</span>
+    <p><em>183 elements, nothing dropped.</em></p>
+  </div>
+
+  <p>The root cause was over-reach in a rule we'd written on purpose. Dropping visual styling was
+  correct; dropping field <strong>geometry</strong> wholesale was not — because geometry encodes
+  <em>structure</em> (order, grouping), not just pixels. Only the pixels were the theme's to drop.</p>
+
+  <p>Two corrections came out of it, both now first-class rules. <strong>ADR-0012</strong>:
+  structural layout fidelity <strong>is</strong> migrated — field order, frame grouping and section
+  titles preserved, and a view is not done until a <strong>layout-fidelity test</strong> asserts
+  every in-scope item, frame and heading renders, in the form's order, as its mapped component type.
+  <strong>ADR-0013</strong>: <strong>read-only is a state, not a component type</strong> — a
+  read-only slice still renders a disabled <code>RadioButtonGroup</code>, not a
+  <code>TextField</code> printing <code>CASH</code>.</p>
+
+  <p>This applies beyond this form: a test that asserts only behaviour passes even when the screen is
+  wrong, so layout fidelity needs a separate gate.</p>
+
+  <h3>6.2 &nbsp;v2 — regenerating with the corrected ruleset</h3>
+
+  <p>Three of v1's corrections generalized, and each traces from a v1 hand-fix, into the tool, to a
+  v2 payoff.</p>
+
+  <p><strong>Layout fidelity.</strong> In v1 this was found mid-build and retrofitted. In v2 the gate
+  is part of the first structural slice.</p>
+
+  <p><strong>Record actions: a hand-fix that became a ruleset rule.</strong> In v1, "create a new order" was a one-off hand-written flow on the presenter, there
+  was <strong>no Duplicate at all</strong>, and although a delete path existed in the service it was
+  never wired to a visible control. A classic un-sorted hand-fix: it made <em>this</em> form work
+  and taught the tool nothing. Sorted, the rule states in form-construct terms — <em>any base-table
+  block whose CRUD capability permits insert/delete gets New / Duplicate / Delete record actions,
+  whether or not a <code>KEY-CREREC</code> / <code>KEY-DUPREC</code> / <code>KEY-DELREC</code>
+  trigger exists</em>. v2 regenerated against that rule and got the whole family for free, at master
+  <strong>and</strong> line level, with Delete correctly composed against the non-isolated
+  cascade-delete guard. One hand-fix became a capability every subsequent form inherits.</p>
+
+  <p><strong>Human judgment as an explicit output.</strong> Work that turns on a judgment an agent is
+  not entitled to make became a separate, up-front deliverable rather than something handled reactively
+  during the build (ADR-0014) — the mechanism is the review skill described in section 6.3.</p>
+
+  <p>v2 also finished the spine — the product LOV defaulter, master-header editing with the
+  credit-check and ship-date guards, and the whole-graph <code>COMMIT_FORM</code> save under an
+  <code>ORA_ROWSCN</code> optimistic-lock check. Read the SCN on load, re-check it in
+  <code>UPDATE … WHERE id = ? AND ORA_ROWSCN = ?</code>; zero rows updated means a conflict, so roll
+  back. <strong>No schema change.</strong></p>
+
+  <h3>6.3 &nbsp;v3 — traceability from spec fact to test</h3>
+
+  <p>v2 matched the live form on the spine flow. To check whether that was enough, the
+  <strong><code>migration-review</code></strong> skill audits a shipped build against the structural
+  spec: it walks every decision-prone fact — defaults, editability modes, cross-form contracts, and any
+  "this form has no X" claim in the code — and asks whether the build <em>consumed</em> it, rather than
+  whether the application looks right. Its findings become <code>ready-for-human</code> tickets.</p>
+
+  <p>Run against v2, it found five items:</p>
+
+  <div class="table-scroll">
+    <table>
+      <thead><tr><th>What was absent from the build</th><th>Kind of fact</th></tr></thead>
+      <tbody>
+        <tr><td><code>GLOBAL.customer_id</code> — ORDERS can be launched already filtered to a customer; three triggers read, default from, and clear it</td><td>cross-form contract</td></tr>
+        <tr><td><code>DATE_ORDERED</code> should default to today (<code>$$date$$</code>)</td><td>default value</td></tr>
+        <tr><td><code>QUANTITY_SHIPPED</code> is editable while a line is new, read-only once saved</td><td>editability mode</td></tr>
+        <tr><td><code>SALES_REP_ID</code> was made read-only — correct, but never recorded as a deviation from the spec's "editable"</td><td>undocumented re-decision</td></tr>
+        <tr><td>A comment asserting "<code>S_ORD</code> has no <code>WHEN-CREATE-RECORD</code>", which nothing checked against the spec. It has one</td><td>false absence claim</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p><strong>All five were present in the spec, and four had a matching ruleset entry.</strong> The
+  tooling was not missing a rule; nothing consumed the fact. Every check in place at the time
+  passed:</p>
+
+  <div class="table-scroll">
+    <table>
+      <thead><tr><th>Check</th><th>What it proved</th><th>Why it missed these</th></tr></thead>
+      <tbody>
+        <tr><td>Spec census (183 elements)</td><td class="ok">every node counted</td><td>counted is not consumed</td></tr>
+        <tr><td>Tickets and scorecard</td><td class="ok">"migrate the master block"</td><td>construct grain is too coarse to see one property inside a construct</td></tr>
+        <tr><td>Deferred-surface lane</td><td class="ok">whole surfaces tracked</td><td>tracks surfaces, not properties</td></tr>
+        <tr><td>Layout-fidelity gate</td><td class="ok">every field renders, in order</td><td class="no">a default has no visible absence</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>6.4 &nbsp;v3 — the traceability chain</h3>
+
+  <p>v3 adds <strong>no new mapping rules</strong>. It adds a link from every decision-prone spec fact
+  to the ticket that implements it and the test that asserts it, and it refuses to generate tickets
+  until that link exists:</p>
+
+  <div class="chain">
+    <div class="link">
+      <b>spec fact</b>
+      <span>a default, an editability mode, a <code>:GLOBAL</code> contract</span>
+    </div>
+    <div class="link">
+      <b>ledger row</b>
+      <span>+ one disposition<br>151 rows for ORDERS</span>
+    </div>
+    <div class="link">
+      <b>build ticket</b>
+      <span>+ <code>Covers:</code> row ids<br>+ per-field fidelity matrix</span>
+    </div>
+    <div class="link">
+      <b>acceptance criterion</b>
+      <span>one per covered row</span>
+    </div>
+    <div class="link">
+      <b>UI test</b>
+      <span>asserts it at runtime</span>
+    </div>
+  </div>
+  <div class="chain-notes">
+    <p><b>Gate</b> — no tickets are generated while any ledger row is unassigned.</p>
+    <p><b><code>--check-refs</code></b> — verifies cited tickets exist and deferred rows stay open.</p>
+  </div>
+
+  <p>Read left to right it is a specification; read right to left it is an audit trail. The two ends
+  are what the previous passes lacked: a fact with no ledger row could not be missed <em>before</em> v3
+  only because nothing was looking, and a <code>migrated-as</code> row with no test proves the property
+  was <em>decided</em>, not that it was <em>delivered</em>.</p>
+
+  <p>The four dispositions a row may carry:</p>
+
+  <div class="table-scroll">
+    <table>
+      <thead><tr><th>Disposition</th><th>Meaning</th><th>Also recorded on the row</th></tr></thead>
+      <tbody>
+        <tr><td><code>migrated-as</code></td><td>built, with the web behaviour named</td><td>the ticket or PR that carries it</td></tr>
+        <tr><td><code>re-decided</code></td><td>deliberately different from Forms</td><td>the rationale and who decided</td></tr>
+        <tr><td><code>deferred</code></td><td>accepted, not in this slice</td><td>an open tracking ticket</td></tr>
+        <tr><td><code>obsolete</code></td><td>Forms-runtime plumbing with no web counterpart</td><td>the rule id that dissolves it</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>The practical effect is on the ticket. The implementer builds against a matrix of field properties
+  instead of interpreting a paragraph; the reviewer checks a named list of rows instead of re-reading
+  the form to work out what should have been there. The same construct, specified under each version —
+  note that <strong>#45 shipped, while #91 is the ticket as v3 generates it, not one that was
+  built</strong> (see section 7):</p>
+
+  <div class="ticket-diff">
+    <div class="ticket">
+      <header>
+        <span class="vchip">v2 · issue #45 · shipped</span>
+        <span class="tt">Inline editing + record actions + delete guard</span>
+      </header>
+      <ul class="sec">
+        <li class="gone">no ledger rows covered</li>
+        <li class="gone">field fidelity described in prose</li>
+        <li class="gone"><code>QUANTITY_SHIPPED</code> not mentioned</li>
+        <li><b>Acceptance</b> — a checklist</li>
+      </ul>
+    </div>
+    <div class="ticket v3">
+      <header>
+        <span class="vchip">v3 · issue #91 · generated, not built</span>
+        <span class="tt">… + <code>QUANTITY_SHIPPED</code> insert-only</span>
+      </header>
+      <ul class="sec">
+        <li class="add"><b>Covers</b> — 12 ledger row ids</li>
+        <li class="add"><b>Field fidelity</b> — a per-field matrix</li>
+        <li class="add"><code>QUANTITY_SHIPPED</code> — insert-only: editable while new, read-only once saved</li>
+        <li class="add"><b>Acceptance</b> — a checklist <b>+ a UI test</b> asserting it</li>
+      </ul>
+    </div>
+  </div>
+
+  <p class="ticket-cap">The v2 ticket had no field in which that property could appear, so its omission
+  was not visible to the implementer or the reviewer.</p>
+  <h3>6.5 &nbsp;Summary of the three iterations</h3>
+
+  <p>v1 → v2 shows generalizable fixes accumulating in the ruleset. v2 → v3 extends the completeness
+  guarantee from the form's contents to the migration's contents: "nothing dropped silently" now holds
+  at three levels — the spec census (every element accounted for), the slice boundary (every deferred
+  surface tracked), and migration content (every decision-prone property carries a disposition, backed
+  by a test or a tracked defer).</p>
+  <!-- ================= 7 ================= -->
+  <h2 id="s7"><span class="sec">Section seven</span>Limitations</h2>
+
+  <p>Four qualifications bound everything above.</p>
+
+  <div class="admissions">
+    <div class="adm">
+      <b class="h">1 · v3 was never built</b>
+      <p>The PRD, the 151-row ledger and ADR-0015 exist on <code>master</code>; the v3 build tickets
+      never landed. Every claim that the ledger <em>would have</em> caught those four losses is a
+      <strong>paper claim</strong> until someone runs it.</p>
+    </div>
+    <div class="adm">
+      <b class="h">2 · The sample is a teaching demo, so its business logic was always simple</b>
+      <p>Summit is Oracle's demonstration schema, and its business rules are deliberately
+      uncomplicated. The whole form is about 500 lines of PL/SQL, roughly half of it Oracle-generated
+      master-detail boilerplate; of the hand-written remainder, about 34 of 45 triggers are a single
+      built-in call, assignment or <code>SELECT INTO</code>. There are <strong>zero</strong> PL/SQL
+      packages, no dynamic SQL, no cursors over large sets, no package state and no differentiated
+      error handling, and the one trigger that rises to moderately complex was deferred out of the
+      slice.</p>
+      <p><strong>The AI interpreted that logic accurately</strong> — every trigger and formula on the
+      spine has a traceable Java counterpart, and the domain methods quote almost 1:1 from the PL/SQL.
+      That result stands. What it does not tell us is whether the same holds for production logic:
+      domain rules living in stateful DB packages, dynamic <code>DEFAULT_WHERE</code> query building,
+      validation that accumulates several errors before failing,
+      <code>ON-INSERT</code>/<code>ON-UPDATE</code> transaction overrides. <strong>We did not find a
+      form like that to try</strong> — so this is an untested case, not a failed one, and section 9
+      names it as the experiment that would settle it.</p>
+    </div>
+    <div class="adm">
+      <b class="h">3 · One canvas, one very large view</b>
+      <p>Multi-canvas topology was never exercised — the other two canvases were deferred. And
+      <code>OrderView.java</code> is about <strong>1,158 lines</strong>, mixing structure and event
+      wiring. Fine on a demo; a maintainability cliff at five times the fields.</p>
+    </div>
+    <div class="adm">
+      <b class="h">4 · The ledger is unproven at scale</b>
+      <p>151 rows for a 34-item demo plausibly means <em>thousands</em> for a real module. Who
+      assigns dispositions to 3,000 rows without rubber-stamping? And "which properties are
+      decision-prone" is itself a judgment — which arguably reintroduces the silent-loss risk one
+      level up. Worth noting too: the four losses were caught by a retrofit audit,
+      <strong>not by the ledger</strong>.</p>
+    </div>
+  </div>
+
+  <div class="seam green">
+    <span class="tag">What is solid</span>
+    <p>The part that looks least glamorous: the architecture and concurrency work. Whole-graph
+    transactional commit with a validate-gate first and the SCN-guarded header <code>UPDATE</code>
+    as the first write, so a conflict leaves the database untouched. Optimistic locking translated
+    from Forms' pessimistic-across-think-time model with no schema change. Business rules in pure,
+    unit-testable domain types. The <code>AUDIT_S_ITEM</code> trigger left in the database, firing
+    transparently inside the commit's transaction, zero Java written.</p>
+    <p><strong>That's the real engineering, and it holds.</strong></p>
+  </div>
+
+  <!-- ================= 8 ================= -->
+  <h2 id="s8"><span class="sec">Section eight</span>How to try it</h2>
+
+  <p><strong>Tier 1 — guaranteed.</strong> Clone, <code>docker compose up</code>,
+  <code>mvn spring-boot:run</code>. The Summit slice runs against a self-contained Oracle Free
+  container seeded from a committed dump (75 tables, ~54k rows; the POC slice loads intact). A
+  stranger needs Docker — not an Oracle licence, and not your Forms database.</p>
+
+  <p><strong>Tier 2 — honest.</strong> The skills, the mapping ruleset and the ADRs. Applied to
+  <em>your</em> form, the method gives you a <strong>classified migration backlog</strong> —
+  recommended target per construct, decisions flagged, nothing dropped. <strong>Not a finished
+  app.</strong></p>
+
+  <p>Stated plainly: this reproduces the Summit migration exactly; on your own form it produces a
+  documented starting point rather than a finished product, and it identifies where the remaining work
+  is.</p>
+
+  <!-- ================= 9 ================= -->
+  <h2 id="s9"><span class="sec">Section nine</span>Open questions and next experiments</h2>
+
+  <p>Two experiments would test the parts that are currently unproven.</p>
+
+  <p><strong>Build v3.</strong> Prove the four ledger rows force the four missing features into
+  existence. That is the only real proof the gate works, and it is cheap — the plan already
+  exists.</p>
+
+  <p><strong>Then run the method on a form with real PL/SQL:</strong> logic living in a stateful DB
+  package, dynamic <code>DEFAULT_WHERE</code> query building,
+  <code>ON-INSERT</code>/<code>ON-UPDATE</code> overrides, validation that accumulates multiple
+  errors before failing. That last one is where the whole-graph <code>save()</code> assumption
+  breaks.</p>
+
+  <p>The hypothesis: formulas migrate straightforwardly at any scale, and what breaks first in a
+  production application is packaged, stateful logic that the layer boundary cannot hold, followed by
+  the volume of decision-prone properties exceeding what a ledger can usefully track.</p>
+
+  <hr class="div">
+
+  <h2>Implications for a Forms estate</h2>
+
+  <ul>
+    <li>AI does a large fraction of each construct <strong>unaided</strong>, and that fraction is
+    <strong>measurable</strong>.</li>
+    <li>Corrections sort cleanly into <em>teach the tool once</em> versus <em>fix this one form by
+    hand</em> — and the first bucket <strong>compounds across your whole estate</strong>.</li>
+    <li>The genuinely hard parts — arbitrary query-by-example, modal validation semantics, pixel
+    fidelity — are <strong>knowable in advance and small in number</strong>. You can plan around
+    them instead of discovering them mid-project.</li>
+    <li>And the failure that should scare you is not the loss you argue about in review.
+    <strong>It is the one nobody noticed was gone.</strong></li>
+  </ul>
+
+  <p>The generalizable-to-specific ratio is the measurable number, and this POC is a way to establish
+  it on one form before committing to a migration programme.</p>
+
+  <p class="closer">Built with Vaadin 25, Spring Boot 4, Oracle Free, and a set of composable AI
+  migration skills. The mapping ruleset, the ADRs behind every decision above, the full ORDERS spec
+  and the disposition ledger are all in this repository.</p>
+
+</article>
+
+</body>
+</html>
