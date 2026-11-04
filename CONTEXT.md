@@ -48,7 +48,7 @@ grouping), not just pixels; only the pixels are Aura's to drop.
 
 **Layout-fidelity gate**:
 The build-output completeness check — the runtime counterpart to the spec's
-form-object grain. A migrated view is not done until a UI test asserts that **every
+form-object grain. A migrated view is not done until a _Browser UI test_ asserts that **every
 in-scope item, frame, and heading renders, in the form's order, as its mapped
 component type**. This catches the silent-loss class (a dropped title, a radio
 flattened to a text field, reordered fields) that behaviour-only tests sail past.
@@ -66,7 +66,7 @@ decision-prone mapped property** (a default, an editability mode, a visibility, 
 cross-form contract) and gates ticket generation: no build tickets while any row is
 unassigned. It closes the gap the census leaves — the census proves nothing was
 dropped from the *spec*; the ledger proves nothing was dropped from the
-*migration*. A `migrated-as` row is only *decided* until a _UI test_ asserts the
+*migration*. A `migrated-as` row is only *decided* until a _Browser UI test_ asserts the
 named behaviour — the row's acceptance criterion — which makes it *delivered*;
 and its tracking refs must stay live (a deferred row citing a closed ticket is
 rot, not tracking). _Avoid_: rows for mechanical carries (a max-length, a
@@ -98,7 +98,7 @@ known (push into the ruleset — works for every form) or an irreducible quirk o
 form (hand-fix, log, move on). A fix is **specific by default** unless the rule
 behind it can be stated in form-construct terms.
 
-**UI test**:
+**Browser UI test**:
 A migrated construct is not done until it ships with a test that drives the running
 app in a real browser (Playwright + DramaFinder) and asserts user-visible behavior —
 the same construct the user recognized in Forms, now exercised end-to-end through
@@ -108,7 +108,23 @@ analyzer's form-object grain. It has **two dimensions**: *behavioural parity* (t
 construct does what Forms did) and *layout fidelity* (it renders as the same screen —
 the _Layout-fidelity gate_). _Avoid_: treating unit tests of the domain formula as
 sufficient — they prove the calculation, not that the construct works in the view;
-and behaviour-only assertions, which pass even when the screen looks wrong.
+and behaviour-only assertions, which pass even when the screen looks wrong; and the
+bare "UI test", which no longer says which of the three kinds is meant.
+
+**Browserless UI test**:
+A test that drives Vaadin views server-side, with no browser (Vaadin Browserless):
+fast feedback on a view's behaviour. It does **not** count toward the completeness
+check — it renders nothing, so it cannot assert _Layout fidelity_; only a _Browser UI
+test_ can. _Avoid_: calling it a browser test of any kind.
+
+**Oracle Forms UI test**:
+A test that drives the **running Oracle Forms client** — its items, records and
+status bar — and, when the form is a _Host form_, its _Embedded view_ too, asserting
+what crosses between them and what was committed. Defined by where it runs, not by
+what it migrates: it can also pin down what a not-yet-migrated Forms screen does,
+as the baseline a migrated view's _behavioural parity_ is judged against. _Avoid_:
+"end-to-end test" — say which client it drives; and treating it as the completeness
+check, which stays with the _Browser UI test_.
 
 **Build ticket** / **Review ticket (HITL ticket)**:
 A migration emits two kinds of ticket. A **build ticket** is `ready-for-agent`,
@@ -117,7 +133,7 @@ ticket** is `ready-for-human` (HITL — human-in-the-loop): work that turns on a
 judgment the AI is not entitled to make. The `migration-review` skill emits three
 review-ticket subtypes (ADR-0014): a **careful-review / manual-test** ticket (what a
 human must certify by driving the construct side-by-side against live Forms — the
-_UI test_'s two dimensions, plus ruleset `Refactor`/`Unsupported`/`escalate`
+_Browser UI test_'s two dimensions, plus ruleset `Refactor`/`Unsupported`/`escalate`
 outcomes); a **deferred follow-up** ticket (see _Out-of-slice surface_); and a
 **generalization-review** ticket (see _Generalization candidate_). _Avoid_:
 smuggling HITL work into a `ready-for-agent` ticket — that label promises an agent
@@ -141,6 +157,18 @@ generalization only when the rule can be **stated in form-construct terms**
 (_Generalizable fix_'s bar); otherwise it is **specific by default** and stays in the
 view. This is the generalizable-vs-specific sort applied *proactively at design
 time*, the counterpart to the reactive fix-time sort in the build loop.
+
+### Hybrid coexistence
+
+**Host form**:
+A running Oracle Forms module that displays an _Embedded view_ inside one of its
+own canvases; in a hybrid screen, Forms is always the host. _Avoid_: "container
+app", "shell" — the host is a form, not a separate desktop application.
+
+**Embedded view**:
+A Vaadin view rendered inside a _Host form_ and exchanging calls and events with
+it. _Avoid_: "migrated view" unless it actually replaces a Forms construct — a
+view can be embedded without being a migration of anything.
 
 ### Architectural layers
 
@@ -169,6 +197,11 @@ The persistence boundary (Spring `JdbcClient`).
   **Generalization candidate** (a design-time **Generalizable fix**).
 
 ## Flagged ambiguities
+
+- "hybrid application" could mean Vaadin hosting Forms, Forms hosting Vaadin, or a
+  third desktop shell hosting both — resolved: Forms is the _Host form_ and Vaadin
+  supplies _Embedded views_. A browser cannot run the Forms client, so Vaadin
+  cannot host Forms.
 
 - "trigger grain" vs "form-object grain" — resolved: inventory is at form-object
   grain; trigger grain would miss declarative behavior (formula/summary items,
