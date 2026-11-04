@@ -140,7 +140,7 @@ ledger is safe to refresh. `--check-refs` (needs the `gh` CLI) guards ledger
 rot: cited `#N` refs must exist and a `deferred` row must cite a still-open
 ticket. Mechanical carries (maximumLength, prompts, field order) get no rows —
 the layout-fidelity gate (ADR-0012) verifies those at runtime. A `migrated-as`
-row is *delivered* only when a UI test asserts it — build tickets turn covered
+row is *delivered* only when a Browser UI test asserts it — build tickets turn covered
 rows into acceptance criteria (see `migration-to-issues`).
 
 ```bash
